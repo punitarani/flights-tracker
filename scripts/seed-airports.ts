@@ -30,7 +30,7 @@ const parseLine = (line: string): Airport | undefined => {
     record[col] = values[index];
   });
 
-  const { id, name, city, country, iata, icao, latitude, longitude } = record;
+  const { name, city, country, iata, icao, latitude, longitude } = record;
 
   if (!name || !city || !country || !iata || !icao || !latitude || !longitude) {
     return undefined;
