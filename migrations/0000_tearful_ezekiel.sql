@@ -6,7 +6,7 @@ CREATE TABLE "airline" (
 );
 --> statement-breakpoint
 CREATE TABLE "airport" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"iata" varchar(3) NOT NULL,
 	"icao" varchar(4) NOT NULL,
 	"name" text NOT NULL,
