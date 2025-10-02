@@ -32,8 +32,8 @@ export const airline = z.object({
 export const alert = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid(),
-  filters: z.record(z.any()).default({}),
-  status: z.enum(["active", "completed", "deleted"]).default("active"),
+  filters: z.record(z.any()),
+  status: z.enum(["active", "completed", "deleted"]),
   alert_end: z.string().datetime().optional().nullable(),
   created_at: z.string().datetime(),
 });
