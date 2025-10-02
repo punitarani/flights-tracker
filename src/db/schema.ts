@@ -7,6 +7,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+import type { AlertFilters } from "@/core/filters";
 import { generateId } from "./id";
 
 export const airport = pgTable("airport", {
@@ -43,7 +44,7 @@ export const alert = pgTable("alert", {
     .notNull()
     .$defaultFn(() => generateId("alert")),
   userId: uuid("user_id").notNull(),
-  filters: jsonb("filters").notNull(),
+  filters: jsonb("filters").notNull().$type<AlertFilters>(),
   status: text("status").$type<"active" | "completed" | "deleted">().notNull(),
   alertEnd: timestamp("alert_end", { mode: "string" }),
   createdAt: timestamp("created_at", { mode: "string" }).notNull(),
