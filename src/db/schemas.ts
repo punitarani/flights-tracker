@@ -10,7 +10,14 @@ export const airportSchema = z.object({
   state: z.string().optional().nullable(),
   country: z.string(),
   // PostGIS geometry stored as WGS84 Point
-  location: z.object({ type: z.literal("Point"), coordinates: z.tuple([z.number(), z.number()]), crs: z.literal("EPSG:4326").optional() }).optional().nullable(),
+  location: z
+    .object({
+      type: z.literal("Point"),
+      coordinates: z.tuple([z.number(), z.number()]),
+      crs: z.literal("EPSG:4326").optional(),
+    })
+    .optional()
+    .nullable(),
 });
 
 // Airlines table schema
