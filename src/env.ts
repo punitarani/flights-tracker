@@ -4,6 +4,7 @@ import { z } from "zod";
 export const env = createEnv({
   server: {
     SUPABASE_SECRET_KEY: z.string().min(1),
+    DATABASE_URL: z.string().min(1),
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.url(),
@@ -14,5 +15,6 @@ export const env = createEnv({
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY,
+    DATABASE_URL: process.env.DATABASE_URL,
   },
 });
