@@ -1,103 +1,205 @@
-import Image from "next/image";
+"use client";
+
+import { Loader2, MapPin, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { AirportData } from "@/app/api/airports/route";
+import { AirportMap } from "@/components/airport-map";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [airports, setAirports] = useState<AirportData[]>([]);
+  const [filteredAirports, setFilteredAirports] = useState<AirportData[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedAirport, setSelectedAirport] = useState<AirportData | null>(
+    null,
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
+  const [mapInstance, setMapInstance] = useState<any>(null);
+  const [_userLocation, setUserLocation] = useState<{
+    lat: number;
+    lon: number;
+  } | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  // Fetch all airports on mount
+  useEffect(() => {
+    const fetchAirports = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch("/api/airports");
+        const data = await response.json();
+        setAirports(data.airports);
+        setFilteredAirports(data.airports);
+      } catch (error) {
+        console.error("Failed to fetch airports:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAirports();
+  }, []);
+
+  // Get user location for 100mi radius feature
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.log("Geolocation error:", error);
+        },
+      );
+    }
+  }, []);
+
+  // Handle map center changes for 100mi radius filtering
+  // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
+  const handleMapReady = useCallback(
+    (map: any) => {
+      setMapInstance(map);
+
+      // Listen to region changes
+      map.addEventListener("region-change-end", async () => {
+        const center = map.center;
+
+        // Fetch airports within 100mi radius of current center
+        try {
+          const response = await fetch(
+            `/api/airports?lat=${center.latitude}&lon=${center.longitude}&radius=100`,
+          );
+          const data = await response.json();
+
+          // Only update if no search query is active
+          if (!searchQuery) {
+            setFilteredAirports(data.airports);
+          }
+        } catch (error) {
+          console.error("Failed to fetch nearby airports:", error);
+        }
+      });
+    },
+    [searchQuery],
+  );
+
+  // Handle search with debouncing
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      if (!searchQuery.trim()) {
+        // If no search, show airports within 100mi of map center
+        if (mapInstance) {
+          const center = mapInstance.center;
+          fetch(
+            `/api/airports?lat=${center.latitude}&lon=${center.longitude}&radius=100`,
+          )
+            .then((res) => res.json())
+            .then((data) => setFilteredAirports(data.airports))
+            .catch(console.error);
+        } else {
+          setFilteredAirports(airports);
+        }
+        setSelectedAirport(null);
+        return;
+      }
+
+      // Search airports
+      const query = searchQuery.toLowerCase();
+      const results = airports.filter(
+        (airport) =>
+          airport.name.toLowerCase().includes(query) ||
+          airport.iata.toLowerCase().includes(query) ||
+          airport.icao.toLowerCase().includes(query) ||
+          airport.city.toLowerCase().includes(query) ||
+          airport.country.toLowerCase().includes(query),
+      );
+
+      setFilteredAirports(results);
+
+      // Auto-select first result
+      if (results.length === 1) {
+        setSelectedAirport(results[0]);
+      } else {
+        setSelectedAirport(null);
+      }
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery, airports, mapInstance]);
+
+  // Display count message
+  const displayMessage = useMemo(() => {
+    if (isLoading) return "Loading airports...";
+    if (searchQuery) {
+      return `Found ${filteredAirports.length} airport${filteredAirports.length !== 1 ? "s" : ""}`;
+    }
+    return `Showing ${filteredAirports.length} airports within 100 miles`;
+  }, [isLoading, searchQuery, filteredAirports.length]);
+
+  return (
+    <div className="flex flex-col h-screen w-full bg-background">
+      {/* Header with Search */}
+      <div className="flex-none border-b bg-card/50 backdrop-blur-sm">
+        <div className="container mx-auto p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-6 w-6 text-primary" />
+              <h1 className="text-2xl font-bold tracking-tight">
+                Airport Tracker
+              </h1>
+            </div>
+            <Badge variant="secondary" className="hidden sm:flex">
+              {airports.length.toLocaleString()} Total Airports
+            </Badge>
+          </div>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search by name, IATA, ICAO, city, or country..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 text-base"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          </div>
+
+          <div className="flex items-center justify-between text-sm">
+            <p className="text-muted-foreground flex items-center gap-2">
+              {isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+              {displayMessage}
+            </p>
+            {selectedAirport && (
+              <Badge variant="default" className="text-xs">
+                Selected: {selectedAirport.iata}
+              </Badge>
+            )}
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      </div>
+
+      {/* Map */}
+      <div className="flex-1 relative">
+        {isLoading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-muted/20">
+            <Card className="p-6 flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <span className="text-sm font-medium">Loading map...</span>
+            </Card>
+          </div>
+        ) : (
+          <AirportMap
+            airports={filteredAirports}
+            selectedAirport={selectedAirport}
+            onMapReady={handleMapReady}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        )}
+      </div>
     </div>
   );
 }
