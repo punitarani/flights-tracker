@@ -4,6 +4,7 @@ import { Loader2, MapPin, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AirportData } from "@/app/api/airports/route";
 import { AirportMap } from "@/components/airport-map";
+import { AirportsSearch } from "@/components/airports-search";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -181,6 +182,11 @@ export default function Home() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* tRPC Example */}
+      <div className="flex-none border-b bg-card/50 backdrop-blur-sm">
+        <AirportsSearch />
       </div>
 
       {/* Map */}
