@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "biome check",
+    "lint": "biome check --write --unsafe",
     "format": "biome format --write",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
