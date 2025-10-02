@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Airport table schema
-export const airportSchema = z.object({
+export const airport = z.object({
   id: z.string().uuid(),
   iata: z.string().length(3),
   icao: z.string().length(4).optional().nullable(),
@@ -21,7 +21,7 @@ export const airportSchema = z.object({
 });
 
 // Airlines table schema
-export const airlineSchema = z.object({
+export const airline = z.object({
   id: z.string().uuid(),
   iata: z.string().length(2),
   icao: z.string().length(3).optional().nullable(),
@@ -29,7 +29,7 @@ export const airlineSchema = z.object({
 });
 
 // Alerts table schema
-export const alertSchema = z.object({
+export const alert = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid(),
   filters: z.record(z.any()).default({}),
@@ -38,6 +38,6 @@ export const alertSchema = z.object({
   created_at: z.string().datetime(),
 });
 
-export type Airport = z.infer<typeof airportSchema>;
-export type Airline = z.infer<typeof airlineSchema>;
-export type Alert = z.infer<typeof alertSchema>;
+export type Airport = z.infer<typeof airport>;
+export type Airline = z.infer<typeof airline>;
+export type Alert = z.infer<typeof alert>;
