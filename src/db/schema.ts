@@ -28,7 +28,7 @@ export const airport = pgTable("airport", {
 });
 
 export const airline = pgTable("airline", {
-  id: uuid("id")
+  id: text("id")
     .primaryKey()
     .notNull()
     .$defaultFn(() => generateId("airline")),
@@ -38,7 +38,7 @@ export const airline = pgTable("airline", {
 });
 
 export const alert = pgTable("alert", {
-  id: uuid("id")
+  id: text("id")
     .primaryKey()
     .notNull()
     .$defaultFn(() => generateId("alert")),
