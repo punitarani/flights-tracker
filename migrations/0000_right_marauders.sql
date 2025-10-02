@@ -1,3 +1,5 @@
+CREATE EXTENSION postgis;
+--> statement-breakpoint
 CREATE TABLE "airline" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"iata" varchar(2) NOT NULL,
