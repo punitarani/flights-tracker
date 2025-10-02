@@ -1,5 +1,5 @@
 {
-  "id": "60867bf5-8d81-4e0f-beff-bfc96cb4ba9a",
+  "id": "fae30d32-c75c-41c7-a61c-fd72238a54c0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -71,12 +71,6 @@
         },
         "city": {
           "name": "city",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
           "type": "text",
           "primaryKey": false,
           "notNull": true

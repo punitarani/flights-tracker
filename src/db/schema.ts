@@ -19,7 +19,6 @@ export const airport = pgTable("airport", {
   icao: varchar("icao", { length: 4 }).notNull(),
   name: text("name").notNull(),
   city: text("city").notNull(),
-  state: text("state").notNull(),
   country: text("country").notNull(),
   location: geometry("location", {
     type: "point",

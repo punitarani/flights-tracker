@@ -11,7 +11,6 @@ CREATE TABLE "airport" (
 	"icao" varchar(4) NOT NULL,
 	"name" text NOT NULL,
 	"city" text NOT NULL,
-	"state" text NOT NULL,
 	"country" text NOT NULL,
 	"location" geometry(point) NOT NULL
 );
