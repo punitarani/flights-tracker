@@ -7,7 +7,13 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "biome check",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "db:new": "npx --yes supabase@latest migration new",
+    "db:up": "npx --yes supabase@latest migration up --yes",
+    "db:down": "npx --yes supabase@latest migration down --all --yes",
+    "db:list": "npx --yes supabase@latest migration list",
+    "db:link": "npx --yes supabase@latest link",
+    "db:gen": "npx --yes supabase@latest gen types typescript --local --schema public > src/db/types.generated.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
