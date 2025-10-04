@@ -9,27 +9,27 @@ A Next.js 15 application for tracking flight alerts with Supabase authentication
 ## Development Commands
 
 ### Running the Application
-- `npm run dev` - Start development server with Turbopack
-- `npm run build` - Build production bundle with Turbopack
-- `npm start` - Start production server
+- `bun run dev` - Start development server with Turbopack
+- `bun run build` - Build production bundle with Turbopack
+- `bun start` - Start production server
 
 ### Testing
-- `npm test` - Run all tests with Vitest
-- `npm run test:watch` - Run tests in watch mode
-- `npm run test:ui` - Launch Vitest UI for interactive test running
+- `bun test` - Run all tests with Vitest
+- `bun run test:watch` - Run tests in watch mode
+- `bun run test:ui` - Launch Vitest UI for interactive test running
 - Test files: `*.test.ts` files alongside source code
 - Test setup: `src/test-setup.ts` (mocks env, db client, console)
 - Uses `happy-dom` environment for DOM testing
 
 ### Code Quality
-- `npm run lint` - Run Biome linter and auto-fix issues (with --unsafe flag)
-- `npm run format` - Format code with Biome
+- `bun run lint` - Run Biome linter and auto-fix issues (with --unsafe flag)
+- `bun run format` - Format code with Biome
 
 ### Database (Drizzle ORM)
-- `npm run db:generate` - Generate migration files from schema changes
-- `npm run db:push` - Push schema changes directly to database (development)
-- `npm run db:studio` - Launch Drizzle Studio database GUI
-- `npm run db:migrate` - Run pending migrations
+- `bun run db:generate` - Generate migration files from schema changes
+- `bun run db:push` - Push schema changes directly to database (development)
+- `bun run db:studio` - Launch Drizzle Studio database GUI
+- `bun run db:migrate` - Run pending migrations
 - Schema: `src/db/schema.ts`
 - Config: `drizzle.config.ts`
 - Migrations directory: `./migrations`
