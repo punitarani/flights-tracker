@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import "@/test/setup";
 import {
   createAlert,
   deleteAlert,
@@ -11,8 +11,6 @@ import {
 import { db } from "@/db/client";
 import { createMockAlert, createMockAlertFilters } from "./mock-data";
 
-// Mock the database client
-vi.mock("@/db/client");
 const mockDb = vi.mocked(db);
 
 describe("alerts-db", () => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import "@/test/setup";
 import * as alertsDb from "@/core/alerts-db";
 import {
   createFlightAlert,
@@ -15,8 +15,13 @@ import {
   createMockUserId,
 } from "./mock-data";
 
-// Mock the alerts-db module
-vi.mock("@/core/alerts-db");
+vi.mock("@/core/alerts-db", () => ({
+  validateAirportExists: vi.fn(),
+  validateAirlineExists: vi.fn(),
+  createAlert: vi.fn(),
+  getAlertById: vi.fn(),
+  getAlertsByUser: vi.fn(),
+}));
 const mockedAlertsDb = vi.mocked(alertsDb);
 
 describe("alerts-service", () => {
@@ -31,7 +36,7 @@ describe("alerts-service", () => {
 
       const filters = createMockAlertFilters();
 
-      await expect(validateAlertFilters(filters)).resolves.not.toThrow();
+      await expect(validateAlertFilters(filters)).resolves.toBeUndefined();
     });
 
     it("should throw error for invalid filter schema", async () => {
