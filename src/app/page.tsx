@@ -1,29 +1,42 @@
 "use client";
 
-import { Loader2, MapPin, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, MapPin } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AirportData } from "@/app/api/airports/route";
 import { AirportMap } from "@/components/airport-map";
+import { AirportSearch } from "@/components/airport-search";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+
+type ViewMode = "browse" | "search";
+
+const FETCH_DEBOUNCE_MS = 350;
+const MOVEMENT_THRESHOLD_DEGREES = 0.05;
 
 export default function Home() {
   const [airports, setAirports] = useState<AirportData[]>([]);
-  const [filteredAirports, setFilteredAirports] = useState<AirportData[]>([]);
+  const [displayedAirports, setDisplayedAirports] = useState<AirportData[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAirport, setSelectedAirport] = useState<AirportData | null>(
     null,
   );
   const [isLoading, setIsLoading] = useState(true);
-  // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
-  const [mapInstance, setMapInstance] = useState<any>(null);
-  const [_userLocation, setUserLocation] = useState<{
+  const [viewMode, setViewMode] = useState<ViewMode>("browse");
+  const [mapCenter, setMapCenter] = useState<{
     lat: number;
     lon: number;
   } | null>(null);
+  const [isLoadingNearby, setIsLoadingNearby] = useState(false);
 
-  // Fetch all airports on mount
+  const viewModeRef = useRef<ViewMode>("browse");
+  const pendingFetchTimeoutRef = useRef<number | null>(null);
+  const nearbyAbortRef = useRef<AbortController | null>(null);
+  const lastFetchRef = useRef<{ lat: number; lon: number } | null>(null);
+
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+  }, [viewMode]);
+
   useEffect(() => {
     const fetchAirports = async () => {
       try {
@@ -31,7 +44,6 @@ export default function Home() {
         const response = await fetch("/api/airports");
         const data = await response.json();
         setAirports(data.airports);
-        setFilteredAirports(data.airports);
       } catch (error) {
         console.error("Failed to fetch airports:", error);
       } finally {
@@ -42,109 +54,197 @@ export default function Home() {
     fetchAirports();
   }, []);
 
-  // Get user location for 100mi radius feature
-  useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lon: position.coords.longitude,
-          });
-        },
-        (error) => {
-          console.log("Geolocation error:", error);
-        },
-      );
+  const clearPendingFetch = useCallback(() => {
+    if (pendingFetchTimeoutRef.current !== null) {
+      window.clearTimeout(pendingFetchTimeoutRef.current);
+      pendingFetchTimeoutRef.current = null;
     }
   }, []);
 
-  // Handle map center changes for 100mi radius filtering
-  const handleMapReady = useCallback(
-    // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
-    (map: any) => {
-      setMapInstance(map);
-
-      // Listen to region changes
-      map.addEventListener("region-change-end", async () => {
-        const center = map.center;
-
-        // Fetch airports within 100mi radius of current center
-        try {
-          const response = await fetch(
-            `/api/airports?lat=${center.latitude}&lon=${center.longitude}&radius=100`,
-          );
-          const data = await response.json();
-
-          // Only update if no search query is active
-          if (!searchQuery) {
-            setFilteredAirports(data.airports);
-          }
-        } catch (error) {
-          console.error("Failed to fetch nearby airports:", error);
-        }
-      });
-    },
-    [searchQuery],
-  );
-
-  // Handle search with debouncing
-  useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      if (!searchQuery.trim()) {
-        // If no search, show airports within 100mi of map center
-        if (mapInstance) {
-          const center = mapInstance.center;
-          fetch(
-            `/api/airports?lat=${center.latitude}&lon=${center.longitude}&radius=100`,
-          )
-            .then((res) => res.json())
-            .then((data) => setFilteredAirports(data.airports))
-            .catch(console.error);
-        } else {
-          setFilteredAirports(airports);
-        }
-        setSelectedAirport(null);
+  const fetchNearbyAirports = useCallback(
+    async (lat: number, lon: number, options: { force?: boolean } = {}) => {
+      if (viewModeRef.current === "search" && !options.force) {
         return;
       }
 
-      // Search airports
-      const query = searchQuery.toLowerCase();
-      const results = airports.filter(
-        (airport) =>
-          airport.name.toLowerCase().includes(query) ||
-          airport.iata.toLowerCase().includes(query) ||
-          airport.icao.toLowerCase().includes(query) ||
-          airport.city.toLowerCase().includes(query) ||
-          airport.country.toLowerCase().includes(query),
-      );
-
-      setFilteredAirports(results);
-
-      // Auto-select first result
-      if (results.length === 1) {
-        setSelectedAirport(results[0]);
-      } else {
-        setSelectedAirport(null);
+      const lastFetch = lastFetchRef.current;
+      if (
+        !options.force &&
+        lastFetch &&
+        Math.abs(lastFetch.lat - lat) < MOVEMENT_THRESHOLD_DEGREES &&
+        Math.abs(lastFetch.lon - lon) < MOVEMENT_THRESHOLD_DEGREES
+      ) {
+        return;
       }
-    }, 300);
 
-    return () => clearTimeout(debounceTimer);
-  }, [searchQuery, airports, mapInstance]);
+      if (nearbyAbortRef.current) {
+        nearbyAbortRef.current.abort();
+      }
 
-  // Display count message
+      const controller = new AbortController();
+      nearbyAbortRef.current = controller;
+      lastFetchRef.current = { lat, lon };
+
+      try {
+        setIsLoadingNearby(true);
+        const response = await fetch(
+          `/api/airports?lat=${lat}&lon=${lon}&radius=100`,
+          { signal: controller.signal },
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch nearby airports: ${response.status}`,
+          );
+        }
+
+        const data = await response.json();
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        if (options.force || viewModeRef.current === "browse") {
+          setDisplayedAirports(data.airports);
+        }
+      } catch (error) {
+        if ((error as DOMException)?.name === "AbortError") {
+          return;
+        }
+        console.error("Failed to fetch nearby airports:", error);
+      } finally {
+        if (nearbyAbortRef.current === controller) {
+          nearbyAbortRef.current = null;
+          setIsLoadingNearby(false);
+        }
+      }
+    },
+    [],
+  );
+
+  const scheduleNearbyFetch = useCallback(
+    (
+      lat: number,
+      lon: number,
+      options: { force?: boolean; immediate?: boolean } = {},
+    ) => {
+      if (options.immediate) {
+        clearPendingFetch();
+        void fetchNearbyAirports(lat, lon, options);
+        return;
+      }
+
+      clearPendingFetch();
+      pendingFetchTimeoutRef.current = window.setTimeout(() => {
+        pendingFetchTimeoutRef.current = null;
+        void fetchNearbyAirports(lat, lon, options);
+      }, FETCH_DEBOUNCE_MS);
+    },
+    [clearPendingFetch, fetchNearbyAirports],
+  );
+
+  useEffect(() => {
+    return () => {
+      clearPendingFetch();
+      if (nearbyAbortRef.current) {
+        nearbyAbortRef.current.abort();
+      }
+    };
+  }, [clearPendingFetch]);
+
+  const handleMapReady = useCallback(
+    // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
+    (map: any) => {
+      const center = map.center;
+      setMapCenter({ lat: center.latitude, lon: center.longitude });
+
+      scheduleNearbyFetch(center.latitude, center.longitude, {
+        force: true,
+        immediate: true,
+      });
+
+      map.addEventListener("region-change-start", () => {
+        clearPendingFetch();
+        if (nearbyAbortRef.current) {
+          nearbyAbortRef.current.abort();
+        }
+      });
+
+      map.addEventListener("region-change-end", () => {
+        const newCenter = map.center;
+        setMapCenter({ lat: newCenter.latitude, lon: newCenter.longitude });
+
+        if (viewModeRef.current === "browse") {
+          scheduleNearbyFetch(newCenter.latitude, newCenter.longitude);
+        }
+      });
+    },
+    [scheduleNearbyFetch, clearPendingFetch],
+  );
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchQuery(value);
+
+      if (!value.trim()) {
+        setViewMode("browse");
+        setSelectedAirport(null);
+        clearPendingFetch();
+
+        if (mapCenter) {
+          scheduleNearbyFetch(mapCenter.lat, mapCenter.lon, {
+            force: true,
+            immediate: true,
+          });
+        }
+      } else {
+        setViewMode("search");
+      }
+    },
+    [mapCenter, scheduleNearbyFetch, clearPendingFetch],
+  );
+
+  const handleAirportSelect = useCallback((airport: AirportData | null) => {
+    setSelectedAirport(airport);
+
+    if (airport) {
+      setDisplayedAirports([airport]);
+      setViewMode("search");
+    }
+  }, []);
+
+  const handleAirportClick = useCallback((airport: AirportData) => {
+    setSelectedAirport(airport);
+    setSearchQuery(`${airport.name} (${airport.iata})`);
+    setViewMode("search");
+  }, []);
+
   const displayMessage = useMemo(() => {
     if (isLoading) return "Loading airports...";
-    if (searchQuery) {
-      return `Found ${filteredAirports.length} airport${filteredAirports.length !== 1 ? "s" : ""}`;
+    if (isLoadingNearby && viewMode === "browse") {
+      return "Loading nearby airports...";
     }
-    return `Showing ${filteredAirports.length} airports within 100 miles`;
-  }, [isLoading, searchQuery, filteredAirports.length]);
+
+    if (viewMode === "search" && selectedAirport) {
+      return `Selected: ${selectedAirport.name} (${selectedAirport.iata})`;
+    }
+
+    if (viewMode === "browse") {
+      return `Showing ${displayedAirports.length} airports within 100 miles`;
+    }
+
+    return `${displayedAirports.length} airports`;
+  }, [
+    isLoading,
+    isLoadingNearby,
+    viewMode,
+    selectedAirport,
+    displayedAirports.length,
+  ]);
 
   return (
     <div className="flex flex-col h-screen w-full bg-background">
-      {/* Header with Search */}
-      <div className="flex-none border-b bg-card/50 backdrop-blur-sm">
+      <div className="flex-none border-b bg-card/50 backdrop-blur-sm z-10">
         <div className="container mx-auto p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -158,45 +258,44 @@ export default function Home() {
             </Badge>
           </div>
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search by name, IATA, ICAO, city, or country..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 text-base"
-            />
-          </div>
+          <AirportSearch
+            airports={airports}
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onSelect={handleAirportSelect}
+            isLoading={isLoading}
+          />
 
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between text-sm min-h-[20px]">
             <p className="text-muted-foreground flex items-center gap-2">
-              {isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+              {(isLoading || isLoadingNearby) && (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              )}
               {displayMessage}
             </p>
-            {selectedAirport && (
-              <Badge variant="default" className="text-xs">
-                Selected: {selectedAirport.iata}
+            {viewMode === "browse" && (
+              <Badge variant="outline" className="text-xs hidden sm:flex">
+                Browse Mode • 100mi radius
               </Badge>
             )}
           </div>
         </div>
       </div>
 
-      {/* Map */}
       <div className="flex-1 relative">
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center bg-muted/20">
             <Card className="p-6 flex items-center gap-3">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              <span className="text-sm font-medium">Loading map...</span>
+              <span className="text-sm font-medium">Loading airports...</span>
             </Card>
           </div>
         ) : (
           <AirportMap
-            airports={filteredAirports}
+            airports={displayedAirports}
             selectedAirport={selectedAirport}
             onMapReady={handleMapReady}
+            onAirportClick={handleAirportClick}
           />
         )}
       </div>
