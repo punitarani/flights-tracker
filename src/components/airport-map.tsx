@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AirportData } from "@/app/api/airports/route";
 import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
+import type { AirportData } from "@/server/services/airports";
 
 interface AirportMapProps {
   airports: AirportData[];

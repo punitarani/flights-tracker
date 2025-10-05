@@ -2,7 +2,6 @@
 
 import { MapPin, Plane, Search, X } from "lucide-react";
 import * as React from "react";
-import type { AirportData } from "@/app/api/airports/route";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +17,7 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import type { AirportData } from "@/server/services/airports";
 
 interface AirportSearchProps {
   airports: AirportData[];

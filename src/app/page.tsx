@@ -2,7 +2,6 @@
 
 import { Loader2, MapPin, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AirportData } from "@/app/api/airports/route";
 import { AirportMap } from "@/components/airport-map";
 import { AirportSearch } from "@/components/airport-search";
 import { Header } from "@/components/header";
@@ -10,7 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
+import { trpc } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
+import type { AirportData } from "@/server/services/airports";
 
 type ViewMode = "browse" | "search";
 
@@ -18,7 +19,6 @@ const FETCH_DEBOUNCE_MS = 350;
 const MOVEMENT_THRESHOLD_DEGREES = 0.05;
 
 export default function Home() {
-  const [airports, setAirports] = useState<AirportData[]>([]);
   const [nearbyAirports, setNearbyAirports] = useState<AirportData[]>([]);
   const [originQuery, setOriginQuery] = useState("");
   const [destinationQuery, setDestinationQuery] = useState("");
@@ -28,7 +28,6 @@ export default function Home() {
   const [activeField, setActiveField] = useState<
     "origin" | "destination" | null
   >("origin");
-  const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("browse");
   const [mapCenter, setMapCenter] = useState<{
     lat: number;
@@ -43,9 +42,15 @@ export default function Home() {
 
   const viewModeRef = useRef<ViewMode>("browse");
   const pendingFetchTimeoutRef = useRef<number | null>(null);
-  const nearbyAbortRef = useRef<AbortController | null>(null);
   const lastFetchRef = useRef<{ lat: number; lon: number } | null>(null);
   const mapInstanceRef = useRef<MapKitMap | null>(null);
+  const latestNearbyRequestRef = useRef(0);
+  const trpcContext = trpc.useContext();
+  const { data: airportSearchData, isLoading: isLoadingAirports } =
+    trpc.useQuery(["airports.search", { limit: 10000 }]);
+  const airports = airportSearchData?.airports ?? [];
+  const totalAirports = airportSearchData?.total ?? airports.length;
+  const isLoading = isLoadingAirports && airports.length === 0;
 
   const displayedAirports = useMemo(() => {
     if (showAllAirports) {
@@ -72,23 +77,6 @@ export default function Home() {
   useEffect(() => {
     viewModeRef.current = viewMode;
   }, [viewMode]);
-
-  useEffect(() => {
-    const fetchAirports = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch("/api/airports");
-        const data = await response.json();
-        setAirports(data.airports);
-      } catch (error) {
-        console.error("Failed to fetch airports:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchAirports();
-  }, []);
 
   useEffect(() => {
     if (originAirport && destinationAirport) {
@@ -143,30 +131,23 @@ export default function Home() {
         return;
       }
 
-      if (nearbyAbortRef.current) {
-        nearbyAbortRef.current.abort();
-      }
-
-      const controller = new AbortController();
-      nearbyAbortRef.current = controller;
       lastFetchRef.current = { lat, lon };
+      const requestId = latestNearbyRequestRef.current + 1;
+      latestNearbyRequestRef.current = requestId;
 
       try {
         setIsLoadingNearby(true);
-        const response = await fetch(
-          `/api/airports?lat=${lat}&lon=${lon}&radius=100`,
-          { signal: controller.signal },
-        );
+        const data = await trpcContext.fetchQuery([
+          "airports.search",
+          {
+            lat,
+            lon,
+            radius: 100,
+            limit: 1000,
+          },
+        ]);
 
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch nearby airports: ${response.status}`,
-          );
-        }
-
-        const data = await response.json();
-
-        if (controller.signal.aborted) {
+        if (latestNearbyRequestRef.current !== requestId) {
           return;
         }
 
@@ -174,18 +155,16 @@ export default function Home() {
           setNearbyAirports(data.airports);
         }
       } catch (error) {
-        if ((error as DOMException)?.name === "AbortError") {
-          return;
+        if (latestNearbyRequestRef.current === requestId) {
+          console.error("Failed to fetch nearby airports:", error);
         }
-        console.error("Failed to fetch nearby airports:", error);
       } finally {
-        if (nearbyAbortRef.current === controller) {
-          nearbyAbortRef.current = null;
+        if (latestNearbyRequestRef.current === requestId) {
           setIsLoadingNearby(false);
         }
       }
     },
-    [],
+    [trpcContext],
   );
 
   const scheduleNearbyFetch = useCallback(
@@ -212,9 +191,6 @@ export default function Home() {
   useEffect(() => {
     return () => {
       clearPendingFetch();
-      if (nearbyAbortRef.current) {
-        nearbyAbortRef.current.abort();
-      }
     };
   }, [clearPendingFetch]);
 
@@ -232,9 +208,6 @@ export default function Home() {
 
       map.addEventListener("region-change-start", () => {
         clearPendingFetch();
-        if (nearbyAbortRef.current) {
-          nearbyAbortRef.current.abort();
-        }
       });
 
       map.addEventListener("region-change-end", () => {
@@ -473,7 +446,7 @@ export default function Home() {
     if (isLoading) return "Loading airports...";
 
     if (showAllAirports) {
-      return `Showing all ${airports.length.toLocaleString()} airports worldwide`;
+      return `Showing all ${totalAirports.toLocaleString()} airports worldwide`;
     }
 
     if (isLoadingNearby && viewMode === "browse") {
@@ -501,7 +474,7 @@ export default function Home() {
     return "Find an origin airport";
   }, [
     activeField,
-    airports.length,
+    totalAirports,
     destinationAirport,
     destinationQuery,
     isLoading,
@@ -611,10 +584,6 @@ export default function Home() {
     setDestinationQuery("");
     setLastValidRoute(null);
     clearPendingFetch();
-    if (nearbyAbortRef.current) {
-      nearbyAbortRef.current.abort();
-      nearbyAbortRef.current = null;
-    }
     setIsLoadingNearby(false);
 
     if (mapInstanceRef.current) {
@@ -749,7 +718,7 @@ export default function Home() {
                 className="flex items-center gap-1"
                 aria-label="Show all airports worldwide"
               >
-                Support {airports.length.toLocaleString()} Total Airports
+                Support {totalAirports.toLocaleString()} Total Airports
               </button>
             </Badge>
           </div>

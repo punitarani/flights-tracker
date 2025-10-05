@@ -104,12 +104,23 @@ export type DateSearchFilters = z.infer<typeof DateSearchFiltersSchema>;
 /**
  * Get the enum key from an enum value (reverse lookup)
  */
-function getEnumKey(enumObj: any, value: any): string {
-  const key = Object.keys(enumObj).find((k) => enumObj[k] === value);
-  if (!key) {
+function getEnumKey<T extends Record<string, string | number>>(
+  enumObj: T,
+  value: T[keyof T],
+): string {
+  const entry = Object.entries(enumObj).find(
+    ([, enumValue]) => enumValue === value,
+  );
+  if (!entry) {
     throw new Error(`Could not find enum key for value: ${value}`);
   }
-  return key;
+  return entry[0];
+}
+
+const airportEnumValues = new Set<string>(Object.values(Airport));
+
+function isAirportEnumValue(value: unknown): value is Airport {
+  return typeof value === "string" && airportEnumValues.has(value);
 }
 
 /**
@@ -126,23 +137,28 @@ export class DateSearchFiltersModel {
    *
    * @returns A formatted list structure ready for the Google Flights API request
    */
-  format(): any[] {
-    const serialize = (obj: any): any => {
-      if (typeof obj === "string" && obj in Airport) {
+  format(): unknown[] {
+    const serialize = (obj: unknown): unknown => {
+      if (typeof obj === "string" && Object.hasOwn(Airport, obj)) {
         return obj;
       }
-      if (typeof obj === "string" && obj in Airline) {
+      if (typeof obj === "string" && Object.hasOwn(Airline, obj)) {
         return obj;
       }
-      if (typeof obj === "number") {
+      if (
+        typeof obj === "string" ||
+        typeof obj === "number" ||
+        typeof obj === "boolean"
+      ) {
         return obj;
       }
       if (Array.isArray(obj)) {
         return obj.map(serialize);
       }
       if (typeof obj === "object" && obj !== null) {
-        const result: any = {};
-        for (const [key, value] of Object.entries(obj)) {
+        const source = obj as Record<string, unknown>;
+        const result: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(source)) {
           if (value !== undefined) {
             result[key] = serialize(value);
           }
@@ -153,23 +169,41 @@ export class DateSearchFiltersModel {
     };
 
     // Format flight segments
-    const formattedSegments: any[] = [];
+    const formattedSegments: unknown[] = [];
     for (const segment of this.filters.flightSegments) {
       // Format airport codes with correct nesting
-      const segmentFilters = [
-        [
-          segment.departureAirport.map((airport) => [
-            getEnumKey(Airport, airport[0]),
-            serialize(airport[1]),
-          ]),
-        ],
-        [
-          segment.arrivalAirport.map((airport) => [
-            getEnumKey(Airport, airport[0]),
-            serialize(airport[1]),
-          ]),
-        ],
-      ];
+      const departureAirports = segment.departureAirport
+        .map((airportEntry) => {
+          const [airportValue, metadata] = airportEntry;
+          if (!isAirportEnumValue(airportValue)) {
+            return null;
+          }
+
+          return [getEnumKey(Airport, airportValue), serialize(metadata)] as [
+            string,
+            unknown,
+          ];
+        })
+        .filter((entry): entry is [string, unknown] => entry !== null);
+
+      const arrivalAirports = segment.arrivalAirport
+        .map((airportEntry) => {
+          const [airportValue, metadata] = airportEntry;
+          if (!isAirportEnumValue(airportValue)) {
+            return null;
+          }
+
+          return [getEnumKey(Airport, airportValue), serialize(metadata)] as [
+            string,
+            unknown,
+          ];
+        })
+        .filter((entry): entry is [string, unknown] => entry !== null);
+
+      const segmentFilters: [
+        Array<Array<[string, unknown]>>,
+        Array<Array<[string, unknown]>>,
+      ] = [[departureAirports], [arrivalAirports]];
 
       // Time restrictions
       const timeFilters = segment.timeRestrictions
@@ -217,13 +251,13 @@ export class DateSearchFiltersModel {
     }
 
     // Format duration filters for round trips
-    const durationFilters =
+    const durationFilters: unknown[] =
       this.filters.tripType === TripType.ROUND_TRIP
         ? [null, [this.filters.duration, this.filters.duration]]
         : [];
 
     // Create the main filters structure
-    const filters = [
+    const filters: unknown[] = [
       null, // placeholder
       [
         null, // placeholder

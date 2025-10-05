@@ -128,20 +128,21 @@ export class SearchDates {
         return null;
       }
 
-      const data = JSON.parse(parsed);
-      const datesData: DatePrice[] = data[data.length - 1]
-        .map((item: any) => {
-          const price = this.parsePrice(item);
-          if (!price) return null;
+      const parsedData: unknown = JSON.parse(parsed);
+      if (!Array.isArray(parsedData) || parsedData.length === 0) {
+        return null;
+      }
 
-          return {
-            date: this.parseDate(item, filters.tripType),
-            price,
-          };
-        })
-        .filter((item: any) => item !== null);
+      const calendarEntries = parsedData[parsedData.length - 1];
+      if (!Array.isArray(calendarEntries)) {
+        return null;
+      }
 
-      return datesData;
+      const datesData = calendarEntries
+        .map((entry) => this.parseCalendarEntry(entry, filters.tripType))
+        .filter((entry): entry is DatePrice => entry !== null);
+
+      return datesData.length > 0 ? datesData : null;
     } catch (error) {
       throw new Error(`Search failed: ${(error as Error).message}`);
     }
@@ -154,32 +155,89 @@ export class SearchDates {
    * @param tripType - Trip type (one-way or round-trip)
    * @returns Tuple of Date objects
    */
-  private parseDate(item: any, tripType: TripType): [Date] | [Date, Date] {
-    if (tripType === TripType.ONE_WAY) {
-      return [new Date(item[0])];
+  private parseCalendarEntry(
+    entry: unknown,
+    tripType: TripType,
+  ): DatePrice | null {
+    if (!Array.isArray(entry)) {
+      return null;
     }
-    return [new Date(item[0]), new Date(item[1])];
+
+    const date = this.parseDate(entry, tripType);
+    const price = this.parsePrice(entry);
+
+    if (!date || price === null) {
+      return null;
+    }
+
+    return {
+      date,
+      price,
+    };
+  }
+
+  private parseDate(
+    entry: unknown[],
+    tripType: TripType,
+  ): DatePrice["date"] | null {
+    if (entry.length === 0 || typeof entry[0] !== "string") {
+      return null;
+    }
+
+    const departureDate = new Date(entry[0]);
+    if (Number.isNaN(departureDate.getTime())) {
+      return null;
+    }
+
+    if (tripType === TripType.ONE_WAY) {
+      return [departureDate];
+    }
+
+    if (entry.length < 2 || typeof entry[1] !== "string") {
+      return null;
+    }
+
+    const returnDate = new Date(entry[1]);
+    if (Number.isNaN(returnDate.getTime())) {
+      return null;
+    }
+
+    return [departureDate, returnDate];
   }
 
   /**
    * Parse price data from the API response.
    *
-   * @param item - Raw price data from the API response
+   * @param entry - Raw price data from the API response
    * @returns Float price value if valid, null if invalid or missing
    */
-  private parsePrice(item: any): number | null {
-    try {
-      if (item && Array.isArray(item) && item.length > 2) {
-        if (Array.isArray(item[2]) && item[2].length > 0) {
-          if (Array.isArray(item[2][0]) && item[2][0].length > 1) {
-            return Number.parseFloat(item[2][0][1]);
-          }
-        }
-      }
-    } catch (_error) {
-      // Ignore parsing errors
+  private parsePrice(entry: unknown[]): number | null {
+    if (entry.length < 3) {
+      return null;
     }
 
-    return null;
+    const priceSection = entry[2];
+    if (!Array.isArray(priceSection) || priceSection.length === 0) {
+      return null;
+    }
+
+    const priceNode = priceSection[0];
+    if (!Array.isArray(priceNode) || priceNode.length < 2) {
+      return null;
+    }
+
+    const rawPrice = priceNode[1];
+    const parsedPrice =
+      typeof rawPrice === "number"
+        ? rawPrice
+        : typeof rawPrice === "string"
+          ? Number.parseFloat(rawPrice)
+          : Number.NaN;
+
+    if (!Number.isFinite(parsedPrice)) {
+      return null;
+    }
+
+    return parsedPrice;
   }
 }
