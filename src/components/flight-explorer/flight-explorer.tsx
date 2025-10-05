@@ -21,7 +21,7 @@ export function FlightExplorer({
 }: FlightExplorerProps) {
   const isInitialLoading = isLoadingAirports && airports.length === 0;
 
-  const { search, header, map, price } = useFlightExplorer({
+  const { search, header, map, price, filters } = useFlightExplorer({
     airports,
     totalAirports,
     isInitialLoading,
@@ -40,7 +40,7 @@ export function FlightExplorer({
             </Card>
           </div>
         ) : price.shouldShowPanel ? (
-          <FlightPricePanel state={price} />
+          <FlightPricePanel state={price} filters={filters} />
         ) : (
           <AirportMapView state={map} />
         )}

@@ -1,16 +1,184 @@
 "use client";
 
-import { format, parseISO } from "date-fns";
+import {
+  addDays,
+  differenceInCalendarDays,
+  format,
+  isSameDay,
+  isWithinInterval,
+  parseISO,
+  startOfDay,
+  startOfToday,
+} from "date-fns";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MaxStops, SeatType, TripType } from "@/lib/fli/models";
 import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
 import { trpc } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
-import { type FlightPricePoint, MAX_SEARCH_DAYS } from "./constants";
+import type { FlightOption } from "@/server/services/flights";
+import {
+  DEFAULT_SEARCH_WINDOW_DAYS,
+  type FlightPricePoint,
+  SEARCH_WINDOW_OPTIONS,
+} from "./constants";
 
 type ViewMode = "browse" | "search";
 
+export type TimeRangeValue = {
+  from: number;
+  to: number;
+};
+
+export const DEFAULT_TIME_RANGE: TimeRangeValue = {
+  from: 0,
+  to: 24,
+};
+
+const NEARLY_MIDNIGHT_THRESHOLD = 23.9834;
+const NEARLY_ZERO_THRESHOLD = 0.0167;
+
+function clampTimeValue(value: number | null | undefined): number {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return 0;
+  }
+
+  if (value >= NEARLY_MIDNIGHT_THRESHOLD) {
+    return 24;
+  }
+
+  if (value <= NEARLY_ZERO_THRESHOLD) {
+    return 0;
+  }
+
+  if (value > 24) {
+    return 24;
+  }
+
+  if (value < 0) {
+    return 0;
+  }
+
+  return Math.round(value);
+}
+
+function ensureTimeRange(range: TimeRangeValue | null): TimeRangeValue {
+  if (!range) {
+    return { ...DEFAULT_TIME_RANGE };
+  }
+
+  let from = clampTimeValue(range.from);
+  let to = clampTimeValue(range.to);
+
+  if (from > to) {
+    [from, to] = [to, from];
+  }
+
+  return { from, to };
+}
+
+export function isFullDayTimeRange(
+  range: TimeRangeValue | null | undefined,
+): boolean {
+  if (!range) {
+    return true;
+  }
+
+  const sanitized = ensureTimeRange(range ?? null);
+  return (
+    sanitized.from === DEFAULT_TIME_RANGE.from &&
+    sanitized.to === DEFAULT_TIME_RANGE.to
+  );
+}
+
 const FETCH_DEBOUNCE_MS = 350;
 const MOVEMENT_THRESHOLD_DEGREES = 0.05;
+const FLIGHT_OPTIONS_DEBOUNCE_MS = 2000;
+const DEFAULT_PASSENGERS = {
+  adults: 1,
+  children: 0,
+  infantsInSeat: 0,
+  infantsOnLap: 0,
+} as const;
+
+const SEARCH_WINDOW_SET = new Set(SEARCH_WINDOW_OPTIONS);
+
+function clampToAllowedWindow(days: number): number {
+  if (SEARCH_WINDOW_SET.has(days)) {
+    return days;
+  }
+  const sorted = SEARCH_WINDOW_OPTIONS;
+  return sorted.reduce((closest, option) => {
+    const diff = Math.abs(option - days);
+    const bestDiff = Math.abs(closest - days);
+    if (diff < bestDiff) {
+      return option;
+    }
+    return closest;
+  }, sorted[0]);
+}
+
+function computeDateRange(from: Date, windowDays: number) {
+  const clamped = clampToAllowedWindow(windowDays);
+  const normalizedFrom = startOfDay(from);
+  return {
+    from: normalizedFrom,
+    to: addDays(normalizedFrom, clamped - 1),
+    windowDays: clamped,
+  } as const;
+}
+
+function resolveWindowFromRange(range: { from: Date; to: Date }): number {
+  const diff = differenceInCalendarDays(range.to, range.from) + 1;
+  return clampToAllowedWindow(diff);
+}
+
+function createDefaultFilters(): FiltersState {
+  const today = startOfToday();
+  const from = addDays(today, 1);
+  const {
+    from: normalizedFrom,
+    to,
+    windowDays,
+  } = computeDateRange(from, DEFAULT_SEARCH_WINDOW_DAYS);
+  return {
+    dateRange: { from: normalizedFrom, to },
+    departureTimeRange: { ...DEFAULT_TIME_RANGE },
+    arrivalTimeRange: { ...DEFAULT_TIME_RANGE },
+    airlines: [],
+    seatType: SeatType.ECONOMY,
+    stops: MaxStops.ANY,
+    searchWindowDays: windowDays,
+  };
+}
+
+function formatIsoDate(date: Date): string {
+  return format(startOfDay(date), "yyyy-MM-dd");
+}
+
+function normalizeTimeRange(
+  range: TimeRangeValue | null,
+): Partial<TimeRangeValue> | undefined {
+  const sanitized = ensureTimeRange(range);
+  if (isFullDayTimeRange(sanitized)) {
+    return undefined;
+  }
+
+  const normalized: Partial<TimeRangeValue> = {};
+
+  if (sanitized.from !== DEFAULT_TIME_RANGE.from) {
+    normalized.from = sanitized.from;
+  }
+
+  if (sanitized.to !== DEFAULT_TIME_RANGE.to) {
+    normalized.to = sanitized.to;
+  }
+
+  if (normalized.from === undefined && normalized.to === undefined) {
+    return undefined;
+  }
+
+  return normalized;
+}
 
 export type FlightSearchFieldState = {
   kind: "origin" | "destination";
@@ -33,6 +201,7 @@ export type FlightExplorerSearchState = {
   isSearchDisabled: boolean;
   isSearching: boolean;
   onSearch: () => void;
+  routeChangedSinceSearch: boolean;
 };
 
 export type FlightExplorerHeaderState = {
@@ -63,6 +232,72 @@ export type FlightExplorerPriceState = {
   searchError: string | null;
   isSearching: boolean;
   hasSearched: boolean;
+  searchWindowDays: number;
+  selectedDate: string | null;
+  selectedPriceIndex: number | null;
+  flightOptions: FlightOption[];
+  isFlightOptionsLoading: boolean;
+  flightOptionsError: string | null;
+  onSelectPriceIndex: (index: number) => void;
+  onSelectDate: (isoDate: string | null) => void;
+  canRefetch: boolean;
+  onRefetch: () => void;
+};
+
+type FiltersState = {
+  dateRange: { from: Date; to: Date };
+  departureTimeRange: TimeRangeValue;
+  arrivalTimeRange: TimeRangeValue;
+  airlines: string[];
+  seatType: SeatType;
+  stops: MaxStops;
+  searchWindowDays: number;
+};
+
+export type FlightExplorerFiltersState = {
+  dateRange: FiltersState["dateRange"];
+  departureTimeRange: FiltersState["departureTimeRange"];
+  arrivalTimeRange: FiltersState["arrivalTimeRange"];
+  airlines: string[];
+  seatType: SeatType;
+  stops: MaxStops;
+  searchWindowDays: number;
+  hasCustomFilters: boolean;
+  hasPendingChanges: boolean;
+  onDateRangeChange: (range: { from: Date; to: Date }) => void;
+  onDepartureTimeRangeChange: (range: TimeRangeValue | null) => void;
+  onArrivalTimeRangeChange: (range: TimeRangeValue | null) => void;
+  onAirlinesChange: (codes: string[]) => void;
+  onSeatTypeChange: (seatType: SeatType) => void;
+  onStopsChange: (stops: MaxStops) => void;
+  onSearchWindowDaysChange: (days: number) => void;
+  onReset: () => void;
+};
+
+type FlightFiltersPayload = {
+  tripType: TripType;
+  segments: Array<{
+    origin: string;
+    destination: string;
+    departureDate: string;
+    departureTimeRange?: { from?: number; to?: number };
+    arrivalTimeRange?: { from?: number; to?: number };
+  }>;
+  passengers: {
+    adults: number;
+    children: number;
+    infantsInSeat: number;
+    infantsOnLap: number;
+  };
+  seatType: SeatType;
+  stops: MaxStops;
+  dateRange: { from: string; to: string };
+  airlines?: string[];
+};
+
+type FlightSearchOverrides = {
+  departureDate?: string;
+  dateRange?: { from: string; to: string };
 };
 
 export type UseFlightExplorerOptions = {
@@ -76,6 +311,7 @@ export type UseFlightExplorerResult = {
   header: FlightExplorerHeaderState;
   map: FlightExplorerMapState;
   price: FlightExplorerPriceState;
+  filters: FlightExplorerFiltersState;
 };
 
 export function useFlightExplorer({
@@ -104,17 +340,76 @@ export function useFlightExplorer({
   } | null>(null);
   const [showAllAirports, setShowAllAirports] = useState(true);
   const [flightPrices, setFlightPrices] = useState<FlightPricePoint[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [filters, setFilters] = useState<FiltersState>(() =>
+    createDefaultFilters(),
+  );
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedPriceIndex, setSelectedPriceIndex] = useState<number | null>(
+    null,
+  );
+  const [flightOptions, setFlightOptions] = useState<FlightOption[]>([]);
+  const [isFlightOptionsLoading, setIsFlightOptionsLoading] = useState(false);
+  const [flightOptionsError, setFlightOptionsError] = useState<string | null>(
+    null,
+  );
+  const [hasPendingFilterChanges, setHasPendingFilterChanges] = useState(false);
+  const [lastSearchRoute, setLastSearchRoute] = useState<{
+    originId: string;
+    destinationId: string;
+  } | null>(null);
+  const [routeChangedSinceSearch, setRouteChangedSinceSearch] = useState(false);
 
   const viewModeRef = useRef<ViewMode>("browse");
   const pendingFetchTimeoutRef = useRef<number | null>(null);
   const lastFetchRef = useRef<{ lat: number; lon: number } | null>(null);
   const mapInstanceRef = useRef<MapKitMap | null>(null);
   const latestNearbyRequestRef = useRef(0);
-  const searchAbortRef = useRef<AbortController | null>(null);
+  const latestSearchRequestRef = useRef(0);
+  const latestFlightOptionsRequestRef = useRef(0);
+  const flightOptionsDebounceRef = useRef<number | null>(null);
   const trpcContext = trpc.useContext();
+  const flightsDatesMutation = trpc.useMutation(["flights.dates"]);
+  const flightsSearchMutation = trpc.useMutation(["flights.search"]);
+
+  const clearFlightOptionsDebounce = useCallback(() => {
+    if (flightOptionsDebounceRef.current !== null) {
+      window.clearTimeout(flightOptionsDebounceRef.current);
+      flightOptionsDebounceRef.current = null;
+    }
+  }, []);
+
+  const clearSelectedDateAndOptions = useCallback(() => {
+    latestFlightOptionsRequestRef.current += 1;
+    clearFlightOptionsDebounce();
+    setSelectedDate(null);
+    setSelectedPriceIndex(null);
+    setFlightOptions([]);
+    setFlightOptionsError(null);
+    setIsFlightOptionsLoading(false);
+  }, [clearFlightOptionsDebounce]);
+
+  const markFiltersDirty = useCallback(() => {
+    clearSelectedDateAndOptions();
+    setHasPendingFilterChanges(true);
+  }, [clearSelectedDateAndOptions]);
+
+  useEffect(() => {
+    if (!selectedDate) {
+      return;
+    }
+
+    const parsed = parseISO(selectedDate);
+    const isInside = isWithinInterval(parsed, {
+      start: filters.dateRange.from,
+      end: filters.dateRange.to,
+    });
+
+    if (!isInside) {
+      clearSelectedDateAndOptions();
+    }
+  }, [clearSelectedDateAndOptions, filters.dateRange, selectedDate]);
 
   const displayedAirports = useMemo(() => {
     if (showAllAirports) {
@@ -160,6 +455,22 @@ export function useFlightExplorer({
       });
     }
   }, [destinationAirport, originAirport]);
+
+  useEffect(() => {
+    if (!hasSearched || !lastSearchRoute) {
+      setRouteChangedSinceSearch(false);
+      return;
+    }
+
+    if (originAirport && destinationAirport) {
+      const changed =
+        originAirport.id !== lastSearchRoute.originId ||
+        destinationAirport.id !== lastSearchRoute.destinationId;
+      setRouteChangedSinceSearch(changed);
+    } else {
+      setRouteChangedSinceSearch(false);
+    }
+  }, [destinationAirport, hasSearched, lastSearchRoute, originAirport]);
 
   useEffect(() => {
     if (
@@ -255,26 +566,27 @@ export function useFlightExplorer({
   useEffect(() => {
     return () => {
       clearPendingFetch();
-      if (searchAbortRef.current) {
-        searchAbortRef.current.abort();
-        searchAbortRef.current = null;
-      }
     };
   }, [clearPendingFetch]);
+
+  useEffect(() => {
+    return () => {
+      clearFlightOptionsDebounce();
+    };
+  }, [clearFlightOptionsDebounce]);
 
   const resetToBrowse = useCallback(() => {
     setViewMode("browse");
     viewModeRef.current = "browse";
     setShowAllAirports(false);
     clearPendingFetch();
-    if (searchAbortRef.current) {
-      searchAbortRef.current.abort();
-      searchAbortRef.current = null;
-    }
-    setIsSearching(false);
+    latestSearchRequestRef.current += 1;
     setFlightPrices([]);
     setSearchError(null);
     setHasSearched(false);
+    setHasPendingFilterChanges(false);
+    setLastSearchRoute(null);
+    setRouteChangedSinceSearch(false);
 
     if (mapCenter) {
       scheduleNearbyFetch(mapCenter.lat, mapCenter.lon, {
@@ -462,6 +774,190 @@ export function useFlightExplorer({
     [activeField, handleDestinationSelect, handleOriginSelect, originAirport],
   );
 
+  const handleDateRangeChange = useCallback(
+    (range: { from: Date; to: Date }) => {
+      if (!range.from || !range.to) {
+        return;
+      }
+
+      const normalizedFrom = startOfDay(range.from);
+      const normalizedTo = startOfDay(range.to);
+      const windowDays = resolveWindowFromRange({
+        from: normalizedFrom,
+        to: normalizedTo,
+      });
+      const { to } = computeDateRange(normalizedFrom, windowDays);
+
+      setFilters((previous) => ({
+        ...previous,
+        dateRange: {
+          from: normalizedFrom,
+          to,
+        },
+        searchWindowDays: windowDays,
+      }));
+      markFiltersDirty();
+    },
+    [markFiltersDirty],
+  );
+
+  const handleDepartureTimeRangeChange = useCallback(
+    (range: TimeRangeValue | null) => {
+      const nextRange = ensureTimeRange(range);
+      let changed = false;
+      setFilters((previous) => {
+        if (
+          previous.departureTimeRange.from === nextRange.from &&
+          previous.departureTimeRange.to === nextRange.to
+        ) {
+          return previous;
+        }
+
+        changed = true;
+        return {
+          ...previous,
+          departureTimeRange: nextRange,
+        };
+      });
+
+      if (changed) {
+        markFiltersDirty();
+      }
+    },
+    [markFiltersDirty],
+  );
+
+  const handleArrivalTimeRangeChange = useCallback(
+    (range: TimeRangeValue | null) => {
+      const nextRange = ensureTimeRange(range);
+      let changed = false;
+      setFilters((previous) => {
+        if (
+          previous.arrivalTimeRange.from === nextRange.from &&
+          previous.arrivalTimeRange.to === nextRange.to
+        ) {
+          return previous;
+        }
+
+        changed = true;
+        return {
+          ...previous,
+          arrivalTimeRange: nextRange,
+        };
+      });
+
+      if (changed) {
+        markFiltersDirty();
+      }
+    },
+    [markFiltersDirty],
+  );
+
+  const handleAirlinesChange = useCallback(
+    (codes: string[]) => {
+      setFilters((previous) => ({
+        ...previous,
+        airlines: Array.from(
+          new Set(
+            codes
+              .map((code) => code.trim().toUpperCase())
+              .filter((code) => code.length > 0),
+          ),
+        ),
+      }));
+      markFiltersDirty();
+    },
+    [markFiltersDirty],
+  );
+
+  const handleSeatTypeChange = useCallback(
+    (seatType: SeatType) => {
+      setFilters((previous) => ({
+        ...previous,
+        seatType,
+      }));
+      markFiltersDirty();
+    },
+    [markFiltersDirty],
+  );
+
+  const handleStopsChange = useCallback(
+    (stops: MaxStops) => {
+      setFilters((previous) => ({
+        ...previous,
+        stops,
+      }));
+      markFiltersDirty();
+    },
+    [markFiltersDirty],
+  );
+
+  const handleSearchWindowDaysChange = useCallback(
+    (days: number) => {
+      const clamped = clampToAllowedWindow(days);
+      setFilters((previous) => {
+        const { from } = previous.dateRange;
+        const { from: normalizedFrom, to } = computeDateRange(from, clamped);
+        return {
+          ...previous,
+          dateRange: {
+            from: normalizedFrom,
+            to,
+          },
+          searchWindowDays: clamped,
+        };
+      });
+      markFiltersDirty();
+    },
+    [markFiltersDirty],
+  );
+
+  const handleResetFilters = useCallback(() => {
+    clearSelectedDateAndOptions();
+    setFilters(createDefaultFilters());
+    markFiltersDirty();
+  }, [clearSelectedDateAndOptions, markFiltersDirty]);
+
+  const buildFiltersPayload = useCallback(
+    (
+      route: {
+        origin: AirportData;
+        destination: AirportData;
+      },
+      overrides?: FlightSearchOverrides,
+    ): FlightFiltersPayload => {
+      const defaultFromIso = formatIsoDate(filters.dateRange.from);
+      const defaultToIso = formatIsoDate(filters.dateRange.to);
+
+      const effectiveDateRange = overrides?.dateRange ?? {
+        from: defaultFromIso,
+        to: defaultToIso,
+      };
+
+      const segmentDeparture =
+        overrides?.departureDate ?? effectiveDateRange.from;
+
+      return {
+        tripType: TripType.ONE_WAY,
+        segments: [
+          {
+            origin: route.origin.iata,
+            destination: route.destination.iata,
+            departureDate: segmentDeparture,
+            departureTimeRange: normalizeTimeRange(filters.departureTimeRange),
+            arrivalTimeRange: normalizeTimeRange(filters.arrivalTimeRange),
+          },
+        ],
+        passengers: { ...DEFAULT_PASSENGERS },
+        seatType: filters.seatType,
+        stops: filters.stops,
+        dateRange: effectiveDateRange,
+        airlines: filters.airlines.length > 0 ? filters.airlines : undefined,
+      };
+    },
+    [filters],
+  );
+
   const displayMessage = useMemo(() => {
     if (isInitialLoading) return "Loading airports...";
 
@@ -532,7 +1028,16 @@ export function useFlightExplorer({
       !destinationMatchesSelection;
   }
 
-  const isSearchDisabled = (isEditing && isActiveFieldDirty) || isSearching;
+  const hasSelectedRoute = hasCurrentRoute;
+  const routeRequiresUpdateBeforeSearch =
+    hasSearched && !routeChangedSinceSearch;
+  const isSearching = flightsDatesMutation.isLoading;
+
+  const isSearchDisabled =
+    isSearching ||
+    routeRequiresUpdateBeforeSearch ||
+    !hasSelectedRoute ||
+    (isEditing && isActiveFieldDirty);
 
   const chartData = useMemo<FlightPriceChartPoint[]>(() => {
     const sorted = [...flightPrices].sort((a, b) =>
@@ -560,6 +1065,28 @@ export function useFlightExplorer({
 
   const shouldShowPricePanel =
     isSearching || searchError !== null || hasSearched;
+
+  const hasCustomFilters = useMemo(() => {
+    const defaults = createDefaultFilters();
+    const defaultRange = defaults.dateRange;
+    const isDefaultRange =
+      isSameDay(filters.dateRange.from, defaultRange.from) &&
+      isSameDay(filters.dateRange.to, defaultRange.to);
+    const hasDefaultDeparture = isFullDayTimeRange(filters.departureTimeRange);
+    const hasDefaultArrival = isFullDayTimeRange(filters.arrivalTimeRange);
+
+    return (
+      !isDefaultRange ||
+      filters.airlines.length > 0 ||
+      !hasDefaultDeparture ||
+      !hasDefaultArrival ||
+      filters.seatType !== defaults.seatType ||
+      filters.stops !== defaults.stops ||
+      filters.searchWindowDays !== defaults.searchWindowDays
+    );
+  }, [filters]);
+
+  const canRefetch = hasSearched && hasPendingFilterChanges && !isSearching;
 
   const handleFieldBlur = useCallback(
     (field: "origin" | "destination") => {
@@ -604,89 +1131,203 @@ export function useFlightExplorer({
     ],
   );
 
-  const performSearch = useCallback(async () => {
-    const route =
-      originAirport && destinationAirport
-        ? { origin: originAirport, destination: destinationAirport }
-        : lastValidRoute;
+  const performSearch = useCallback(
+    async (options?: { preserveSelection?: boolean }) => {
+      const preserveSelection = options?.preserveSelection ?? false;
+      const route =
+        originAirport && destinationAirport
+          ? { origin: originAirport, destination: destinationAirport }
+          : lastValidRoute;
 
-    if (!route) {
-      return;
-    }
-
-    setHasSearched(true);
-
-    if (searchAbortRef.current) {
-      searchAbortRef.current.abort();
-    }
-
-    const controller = new AbortController();
-    searchAbortRef.current = controller;
-
-    setIsSearching(true);
-    setSearchError(null);
-
-    try {
-      const response = await fetch("/api/flights/cheapest", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          origin: route.origin.iata,
-          destination: route.destination.iata,
-          days: MAX_SEARCH_DAYS,
-        }),
-        signal: controller.signal,
-      });
-
-      const payload = (await response.json().catch(() => null)) as {
-        prices?: FlightPricePoint[];
-        error?: string;
-      } | null;
-
-      if (!response.ok) {
-        const message =
-          (payload?.error && typeof payload.error === "string"
-            ? payload.error
-            : undefined) ?? "Failed to search flights";
-        throw new Error(message);
-      }
-
-      if (!controller.signal.aborted) {
-        const sanitized = Array.isArray(payload?.prices)
-          ? payload.prices.filter(
-              (item): item is FlightPricePoint =>
-                item !== null &&
-                typeof item === "object" &&
-                typeof item.date === "string" &&
-                typeof item.price === "number",
-            )
-          : [];
-        setFlightPrices(sanitized);
-      }
-    } catch (error) {
-      if ((error as DOMException)?.name === "AbortError") {
+      if (!route) {
         return;
       }
-      setSearchError(
-        error instanceof Error && error.message
-          ? error.message
-          : "Failed to search flights",
-      );
-    } finally {
-      if (searchAbortRef.current === controller) {
-        searchAbortRef.current = null;
+
+      setHasSearched(true);
+      setSearchError(null);
+      setHasPendingFilterChanges(false);
+
+      if (!preserveSelection) {
+        clearSelectedDateAndOptions();
       }
-      if (!controller.signal.aborted) {
-        setIsSearching(false);
+
+      const requestId = latestSearchRequestRef.current + 1;
+      latestSearchRequestRef.current = requestId;
+
+      try {
+        const payload = buildFiltersPayload(route);
+        const response = await flightsDatesMutation.mutateAsync(payload);
+
+        if (latestSearchRequestRef.current !== requestId) {
+          return;
+        }
+
+        const sanitized = Array.isArray(response?.prices)
+          ? response.prices
+              .filter(
+                (item): item is { date: string; price: number } =>
+                  item !== null &&
+                  typeof item === "object" &&
+                  typeof item.date === "string" &&
+                  typeof item.price === "number",
+              )
+              .map((item) => ({ date: item.date, price: item.price }))
+          : [];
+
+        sanitized.sort((a, b) => a.date.localeCompare(b.date));
+        setFlightPrices(sanitized);
+        setLastSearchRoute({
+          originId: route.origin.id,
+          destinationId: route.destination.id,
+        });
+        setRouteChangedSinceSearch(false);
+
+        if (preserveSelection && selectedDate) {
+          const index = sanitized.findIndex(
+            (entry) => entry.date === selectedDate,
+          );
+          if (index >= 0) {
+            setSelectedPriceIndex(index);
+          } else {
+            clearSelectedDateAndOptions();
+          }
+        }
+      } catch (error) {
+        if (latestSearchRequestRef.current !== requestId) {
+          return;
+        }
+
+        setFlightPrices([]);
+        setSearchError(
+          error instanceof Error && error.message
+            ? error.message
+            : "Failed to search flights",
+        );
+        setHasPendingFilterChanges(true);
       }
-    }
-  }, [destinationAirport, lastValidRoute, originAirport]);
+    },
+    [
+      buildFiltersPayload,
+      clearSelectedDateAndOptions,
+      destinationAirport,
+      flightsDatesMutation,
+      lastValidRoute,
+      originAirport,
+      selectedDate,
+    ],
+  );
 
   const handleSearchClick = useCallback(() => {
     void performSearch();
   }, [performSearch]);
+
+  const handleRefetch = useCallback(() => {
+    if (!hasSearched || !hasPendingFilterChanges) {
+      return;
+    }
+
+    void performSearch();
+  }, [hasPendingFilterChanges, hasSearched, performSearch]);
+
+  const loadFlightOptions = useCallback(
+    async (isoDate: string) => {
+      const route =
+        originAirport && destinationAirport
+          ? { origin: originAirport, destination: destinationAirport }
+          : lastValidRoute;
+
+      if (!route) {
+        return;
+      }
+
+      const requestId = latestFlightOptionsRequestRef.current + 1;
+      latestFlightOptionsRequestRef.current = requestId;
+      setIsFlightOptionsLoading(true);
+      setFlightOptionsError(null);
+      setFlightOptions([]);
+
+      try {
+        const payload = buildFiltersPayload(route, {
+          departureDate: isoDate,
+          dateRange: { from: isoDate, to: isoDate },
+        });
+        const result = await flightsSearchMutation.mutateAsync(payload);
+        if (latestFlightOptionsRequestRef.current !== requestId) {
+          return;
+        }
+        setFlightOptions(Array.isArray(result) ? result : []);
+      } catch (error) {
+        if (latestFlightOptionsRequestRef.current !== requestId) {
+          return;
+        }
+        setFlightOptions([]);
+        setFlightOptionsError(
+          error instanceof Error && error.message
+            ? error.message
+            : "Failed to load flight options",
+        );
+      } finally {
+        if (latestFlightOptionsRequestRef.current === requestId) {
+          setIsFlightOptionsLoading(false);
+        }
+      }
+    },
+    [
+      buildFiltersPayload,
+      destinationAirport,
+      flightsSearchMutation,
+      lastValidRoute,
+      originAirport,
+    ],
+  );
+
+  const scheduleFlightOptionsLoad = useCallback(
+    (isoDate: string) => {
+      clearFlightOptionsDebounce();
+      latestFlightOptionsRequestRef.current += 1;
+      setIsFlightOptionsLoading(true);
+      setFlightOptionsError(null);
+      setFlightOptions([]);
+      flightOptionsDebounceRef.current = window.setTimeout(() => {
+        flightOptionsDebounceRef.current = null;
+        void loadFlightOptions(isoDate);
+      }, FLIGHT_OPTIONS_DEBOUNCE_MS);
+    },
+    [clearFlightOptionsDebounce, loadFlightOptions],
+  );
+
+  const handleSelectPriceIndex = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= flightPrices.length) {
+        clearSelectedDateAndOptions();
+        return;
+      }
+
+      const entry = flightPrices[index];
+      setSelectedPriceIndex(index);
+      setSelectedDate(entry.date);
+      scheduleFlightOptionsLoad(entry.date);
+    },
+    [clearSelectedDateAndOptions, flightPrices, scheduleFlightOptionsLoad],
+  );
+
+  const handleSelectDate = useCallback(
+    (isoDate: string | null) => {
+      if (!isoDate) {
+        clearSelectedDateAndOptions();
+        return;
+      }
+
+      const normalized = formatIsoDate(parseISO(isoDate));
+      setSelectedDate(normalized);
+      const index = flightPrices.findIndex(
+        (entry) => entry.date === normalized,
+      );
+      setSelectedPriceIndex(index >= 0 ? index : null);
+      scheduleFlightOptionsLoad(normalized);
+    },
+    [clearSelectedDateAndOptions, flightPrices, scheduleFlightOptionsLoad],
+  );
 
   const handleShowAllAirportsClick = useCallback(() => {
     setShowAllAirports(true);
@@ -699,14 +1340,13 @@ export function useFlightExplorer({
     setDestinationQuery("");
     setLastValidRoute(null);
     clearPendingFetch();
-    if (searchAbortRef.current) {
-      searchAbortRef.current.abort();
-      searchAbortRef.current = null;
-    }
-    setIsSearching(false);
+    latestSearchRequestRef.current += 1;
     setFlightPrices([]);
     setSearchError(null);
     setHasSearched(false);
+    setHasPendingFilterChanges(false);
+    setLastSearchRoute(null);
+    setRouteChangedSinceSearch(false);
     setIsLoadingNearby(false);
 
     if (mapInstanceRef.current) {
@@ -751,6 +1391,26 @@ export function useFlightExplorer({
     onBlur: () => handleFieldBlur("destination"),
   };
 
+  const filtersState: FlightExplorerFiltersState = {
+    dateRange: filters.dateRange,
+    departureTimeRange: filters.departureTimeRange,
+    arrivalTimeRange: filters.arrivalTimeRange,
+    airlines: filters.airlines,
+    seatType: filters.seatType,
+    stops: filters.stops,
+    searchWindowDays: filters.searchWindowDays,
+    hasCustomFilters,
+    hasPendingChanges: hasPendingFilterChanges,
+    onDateRangeChange: handleDateRangeChange,
+    onDepartureTimeRangeChange: handleDepartureTimeRangeChange,
+    onArrivalTimeRangeChange: handleArrivalTimeRangeChange,
+    onAirlinesChange: handleAirlinesChange,
+    onSeatTypeChange: handleSeatTypeChange,
+    onStopsChange: handleStopsChange,
+    onSearchWindowDaysChange: handleSearchWindowDaysChange,
+    onReset: handleResetFilters,
+  };
+
   return {
     search: {
       airports,
@@ -764,6 +1424,7 @@ export function useFlightExplorer({
       isSearchDisabled,
       isSearching,
       onSearch: handleSearchClick,
+      routeChangedSinceSearch,
     },
     header: {
       displayMessage,
@@ -787,6 +1448,17 @@ export function useFlightExplorer({
       searchError,
       isSearching,
       hasSearched,
+      searchWindowDays: filters.searchWindowDays,
+      selectedDate,
+      selectedPriceIndex,
+      flightOptions,
+      isFlightOptionsLoading,
+      flightOptionsError,
+      onSelectPriceIndex: handleSelectPriceIndex,
+      onSelectDate: handleSelectDate,
+      canRefetch,
+      onRefetch: handleRefetch,
     },
+    filters: filtersState,
   };
 }

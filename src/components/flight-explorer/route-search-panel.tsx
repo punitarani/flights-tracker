@@ -26,6 +26,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     isSearchDisabled,
     isSearching,
     onSearch,
+    routeChangedSinceSearch,
   } = search;
 
   const {
@@ -151,7 +152,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
           </div>
 
           {shouldShowSearchAction && (
-            <div className="flex w-full sm:ml-auto sm:w-auto sm:items-center sm:justify-end">
+            <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:items-center sm:justify-end">
               <Button
                 type="button"
                 className={cn(
@@ -179,6 +180,14 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
                   {isSearching ? "Searching..." : "Search Flights"}
                 </span>
               </Button>
+              {routeChangedSinceSearch && !isSearching ? (
+                <Badge
+                  variant="secondary"
+                  className="self-start px-2 py-1 text-[10px] uppercase sm:self-auto"
+                >
+                  Route updated
+                </Badge>
+              ) : null}
             </div>
           )}
         </div>
