@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
 import { httpBatchLink } from "@trpc/client/links/httpBatchLink";
 import { loggerLink } from "@trpc/client/links/loggerLink";
+import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
 import superjson from "superjson";
 
 import { trpc } from "./react";

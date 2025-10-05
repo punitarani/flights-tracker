@@ -207,7 +207,9 @@ class MapKitLoader {
 
     if (typeof importLibrary === "function") {
       await Promise.all(
-        REQUIRED_LIBRARIES.map((library) => importLibrary.call(mapkit, library)),
+        REQUIRED_LIBRARIES.map((library) =>
+          importLibrary.call(mapkit, library),
+        ),
       );
       this.librariesLoaded = true;
       return;
@@ -218,8 +220,7 @@ class MapKitLoader {
 
       const check = () => {
         const hasMap = typeof mapkit.Map === "function";
-        const hasAnnotations =
-          typeof mapkit.MarkerAnnotation === "function";
+        const hasAnnotations = typeof mapkit.MarkerAnnotation === "function";
 
         if (hasMap && hasAnnotations) {
           this.librariesLoaded = true;
