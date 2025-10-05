@@ -158,6 +158,7 @@ declare namespace mapkit {
     glyphText?: string;
     glyphImage?: string;
     selectedGlyphImage?: string;
+    element?: HTMLElement;
   }
 
   class MarkerAnnotation extends Annotation {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AirportData } from "@/app/api/airports/route";
 import { mapKitLoader } from "@/lib/mapkit-service";
 
@@ -8,6 +8,7 @@ interface AirportMapProps {
   airports: AirportData[];
   originAirport?: AirportData | null;
   destinationAirport?: AirportData | null;
+  showAllAirports: boolean;
   // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
   onMapReady?: (map: any) => void;
   onAirportClick?: (airport: AirportData) => void;
@@ -17,6 +18,7 @@ export function AirportMap({
   airports,
   originAirport,
   destinationAirport,
+  showAllAirports,
   onMapReady,
   onAirportClick,
 }: AirportMapProps) {
@@ -29,6 +31,76 @@ export function AirportMap({
   const annotationsMapRef = useRef<Map<string, any>>(new Map());
   const routeOverlaysRef = useRef<unknown[]>([]);
   const isInitializingRef = useRef(false);
+  const renderModeRef = useRef<boolean | null>(null);
+  const [visibleAirportIds, setVisibleAirportIds] = useState<string[] | null>(
+    null,
+  );
+
+  const normalizeLongitude = useCallback((value: number) => {
+    let result = value;
+    while (result < -180) result += 360;
+    while (result > 180) result -= 360;
+    return result;
+  }, []);
+
+  const updateVisibleAirports = useCallback(() => {
+    if (!showAllAirports || !mapInstanceRef.current) {
+      setVisibleAirportIds(null);
+      return;
+    }
+
+    const map = mapInstanceRef.current;
+    const region = map.region;
+    if (!region) return;
+
+    const halfLat = region.span.latitudeDelta / 2;
+    const halfLon = region.span.longitudeDelta / 2;
+    const latMin = region.center.latitude - halfLat;
+    const latMax = region.center.latitude + halfLat;
+    const lonMin = normalizeLongitude(region.center.longitude - halfLon);
+    const lonMax = normalizeLongitude(region.center.longitude + halfLon);
+    const crossesDateline = lonMin > lonMax;
+
+    const visibleIds = airports
+      .filter((airport) => {
+        const lat = airport.latitude;
+        if (lat < latMin || lat > latMax) {
+          return false;
+        }
+
+        const lon = normalizeLongitude(airport.longitude);
+        if (crossesDateline) {
+          return lon >= lonMin || lon <= lonMax;
+        }
+
+        return lon >= lonMin && lon <= lonMax;
+      })
+      .map((airport) => airport.id);
+
+    setVisibleAirportIds((previous) => {
+      if (
+        previous &&
+        previous.length === visibleIds.length &&
+        previous.every((id, index) => id === visibleIds[index])
+      ) {
+        return previous;
+      }
+      return visibleIds;
+    });
+  }, [airports, normalizeLongitude, showAllAirports]);
+
+  const airportsToRender = useMemo(() => {
+    if (showAllAirports) {
+      if (!visibleAirportIds) {
+        return [];
+      }
+
+      const visibleSet = new Set(visibleAirportIds);
+      return airports.filter((airport) => visibleSet.has(airport.id));
+    }
+
+    return airports;
+  }, [airports, showAllAirports, visibleAirportIds]);
 
   const computeGreatCirclePath = useCallback(
     (origin: AirportData, destination: AirportData) => {
@@ -161,9 +233,15 @@ export function AirportMap({
           return;
         }
 
+        const initialCenter = new mapkit.Coordinate(39.8283, -98.5795);
+        const initialRegion = new mapkit.CoordinateRegion(
+          initialCenter,
+          new mapkit.CoordinateSpan(30, 60),
+        );
+
         // Create map instance
         const map = new mapkit.Map(mapRef.current, {
-          center: new mapkit.Coordinate(37.7749, -122.4194), // San Francisco default
+          region: initialRegion,
           showsMapTypeControl: false,
           showsZoomControl: true,
           showsUserLocationControl: true,
@@ -215,6 +293,42 @@ export function AirportMap({
     };
   }, []);
 
+  useEffect(() => {
+    if (!showAllAirports) {
+      setVisibleAirportIds(null);
+      return;
+    }
+
+    updateVisibleAirports();
+  }, [showAllAirports, updateVisibleAirports]);
+
+  useEffect(() => {
+    if (!showAllAirports) return;
+    updateVisibleAirports();
+  }, [showAllAirports, updateVisibleAirports]);
+
+  useEffect(() => {
+    if (!isMapReady || !mapInstanceRef.current || !showAllAirports) return;
+
+    const map = mapInstanceRef.current;
+
+    const handleRegionChangeEnd = () => {
+      updateVisibleAirports();
+    };
+
+    map.addEventListener("region-change-end", handleRegionChangeEnd);
+
+    return () => {
+      map.removeEventListener("region-change-end", handleRegionChangeEnd);
+    };
+  }, [isMapReady, showAllAirports, updateVisibleAirports]);
+
+  useEffect(() => {
+    if (!isMapReady) return;
+    if (!showAllAirports) return;
+    updateVisibleAirports();
+  }, [isMapReady, showAllAirports, updateVisibleAirports]);
+
   // Update annotations when airports change (with diffing)
   useEffect(() => {
     if (!isMapReady || !mapInstanceRef.current) return;
@@ -225,24 +339,41 @@ export function AirportMap({
     const map = mapInstanceRef.current;
     const currentAnnotations = annotationsMapRef.current;
 
-    // Create a set of current airport IDs
-    const newAirportIds = new Set(airports.map((a) => a.id));
-    const existingIds = new Set(currentAnnotations.keys());
-
-    // Remove annotations that are no longer in the list
-    for (const id of existingIds) {
-      if (!newAirportIds.has(id)) {
-        const annotation = currentAnnotations.get(id);
-        if (annotation) {
-          map.removeAnnotation(annotation);
-          currentAnnotations.delete(id);
+    if (renderModeRef.current !== showAllAirports) {
+      const existingAnnotations = Array.from(currentAnnotations.values());
+      if (existingAnnotations.length > 0) {
+        try {
+          if (typeof map.removeAnnotations === "function") {
+            map.removeAnnotations(existingAnnotations);
+          } else {
+            for (const annotation of existingAnnotations) {
+              map.removeAnnotation(annotation);
+            }
+          }
+        } catch {
+          // ignore bulk removal errors
         }
+      }
+      currentAnnotations.clear();
+    }
+
+    renderModeRef.current = showAllAirports;
+
+    const newAirportIds = new Set(airportsToRender.map((a) => a.id));
+
+    for (const [id, annotation] of currentAnnotations) {
+      if (!newAirportIds.has(id)) {
+        try {
+          map.removeAnnotation(annotation);
+        } catch {
+          // ignore removal errors
+        }
+        currentAnnotations.delete(id);
       }
     }
 
-    // Add new annotations
-    const airportsToAdd = airports.filter(
-      (airport) => !existingIds.has(airport.id),
+    const airportsToAdd = airportsToRender.filter(
+      (airport) => !currentAnnotations.has(airport.id),
     );
 
     if (airportsToAdd.length > 0) {
@@ -252,19 +383,70 @@ export function AirportMap({
           airport.longitude,
         );
 
-        const annotation = new mapkit.MarkerAnnotation(coordinate, {
-          title: `${airport.name}`,
-          subtitle: `${airport.iata} • ${airport.city}, ${airport.country}`,
-          color: "#3b82f6", // blue-500
-          glyphText: airport.iata.substring(0, 3),
-          clusteringIdentifier: "airports",
-          data: airport,
-        });
+        const annotation = showAllAirports
+          ? (() => {
+              if (typeof mapkit.Annotation === "function") {
+                const dotAnnotation = new mapkit.Annotation(
+                  coordinate,
+                  () => {
+                    const dotElement = document.createElement("div");
+                    dotElement.style.width = "8px";
+                    dotElement.style.height = "8px";
+                    dotElement.style.backgroundColor = "#2563eb";
+                    dotElement.style.borderRadius = "50%";
+                    dotElement.style.border = "2px solid white";
+                    dotElement.style.boxShadow = "0 0 2px rgba(0,0,0,0.3)";
+                    dotElement.style.pointerEvents = "auto";
+                    dotElement.style.transform = "translate(-50%, -50%)";
+                    dotElement.style.cursor = "pointer";
 
-        // Add click listener
-        annotation.addEventListener("select", () => {
-          onAirportClick?.(airport);
-        });
+                    dotElement.addEventListener("click", (event) => {
+                      event.stopPropagation();
+                      onAirportClick?.(airport);
+                    });
+
+                    return dotElement;
+                  },
+                  {
+                    animates: false,
+                    data: airport,
+                  } as Record<string, unknown>,
+                );
+
+                dotAnnotation.data = airport;
+                return dotAnnotation;
+              }
+
+              const fallback = new mapkit.MarkerAnnotation(coordinate, {
+                color: "#2563eb",
+                glyphText: "",
+                clusteringIdentifier: undefined,
+                animates: false,
+              });
+
+              fallback.data = airport;
+              fallback.addEventListener("select", () => {
+                onAirportClick?.(airport);
+              });
+              return fallback;
+            })()
+          : (() => {
+              const marker = new mapkit.MarkerAnnotation(coordinate, {
+                title: `${airport.name}`,
+                subtitle: `${airport.iata} • ${airport.city}, ${airport.country}`,
+                color: "#3b82f6",
+                glyphText: airport.iata.substring(0, 3),
+                clusteringIdentifier: "airports",
+                animates: false,
+              });
+
+              marker.data = airport;
+              marker.addEventListener("select", () => {
+                onAirportClick?.(airport);
+              });
+
+              return marker;
+            })();
 
         currentAnnotations.set(airport.id, annotation);
         return annotation;
@@ -272,23 +454,7 @@ export function AirportMap({
 
       map.addAnnotations(newAnnotations);
     }
-
-    // Show all airports on map if there are annotations and it's the first load
-    if (
-      currentAnnotations.size > 0 &&
-      airportsToAdd.length === airports.length
-    ) {
-      const allAnnotations = Array.from(currentAnnotations.values());
-      try {
-        map.showItems(allAnnotations, {
-          animate: true,
-          padding: new mapkit.Padding(80, 80, 80, 80),
-        });
-      } catch (err) {
-        console.error("Error showing items:", err);
-      }
-    }
-  }, [airports, isMapReady, onAirportClick]);
+  }, [airportsToRender, isMapReady, onAirportClick, showAllAirports]);
   useEffect(() => {
     if (!isMapReady || !mapInstanceRef.current) return;
 
@@ -298,8 +464,46 @@ export function AirportMap({
     const map = mapInstanceRef.current;
     const allAnnotations = Array.from(annotationsMapRef.current.values());
 
-    for (const ann of allAnnotations) {
-      ann.color = "#3b82f6";
+    if (routeOverlaysRef.current.length > 0) {
+      for (const overlay of routeOverlaysRef.current) {
+        try {
+          map.removeOverlay(overlay);
+        } catch {
+          // ignore overlay removal errors
+        }
+      }
+      routeOverlaysRef.current = [];
+    }
+
+    if (showAllAirports) {
+      for (const annotation of allAnnotations) {
+        if ("color" in annotation) {
+          annotation.color = "#2563eb";
+        }
+        if ("glyphText" in annotation) {
+          (annotation as { glyphText?: string }).glyphText = "";
+        }
+        if ("calloutEnabled" in annotation) {
+          (annotation as { calloutEnabled?: boolean }).calloutEnabled = false;
+        }
+      }
+
+      map.selectedAnnotation = null;
+      return;
+    }
+
+    for (const annotation of allAnnotations) {
+      if ("color" in annotation) {
+        annotation.color = "#3b82f6";
+      }
+      if ("glyphText" in annotation) {
+        (annotation as { glyphText?: string }).glyphText =
+          (annotation.data as AirportData | undefined)?.iata?.substring(0, 3) ??
+          "";
+      }
+      if ("calloutEnabled" in annotation) {
+        (annotation as { calloutEnabled?: boolean }).calloutEnabled = true;
+      }
     }
 
     const originAnnotation = originAirport
@@ -345,17 +549,6 @@ export function AirportMap({
       );
 
       map.setRegionAnimated(region, true);
-    }
-
-    if (routeOverlaysRef.current.length > 0) {
-      for (const overlay of routeOverlaysRef.current) {
-        try {
-          map.removeOverlay(overlay);
-        } catch {
-          // ignore overlay removal errors
-        }
-      }
-      routeOverlaysRef.current = [];
     }
 
     if (originAirport && destinationAirport) {
@@ -421,7 +614,13 @@ export function AirportMap({
       map.selectedAnnotation =
         originAnnotation ?? destinationAnnotation ?? null;
     }
-  }, [computeGreatCirclePath, destinationAirport, isMapReady, originAirport]);
+  }, [
+    computeGreatCirclePath,
+    destinationAirport,
+    isMapReady,
+    originAirport,
+    showAllAirports,
+  ]);
 
   if (error) {
     return (

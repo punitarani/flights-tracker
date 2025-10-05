@@ -8,11 +8,24 @@ type MapKitAuthorizationCallback = (done: (token: string) => void) => void;
 
 type MapKitCoordinate = unknown;
 
-interface MapKitMarkerAnnotation {
+interface MapKitBaseAnnotation {
   addEventListener: (event: string, handler: () => void) => void;
   color?: string;
   [key: string]: unknown;
 }
+
+interface MapKitAnnotationConstructor {
+  new (
+    coordinate: MapKitCoordinate,
+    factory?: (
+      coordinate: MapKitCoordinate,
+      options: Record<string, unknown>,
+    ) => MapKitBaseAnnotation,
+    options?: Record<string, unknown>,
+  ): MapKitBaseAnnotation;
+}
+
+interface MapKitMarkerAnnotation extends MapKitBaseAnnotation {}
 
 interface MapKitMarkerAnnotationConstructor {
   new (
@@ -32,16 +45,17 @@ interface MapKitPolylineOverlayConstructor {
 
 interface MapKitMap {
   destroy: () => void;
-  addAnnotations: (annotations: MapKitMarkerAnnotation[]) => void;
-  removeAnnotation: (annotation: MapKitMarkerAnnotation) => void;
+  addAnnotations: (annotations: MapKitBaseAnnotation[]) => void;
+  removeAnnotation: (annotation: MapKitBaseAnnotation) => void;
+  removeAnnotations?: (annotations: MapKitBaseAnnotation[]) => void;
   addOverlay: (overlay: MapKitOverlay) => void;
   removeOverlay: (overlay: MapKitOverlay) => void;
   showItems: (
-    annotations: Array<MapKitMarkerAnnotation | MapKitOverlay>,
+    annotations: Array<MapKitBaseAnnotation | MapKitOverlay>,
     options?: { animate?: boolean; padding?: unknown },
   ) => void;
   setRegionAnimated: (region: unknown, animated: boolean) => void;
-  selectedAnnotation: MapKitMarkerAnnotation | null;
+  selectedAnnotation: MapKitBaseAnnotation | null;
   camera?: unknown;
 }
 
@@ -63,6 +77,7 @@ interface MapKit {
   init(options: { authorizationCallback: MapKitAuthorizationCallback }): void;
   importLibrary?: (name: MapKitLibrary) => Promise<void>;
   Map: MapKitMapConstructor;
+  Annotation: MapKitAnnotationConstructor;
   Coordinate: MapKitConstructor<[number, number], MapKitCoordinate>;
   FeatureVisibility: MapKitFeatureVisibility;
   MarkerAnnotation: MapKitMarkerAnnotationConstructor;

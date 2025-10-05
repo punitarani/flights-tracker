@@ -22,6 +22,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { mapKitLoader } from "@/lib/mapkit-service";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -54,13 +55,19 @@ export default function Home() {
     origin: AirportData;
     destination: AirportData;
   } | null>(null);
+  const [showAllAirports, setShowAllAirports] = useState(true);
 
   const viewModeRef = useRef<ViewMode>("browse");
   const pendingFetchTimeoutRef = useRef<number | null>(null);
   const nearbyAbortRef = useRef<AbortController | null>(null);
   const lastFetchRef = useRef<{ lat: number; lon: number } | null>(null);
+  const mapInstanceRef = useRef<mapkit.Map | null>(null);
 
   const displayedAirports = useMemo(() => {
+    if (showAllAirports) {
+      return airports;
+    }
+
     if (originAirport && destinationAirport) {
       return [originAirport, destinationAirport];
     }
@@ -70,7 +77,13 @@ export default function Home() {
     }
 
     return nearbyAirports;
-  }, [destinationAirport, originAirport, nearbyAirports]);
+  }, [
+    airports,
+    destinationAirport,
+    originAirport,
+    nearbyAirports,
+    showAllAirports,
+  ]);
 
   useEffect(() => {
     viewModeRef.current = viewMode;
@@ -248,6 +261,7 @@ export default function Home() {
   const handleMapReady = useCallback(
     // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
     (map: any) => {
+      mapInstanceRef.current = map;
       const center = map.center;
       setMapCenter({ lat: center.latitude, lon: center.longitude });
 
@@ -282,6 +296,8 @@ export default function Home() {
 
   const resetToBrowse = useCallback(() => {
     setViewMode("browse");
+    viewModeRef.current = "browse";
+    setShowAllAirports(false);
     clearPendingFetch();
 
     if (mapCenter) {
@@ -296,6 +312,10 @@ export default function Home() {
     (value: string) => {
       setOriginQuery(value);
       setActiveField("origin");
+
+      if (value.trim()) {
+        setShowAllAirports(false);
+      }
 
       if (
         originAirport &&
@@ -324,6 +344,10 @@ export default function Home() {
     (value: string) => {
       setDestinationQuery(value);
       setActiveField("destination");
+
+      if (value.trim()) {
+        setShowAllAirports(false);
+      }
 
       if (
         destinationAirport &&
@@ -357,6 +381,7 @@ export default function Home() {
       }
 
       setOriginAirport(airport);
+      setShowAllAirports(false);
       setOriginQuery(formatAirportValue(airport));
       const matchesDestination =
         destinationAirport && destinationAirport.id === airport.id;
@@ -393,6 +418,7 @@ export default function Home() {
       }
 
       setDestinationAirport(airport);
+      setShowAllAirports(false);
       setDestinationQuery(formatAirportValue(airport));
       setActiveField(null);
       setViewMode("browse");
@@ -461,6 +487,8 @@ export default function Home() {
 
   const handleAirportClick = useCallback(
     (airport: AirportData) => {
+      setShowAllAirports(false);
+
       if (activeField === "origin") {
         handleOriginSelect(airport);
         return;
@@ -483,6 +511,11 @@ export default function Home() {
 
   const displayMessage = useMemo(() => {
     if (isLoading) return "Loading airports...";
+
+    if (showAllAirports) {
+      return `Showing all ${airports.length.toLocaleString()} airports worldwide`;
+    }
+
     if (isLoadingNearby && viewMode === "browse") {
       return "Loading nearby airports...";
     }
@@ -508,12 +541,14 @@ export default function Home() {
     return "Find an origin airport";
   }, [
     activeField,
+    airports.length,
     destinationAirport,
     destinationQuery,
     isLoading,
     isLoadingNearby,
     nearbyAirports.length,
     originAirport,
+    showAllAirports,
     viewMode,
   ]);
 
@@ -560,9 +595,7 @@ export default function Home() {
       }
 
       const currentQuery =
-        field === "origin"
-          ? normalizedOriginQuery
-          : normalizedDestinationQuery;
+        field === "origin" ? normalizedOriginQuery : normalizedDestinationQuery;
 
       if (currentQuery !== formatAirportValue(selectedAirport)) {
         return;
@@ -606,6 +639,37 @@ export default function Home() {
       destination: route.destination,
     });
   }, [destinationAirport, lastValidRoute, originAirport]);
+
+  const handleShowAllAirportsClick = useCallback(() => {
+    setShowAllAirports(true);
+    setViewMode("browse");
+    viewModeRef.current = "browse";
+    setActiveField(null);
+    setOriginAirport(null);
+    setDestinationAirport(null);
+    setOriginQuery("");
+    setDestinationQuery("");
+    setLastValidRoute(null);
+    clearPendingFetch();
+    if (nearbyAbortRef.current) {
+      nearbyAbortRef.current.abort();
+      nearbyAbortRef.current = null;
+    }
+    setIsLoadingNearby(false);
+
+    if (mapInstanceRef.current) {
+      try {
+        const mapkit = mapKitLoader.getMapKit();
+        const globalRegion = new mapkit.CoordinateRegion(
+          new mapkit.Coordinate(20, 0),
+          new mapkit.CoordinateSpan(160, 360),
+        );
+        mapInstanceRef.current.setRegionAnimated(globalRegion, true);
+      } catch (error) {
+        console.error("Failed to zoom out for all airports:", error);
+      }
+    }
+  }, [clearPendingFetch]);
 
   return (
     <div className="flex flex-col h-screen w-full bg-background">
@@ -777,8 +841,19 @@ export default function Home() {
               )}
               {displayMessage}
             </p>
-            <Badge variant="secondary" className="hidden sm:flex">
-              {airports.length.toLocaleString()} Total Airports
+            <Badge
+              asChild
+              variant="secondary"
+              className="hidden sm:flex cursor-pointer"
+            >
+              <button
+                type="button"
+                onClick={handleShowAllAirportsClick}
+                className="flex items-center gap-1"
+                aria-label="Show all airports worldwide"
+              >
+                Support {airports.length.toLocaleString()} Total Airports
+              </button>
             </Badge>
           </div>
         </div>
@@ -797,6 +872,7 @@ export default function Home() {
             airports={displayedAirports}
             originAirport={originAirport}
             destinationAirport={destinationAirport}
+            showAllAirports={showAllAirports}
             onMapReady={handleMapReady}
             onAirportClick={handleAirportClick}
           />
