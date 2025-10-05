@@ -19,6 +19,26 @@ export default defineConfig({
       ],
     },
     setupFiles: ["./src/test/setup.ts"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "default",
+          environment: "happy-dom",
+          include: ["src/**/*.test.ts"],
+          exclude: ["src/lib/fli/__tests__/**"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "fli",
+          environment: "node",
+          include: ["src/lib/fli/__tests__/**/*.test.ts"],
+          testTimeout: 60_000,
+        },
+      },
+    ],
   },
   resolve: {
     alias: {
