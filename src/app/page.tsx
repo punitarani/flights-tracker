@@ -1,19 +1,46 @@
 "use client";
 
+import { format, parseISO } from "date-fns";
 import { Loader2, MapPin, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { AirportMap } from "@/components/airport-map";
 import { AirportSearch } from "@/components/airport-search";
 import { Header } from "@/components/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
 import { trpc } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type { AirportData } from "@/server/services/airports";
 
 type ViewMode = "browse" | "search";
+
+type FlightPricePoint = {
+  date: string;
+  price: number;
+};
+
+const PRICE_CHART_CONFIG = {
+  price: {
+    label: "Price (USD)",
+    color: "var(--chart-1)",
+  },
+} as const;
+
+const USD_FORMATTER = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
+
+const MAX_SEARCH_DAYS = 90;
 
 const FETCH_DEBOUNCE_MS = 350;
 const MOVEMENT_THRESHOLD_DEGREES = 0.05;
@@ -39,12 +66,17 @@ export default function Home() {
     destination: AirportData;
   } | null>(null);
   const [showAllAirports, setShowAllAirports] = useState(true);
+  const [flightPrices, setFlightPrices] = useState<FlightPricePoint[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const viewModeRef = useRef<ViewMode>("browse");
   const pendingFetchTimeoutRef = useRef<number | null>(null);
   const lastFetchRef = useRef<{ lat: number; lon: number } | null>(null);
   const mapInstanceRef = useRef<MapKitMap | null>(null);
   const latestNearbyRequestRef = useRef(0);
+  const searchAbortRef = useRef<AbortController | null>(null);
   const trpcContext = trpc.useContext();
   const { data: airportSearchData, isLoading: isLoadingAirports } =
     trpc.useQuery(["airports.search", { limit: 10000 }]);
@@ -191,6 +223,10 @@ export default function Home() {
   useEffect(() => {
     return () => {
       clearPendingFetch();
+      if (searchAbortRef.current) {
+        searchAbortRef.current.abort();
+        searchAbortRef.current = null;
+      }
     };
   }, [clearPendingFetch]);
 
@@ -232,6 +268,14 @@ export default function Home() {
     viewModeRef.current = "browse";
     setShowAllAirports(false);
     clearPendingFetch();
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+      searchAbortRef.current = null;
+    }
+    setIsSearching(false);
+    setFlightPrices([]);
+    setSearchError(null);
+    setHasSearched(false);
 
     if (mapCenter) {
       scheduleNearbyFetch(mapCenter.lat, mapCenter.lon, {
@@ -512,7 +556,34 @@ export default function Home() {
       !destinationMatchesSelection;
   }
 
-  const isSearchDisabled = isEditing && isActiveFieldDirty;
+  const isSearchDisabled = (isEditing && isActiveFieldDirty) || isSearching;
+
+  const chartData = useMemo(() => {
+    const sorted = [...flightPrices].sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+
+    return sorted.map((entry) => {
+      const parsedDate = parseISO(entry.date);
+      return {
+        ...entry,
+        formattedDate: format(parsedDate, "MMM d"),
+      };
+    });
+  }, [flightPrices]);
+
+  const cheapestEntry = useMemo(() => {
+    if (flightPrices.length === 0) {
+      return null;
+    }
+
+    return flightPrices.reduce((lowest, current) =>
+      current.price < lowest.price ? current : lowest,
+    );
+  }, [flightPrices]);
+
+  const shouldShowPricePanel =
+    isSearching || searchError !== null || hasSearched;
 
   const handleFieldBlur = useCallback(
     (field: "origin" | "destination") => {
@@ -557,7 +628,7 @@ export default function Home() {
     ],
   );
 
-  const handleSearchClick = useCallback(() => {
+  const performSearch = useCallback(async () => {
     const route =
       originAirport && destinationAirport
         ? { origin: originAirport, destination: destinationAirport }
@@ -567,11 +638,79 @@ export default function Home() {
       return;
     }
 
-    console.log("Search flights requested", {
-      origin: route.origin,
-      destination: route.destination,
-    });
+    setHasSearched(true);
+
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+
+    setIsSearching(true);
+    setSearchError(null);
+
+    try {
+      const response = await fetch("/api/flights/cheapest", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          origin: route.origin.iata,
+          destination: route.destination.iata,
+          days: MAX_SEARCH_DAYS,
+        }),
+        signal: controller.signal,
+      });
+
+      const payload = (await response.json().catch(() => null)) as {
+        prices?: FlightPricePoint[];
+        error?: string;
+      } | null;
+
+      if (!response.ok) {
+        const message =
+          (payload?.error && typeof payload.error === "string"
+            ? payload.error
+            : undefined) ?? "Failed to search flights";
+        throw new Error(message);
+      }
+
+      if (!controller.signal.aborted) {
+        const sanitized = Array.isArray(payload?.prices)
+          ? payload.prices.filter(
+              (item): item is FlightPricePoint =>
+                item !== null &&
+                typeof item === "object" &&
+                typeof item.date === "string" &&
+                typeof item.price === "number",
+            )
+          : [];
+        setFlightPrices(sanitized);
+      }
+    } catch (error) {
+      if ((error as DOMException)?.name === "AbortError") {
+        return;
+      }
+      setSearchError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to search flights",
+      );
+    } finally {
+      if (searchAbortRef.current === controller) {
+        searchAbortRef.current = null;
+      }
+      if (!controller.signal.aborted) {
+        setIsSearching(false);
+      }
+    }
   }, [destinationAirport, lastValidRoute, originAirport]);
+
+  const handleSearchClick = useCallback(() => {
+    void performSearch();
+  }, [performSearch]);
 
   const handleShowAllAirportsClick = useCallback(() => {
     setShowAllAirports(true);
@@ -584,6 +723,14 @@ export default function Home() {
     setDestinationQuery("");
     setLastValidRoute(null);
     clearPendingFetch();
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+      searchAbortRef.current = null;
+    }
+    setIsSearching(false);
+    setFlightPrices([]);
+    setSearchError(null);
+    setHasSearched(false);
     setIsLoadingNearby(false);
 
     if (mapInstanceRef.current) {
@@ -686,14 +833,21 @@ export default function Home() {
                   disabled={isSearchDisabled}
                   onClick={handleSearchClick}
                 >
-                  <Search className="h-4 w-4" aria-hidden="true" />
+                  {isSearching ? (
+                    <Loader2
+                      className="h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Search className="h-4 w-4" aria-hidden="true" />
+                  )}
                   <span
                     className={cn(
                       "text-sm font-semibold",
                       isEditing ? "sm:hidden" : "",
                     )}
                   >
-                    Search Flights
+                    {isSearching ? "Searching..." : "Search Flights"}
                   </span>
                 </Button>
               </div>
@@ -732,6 +886,96 @@ export default function Home() {
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
               <span className="text-sm font-medium">Loading airports...</span>
             </Card>
+          </div>
+        ) : shouldShowPricePanel ? (
+          <div className="h-full w-full overflow-auto bg-muted/10">
+            <div className="container mx-auto p-4">
+              <Card className="space-y-4 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold">
+                      Cheapest fares over the next {MAX_SEARCH_DAYS} days
+                    </p>
+                    {cheapestEntry && (
+                      <p className="text-xs text-muted-foreground">
+                        {format(parseISO(cheapestEntry.date), "MMM d")} •{" "}
+                        {USD_FORMATTER.format(cheapestEntry.price)}
+                      </p>
+                    )}
+                    {!cheapestEntry &&
+                      !isSearching &&
+                      !searchError &&
+                      hasSearched && (
+                        <p className="text-xs text-muted-foreground">
+                          No fares found for this route.
+                        </p>
+                      )}
+                  </div>
+                  {isSearching ? (
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                  ) : null}
+                </div>
+
+                {searchError ? (
+                  <div
+                    role="alert"
+                    className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                  >
+                    {searchError}
+                  </div>
+                ) : null}
+
+                {chartData.length > 0 && !searchError ? (
+                  <ChartContainer
+                    config={PRICE_CHART_CONFIG}
+                    className="h-64 w-full"
+                  >
+                    <LineChart
+                      data={chartData}
+                      margin={{ left: 12, right: 12 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis
+                        dataKey="formattedDate"
+                        tickLine={false}
+                        axisLine={false}
+                        minTickGap={16}
+                      />
+                      <YAxis
+                        dataKey="price"
+                        tickLine={false}
+                        axisLine={false}
+                        width={56}
+                        tickFormatter={(value: number) =>
+                          USD_FORMATTER.format(value)
+                        }
+                      />
+                      <ChartTooltip
+                        cursor={{ strokeDasharray: "4 4" }}
+                        content={
+                          <ChartTooltipContent
+                            labelKey="formattedDate"
+                            formatter={(value) =>
+                              typeof value === "number"
+                                ? USD_FORMATTER.format(value)
+                                : (value ?? "")
+                            }
+                          />
+                        }
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="price"
+                        stroke="var(--color-price)"
+                        strokeWidth={2}
+                        dot={{ r: 1.5 }}
+                        activeDot={{ r: 3 }}
+                      />
+                    </LineChart>
+                  </ChartContainer>
+                ) : null}
+              </Card>
+            </div>
           </div>
         ) : (
           <AirportMap
