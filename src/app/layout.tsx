@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Flights Tracker",
+  title: "Fli",
   description: "Track flight prices and create alerts",
   icons: {
     icon: [

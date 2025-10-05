@@ -9,9 +9,7 @@ export function SiteHeader() {
           <span className="text-2xl" role="img" aria-label="flight">
             ✈️
           </span>
-          <span className="text-2xl font-bold tracking-tight">
-            Flights Tracker
-          </span>
+          <span className="text-2xl font-bold tracking-tight">Fli</span>
         </Link>
         <SignOutButton variant="outline" className="gap-2" size="sm" />
       </div>
