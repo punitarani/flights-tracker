@@ -21,16 +21,28 @@ interface MapKitMarkerAnnotationConstructor {
   ): MapKitMarkerAnnotation;
 }
 
+type MapKitOverlay = unknown;
+
+interface MapKitPolylineOverlayConstructor {
+  new (
+    coordinates: MapKitCoordinate[],
+    options?: Record<string, unknown>,
+  ): MapKitOverlay;
+}
+
 interface MapKitMap {
   destroy: () => void;
   addAnnotations: (annotations: MapKitMarkerAnnotation[]) => void;
   removeAnnotation: (annotation: MapKitMarkerAnnotation) => void;
+  addOverlay: (overlay: MapKitOverlay) => void;
+  removeOverlay: (overlay: MapKitOverlay) => void;
   showItems: (
-    annotations: MapKitMarkerAnnotation[],
+    annotations: Array<MapKitMarkerAnnotation | MapKitOverlay>,
     options?: { animate?: boolean; padding?: unknown },
   ) => void;
   setRegionAnimated: (region: unknown, animated: boolean) => void;
   selectedAnnotation: MapKitMarkerAnnotation | null;
+  camera?: unknown;
 }
 
 interface MapKitMapConstructor {
@@ -57,6 +69,7 @@ interface MapKit {
   Padding: MapKitConstructor<[number, number, number, number], unknown>;
   CoordinateRegion: MapKitConstructor<[unknown, unknown], unknown>;
   CoordinateSpan: MapKitConstructor<[number, number], unknown>;
+  PolylineOverlay: MapKitPolylineOverlayConstructor;
 }
 
 declare global {

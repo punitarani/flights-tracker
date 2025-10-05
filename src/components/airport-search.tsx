@@ -24,6 +24,11 @@ interface AirportSearchProps {
   value: string;
   onChange: (value: string) => void;
   onSelect: (airport: AirportData | null) => void;
+  onFocus?: () => void;
+  placeholder?: string;
+  inputAriaLabel?: string;
+  autoFocus?: boolean;
+  className?: string;
   isLoading?: boolean;
 }
 
@@ -32,6 +37,11 @@ export function AirportSearch({
   value,
   onChange,
   onSelect,
+  onFocus,
+  placeholder = "Search by name, IATA, ICAO, city, or country...",
+  inputAriaLabel,
+  autoFocus = false,
+  className,
   isLoading = false,
 }: AirportSearchProps) {
   const [open, setOpen] = React.useState(false);
@@ -60,6 +70,12 @@ export function AirportSearch({
       resizeObserver.disconnect();
     };
   }, []);
+
+  React.useEffect(() => {
+    if (autoFocus) {
+      inputRef.current?.focus();
+    }
+  }, [autoFocus]);
 
   // Filter airports based on search query
   React.useEffect(() => {
@@ -127,17 +143,22 @@ export function AirportSearch({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <div ref={triggerRef} className="relative w-full">
+      <div
+        ref={triggerRef}
+        className={cn("relative w-full transition-all", className)}
+      >
         <PopoverAnchor asChild>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <input
               ref={inputRef}
               type="text"
-              placeholder="Search by name, IATA, ICAO, city, or country..."
+              placeholder={placeholder}
+              aria-label={inputAriaLabel}
               value={value}
               onChange={(e) => onChange(e.target.value)}
               onFocus={() => {
+                onFocus?.();
                 if (filteredAirports.length > 0) {
                   setOpen(true);
                 }
