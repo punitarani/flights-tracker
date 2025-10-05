@@ -92,30 +92,30 @@ export function FlightOptionsList({
           option.totalPrice,
           option.currency,
         );
-        const totalStops = option.slices.reduce(
-          (sum, slice) => sum + slice.stops,
-          0,
-        );
-        const summaryLabel =
-          option.slices.length > 1
-            ? `${option.slices.length} segments`
-            : totalStops === 0
-              ? "Nonstop"
-              : `${totalStops} stop${totalStops > 1 ? "s" : ""}`;
+        const airlineNames: string[] = [];
+        const seenAirlineNames = new Set<string>();
+        for (const slice of option.slices) {
+          for (const leg of slice.legs) {
+            if (!leg.airlineName || seenAirlineNames.has(leg.airlineName)) {
+              continue;
+            }
+            seenAirlineNames.add(leg.airlineName);
+            airlineNames.push(leg.airlineName);
+          }
+        }
+        const headerTitle =
+          airlineNames.length > 0
+            ? airlineNames.join(" + ")
+            : `Option ${optionIndex + 1}`;
         return (
           <div
             key={`${option.totalPrice}-${optionIndex}`}
             className="rounded-lg border bg-card/80 p-4 shadow-sm"
           >
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold">
-                  Option {optionIndex + 1} • {formattedPrice}
-                </p>
-                <p className="text-xs text-muted-foreground">{summaryLabel}</p>
-              </div>
-              <Badge variant="secondary" className="w-fit">
-                {option.currency}
+              <p className="text-sm font-semibold">{headerTitle}</p>
+              <Badge variant="secondary" className="w-fit whitespace-nowrap">
+                {formattedPrice}
               </Badge>
             </div>
 
