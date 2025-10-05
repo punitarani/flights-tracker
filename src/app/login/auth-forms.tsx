@@ -1,8 +1,8 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import type { ReactNode } from "react";
-import { useFormState, useFormStatus } from "react-dom";
+import { type ReactNode, useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -38,11 +38,11 @@ export default function AuthForms({
   signUpAction,
   initialState,
 }: AuthFormsProps) {
-  const [signInState, signInDispatch] = useFormState(
+  const [signInState, signInDispatch] = useActionState(
     signInAction,
     initialState,
   );
-  const [signUpState, signUpDispatch] = useFormState(
+  const [signUpState, signUpDispatch] = useActionState(
     signUpAction,
     initialState,
   );
