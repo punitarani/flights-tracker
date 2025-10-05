@@ -40,7 +40,7 @@ export function AirportSearch({
   );
   const inputRef = React.useRef<HTMLInputElement>(null);
   const triggerRef = React.useRef<HTMLDivElement>(null);
-  const [_triggerWidth, setTriggerWidth] = React.useState<number>();
+  const [triggerWidth, setTriggerWidth] = React.useState<number>();
 
   // Keep the dropdown width in sync with the trigger
   React.useEffect(() => {
@@ -167,7 +167,7 @@ export function AirportSearch({
         <PopoverContent
           className="p-0"
           align="start"
-          fitTriggerWidth
+          style={{ width: triggerWidth ? `${triggerWidth}px` : undefined }}
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <Command shouldFilter={false}>

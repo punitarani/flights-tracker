@@ -4,13 +4,73 @@ import { env } from "@/env";
 
 type MapKitLibrary = "map" | "annotations";
 
+type MapKitAuthorizationCallback = (done: (token: string) => void) => void;
+
+type MapKitCoordinate = unknown;
+
+interface MapKitMarkerAnnotation {
+  addEventListener: (event: string, handler: () => void) => void;
+  color?: string;
+  [key: string]: unknown;
+}
+
+interface MapKitMarkerAnnotationConstructor {
+  new (
+    coordinate: MapKitCoordinate,
+    options?: Record<string, unknown>,
+  ): MapKitMarkerAnnotation;
+}
+
+interface MapKitMap {
+  destroy: () => void;
+  addAnnotations: (annotations: MapKitMarkerAnnotation[]) => void;
+  removeAnnotation: (annotation: MapKitMarkerAnnotation) => void;
+  showItems: (
+    annotations: MapKitMarkerAnnotation[],
+    options?: { animate?: boolean; padding?: unknown },
+  ) => void;
+  setRegionAnimated: (region: unknown, animated: boolean) => void;
+  selectedAnnotation: MapKitMarkerAnnotation | null;
+}
+
+interface MapKitMapConstructor {
+  new (element: HTMLElement, options?: Record<string, unknown>): MapKitMap;
+  ColorSchemes: Record<string, unknown>;
+}
+
+interface MapKitConstructor<TArgs extends unknown[], TResult> {
+  new (...args: TArgs): TResult;
+}
+
+interface MapKitFeatureVisibility {
+  Adaptive: unknown;
+  [key: string]: unknown;
+}
+
+interface MapKit {
+  init(options: { authorizationCallback: MapKitAuthorizationCallback }): void;
+  importLibrary?: (name: MapKitLibrary) => Promise<void>;
+  Map: MapKitMapConstructor;
+  Coordinate: MapKitConstructor<[number, number], MapKitCoordinate>;
+  FeatureVisibility: MapKitFeatureVisibility;
+  MarkerAnnotation: MapKitMarkerAnnotationConstructor;
+  Padding: MapKitConstructor<[number, number, number, number], unknown>;
+  CoordinateRegion: MapKitConstructor<[unknown, unknown], unknown>;
+  CoordinateSpan: MapKitConstructor<[number, number], unknown>;
+}
+
+declare global {
+  interface Window {
+    mapkit?: MapKit;
+  }
+}
+
 const MAPKIT_SCRIPT_URL = "https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js";
 const REQUIRED_LIBRARIES: MapKitLibrary[] = ["map", "annotations"];
 const SCRIPT_SELECTOR = "script[data-mapkit-loader='true']";
 
 class MapKitLoader {
-  // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
-  private mapkit: any = null;
+  private mapkit: MapKit | null = null;
   private isInitialized = false;
   private initCalled = false;
   private librariesLoaded = false;
@@ -39,8 +99,7 @@ class MapKitLoader {
     }
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
-  getMapKit(): any {
+  getMapKit(): MapKit {
     if (!this.mapkit) {
       throw new Error("MapKit has not been initialized yet");
     }
@@ -78,8 +137,7 @@ class MapKitLoader {
     if (!this.initCalled) {
       try {
         mapkit.init({
-          // biome-ignore lint/suspicious/noExplicitAny: MapKit callback parameter
-          authorizationCallback: (done: any) => {
+          authorizationCallback: (done) => {
             done(env.NEXT_PUBLIC_MAPKIT_TOKEN);
           },
         });
@@ -140,14 +198,16 @@ class MapKitLoader {
     });
   }
 
-  private async ensureLibraries(mapkit: typeof window.mapkit): Promise<void> {
+  private async ensureLibraries(mapkit: MapKit): Promise<void> {
     if (this.librariesLoaded) {
       return;
     }
 
-    if (typeof mapkit.importLibrary === "function") {
+    const importLibrary = mapkit.importLibrary;
+
+    if (typeof importLibrary === "function") {
       await Promise.all(
-        REQUIRED_LIBRARIES.map((library) => mapkit.importLibrary(library)),
+        REQUIRED_LIBRARIES.map((library) => importLibrary.call(mapkit, library)),
       );
       this.librariesLoaded = true;
       return;
@@ -158,7 +218,8 @@ class MapKitLoader {
 
       const check = () => {
         const hasMap = typeof mapkit.Map === "function";
-        const hasAnnotations = typeof mapkit.MarkerAnnotation === "function";
+        const hasAnnotations =
+          typeof mapkit.MarkerAnnotation === "function";
 
         if (hasMap && hasAnnotations) {
           this.librariesLoaded = true;
