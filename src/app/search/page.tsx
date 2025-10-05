@@ -6,10 +6,10 @@ import { Header } from "@/components/header";
 import { trpc } from "@/lib/trpc/react";
 
 /**
- * Home page (/) - Browse flights and explore airports on the map.
- * When user searches, they're redirected to /search with query params.
+ * Search page (/search) - Displays flight search results with price chart and options.
+ * Query params (origin, destination, dates, filters) are read via nuqs to hydrate state.
  */
-export default function Home() {
+export default function SearchPage() {
   const { data: airportSearchData, isLoading: isLoadingAirports } =
     trpc.useQuery(["airports.search", { limit: 10000 }]);
   const airports = airportSearchData?.airports ?? [];

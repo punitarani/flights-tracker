@@ -14,7 +14,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -31,7 +30,7 @@ type FlightFiltersPanelProps = {
   filters: FlightExplorerFiltersState;
   price: Pick<
     FlightExplorerPriceState,
-    "hasSearched" | "isSearching" | "canRefetch" | "onRefetch"
+    "isSearching" | "canRefetch" | "onRefetch"
   >;
 };
 
@@ -208,33 +207,29 @@ export function FlightFiltersPanel({
     filters.onArrivalTimeRangeChange({ from, to });
   };
 
-  let airlineSummary = "All airlines";
+  let _airlineSummary = "All airlines";
   if (filters.airlines.length > 0) {
     const sortedAirlines = [...filters.airlines].sort((a, b) =>
       getAirlineSummaryName(a).localeCompare(getAirlineSummaryName(b)),
     );
     if (filters.airlines.length <= 3) {
-      airlineSummary = formatListWithAnd(
+      _airlineSummary = formatListWithAnd(
         sortedAirlines.map((code) => renderAirlineSummaryLabel(code)),
       );
     } else {
       const formatted = sortedAirlines
         .slice(0, 3)
         .map((code) => renderAirlineSummaryLabel(code));
-      airlineSummary = `${formatted.join(", ")} +${filters.airlines.length - 3}`;
+      _airlineSummary = `${formatted.join(", ")} +${filters.airlines.length - 3}`;
     }
   }
 
-  const hasCustomWindow =
+  const _hasCustomWindow =
     filters.searchWindowDays !== DEFAULT_SEARCH_WINDOW_DAYS;
 
   const commandClasses = isDisabled ? "pointer-events-none opacity-60" : "";
   const showAirlineList =
     !isDisabled && (isAirlinePickerOpen || airlineSearch.trim().length > 0);
-
-  if (!price.hasSearched) {
-    return null;
-  }
 
   return (
     <Card className="space-y-4 border bg-card/80 p-4 shadow-sm">
@@ -511,25 +506,6 @@ export function FlightFiltersPanel({
           </Command>
         </div>
       </section>
-
-      <Separator className="my-0" />
-
-      <div className="flex flex-wrap gap-2 text-xs">
-        <Badge variant={hasCustomDeparture ? "default" : "outline"}>
-          Depart: {departureLabel}
-        </Badge>
-        <Badge variant={hasCustomArrival ? "default" : "outline"}>
-          Arrive: {arrivalLabel}
-        </Badge>
-        <Badge variant={filters.airlines.length ? "default" : "outline"}>
-          Airlines: {airlineSummary}
-        </Badge>
-        {hasCustomWindow && (
-          <Badge variant="default">
-            Window: {filters.searchWindowDays} days
-          </Badge>
-        )}
-      </div>
     </Card>
   );
 }

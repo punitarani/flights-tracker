@@ -42,7 +42,6 @@ export function FlightPricePanel({ state, filters }: FlightPricePanelProps) {
     cheapestEntry,
     searchError,
     isSearching,
-    hasSearched,
     searchWindowDays,
     selectedDate,
     selectedPriceIndex,
@@ -82,7 +81,7 @@ export function FlightPricePanel({ state, filters }: FlightPricePanelProps) {
       <div className="container mx-auto flex flex-col gap-4 p-4">
         <FlightFiltersPanel
           filters={filters}
-          price={{ hasSearched, isSearching, canRefetch, onRefetch }}
+          price={{ isSearching, canRefetch, onRefetch }}
         />
 
         <Card className="space-y-6 p-4">
@@ -97,14 +96,11 @@ export function FlightPricePanel({ state, filters }: FlightPricePanelProps) {
                   {USD_FORMATTER.format(cheapestEntry.price)}
                 </p>
               )}
-              {!cheapestEntry &&
-                !isSearching &&
-                !searchError &&
-                hasSearched && (
-                  <p className="text-xs text-muted-foreground">
-                    No fares found for this route.
-                  </p>
-                )}
+              {!cheapestEntry && !isSearching && !searchError && (
+                <p className="text-xs text-muted-foreground">
+                  No fares found for this route.
+                </p>
+              )}
             </div>
             {isSearching ? (
               <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
@@ -162,7 +158,7 @@ export function FlightPricePanel({ state, filters }: FlightPricePanelProps) {
             </ChartContainer>
           ) : null}
 
-          {chartData.length === 0 && !searchError && hasSearched ? (
+          {chartData.length === 0 && !searchError ? (
             <p className="text-xs text-muted-foreground">
               Adjust your filters or search window to uncover more fares.
             </p>
