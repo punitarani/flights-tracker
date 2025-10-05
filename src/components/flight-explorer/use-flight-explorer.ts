@@ -100,14 +100,16 @@ const DEFAULT_PASSENGERS = {
   infantsOnLap: 0,
 } as const;
 
-const SEARCH_WINDOW_SET = new Set(SEARCH_WINDOW_OPTIONS);
+const SEARCH_WINDOW_SET = new Set<number>(SEARCH_WINDOW_OPTIONS);
 
-function clampToAllowedWindow(days: number): number {
+type SearchWindowOption = (typeof SEARCH_WINDOW_OPTIONS)[number];
+
+function clampToAllowedWindow(days: number): SearchWindowOption {
   if (SEARCH_WINDOW_SET.has(days)) {
-    return days;
+    return days as SearchWindowOption;
   }
   const sorted = SEARCH_WINDOW_OPTIONS;
-  return sorted.reduce((closest, option) => {
+  return sorted.reduce<SearchWindowOption>((closest, option) => {
     const diff = Math.abs(option - days);
     const bestDiff = Math.abs(closest - days);
     if (diff < bestDiff) {
