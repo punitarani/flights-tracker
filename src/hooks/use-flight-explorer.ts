@@ -1281,106 +1281,6 @@ export function useFlightExplorer({
     pathname,
   ]);
 
-  // Sync filter changes to query params when on /search page
-  useEffect(() => {
-    if (!didHydrateFromQueryRef.current) {
-      return;
-    }
-
-    if (suppressQueryUpdatesRef.current) {
-      return;
-    }
-
-    // Only sync filters on /search page
-    if (pathname !== "/search") {
-      return;
-    }
-
-    // Only sync if we have a valid route (search in progress or completed)
-    if (!originAirport || !destinationAirport) {
-      return;
-    }
-
-    // Sync date range
-    const dateFrom = formatIsoDate(filters.dateRange.from);
-    const dateTo = formatIsoDate(filters.dateRange.to);
-    const searchWindowDays = filters.searchWindowDays;
-
-    // Sync time ranges (only if customized)
-    const departureTimeFrom = !isFullDayTimeRange(filters.departureTimeRange)
-      ? filters.departureTimeRange.from
-      : null;
-    const departureTimeTo = !isFullDayTimeRange(filters.departureTimeRange)
-      ? filters.departureTimeRange.to
-      : null;
-    const arrivalTimeFrom = !isFullDayTimeRange(filters.arrivalTimeRange)
-      ? filters.arrivalTimeRange.from
-      : null;
-    const arrivalTimeTo = !isFullDayTimeRange(filters.arrivalTimeRange)
-      ? filters.arrivalTimeRange.to
-      : null;
-
-    // Sync other filters (only if non-default)
-    const seatType =
-      filters.seatType !== SeatType.ECONOMY ? filters.seatType : null;
-    const stops = filters.stops !== MaxStops.ANY ? filters.stops : null;
-    const airlines = filters.airlines.length > 0 ? filters.airlines : null;
-
-    // Check if any values need updating
-    const needsUpdate =
-      queryState.dateFrom !== dateFrom ||
-      queryState.dateTo !== dateTo ||
-      queryState.searchWindowDays !== searchWindowDays ||
-      queryState.departureTimeFrom !== departureTimeFrom ||
-      queryState.departureTimeTo !== departureTimeTo ||
-      queryState.arrivalTimeFrom !== arrivalTimeFrom ||
-      queryState.arrivalTimeTo !== arrivalTimeTo ||
-      queryState.seatType !== seatType ||
-      queryState.stops !== stops ||
-      (airlines === null
-        ? queryState.airlines !== null
-        : queryState.airlines === null ||
-          airlines.length !== queryState.airlines.length ||
-          !airlines.every((a, i) => a === queryState.airlines?.[i]));
-
-    if (needsUpdate) {
-      updateQueryState({
-        dateFrom,
-        dateTo,
-        searchWindowDays,
-        departureTimeFrom,
-        departureTimeTo,
-        arrivalTimeFrom,
-        arrivalTimeTo,
-        seatType,
-        stops,
-        airlines,
-      });
-    }
-  }, [
-    originAirport,
-    destinationAirport,
-    filters.dateRange.from,
-    filters.dateRange.to,
-    filters.searchWindowDays,
-    filters.departureTimeRange,
-    filters.arrivalTimeRange,
-    filters.seatType,
-    filters.stops,
-    filters.airlines,
-    queryState.dateFrom,
-    queryState.dateTo,
-    queryState.searchWindowDays,
-    queryState.departureTimeFrom,
-    queryState.departureTimeTo,
-    queryState.arrivalTimeFrom,
-    queryState.arrivalTimeTo,
-    queryState.seatType,
-    queryState.stops,
-    queryState.airlines,
-    updateQueryState,
-    pathname,
-  ]);
 
   const handleOriginChange = useCallback(
     (value: string) => {
@@ -2168,6 +2068,47 @@ export function useFlightExplorer({
           }
         }
 
+        const dateFrom = formatIsoDate(snapshot.dateRange.from);
+        const dateTo = formatIsoDate(snapshot.dateRange.to);
+        const departureTimeFrom = !isFullDayTimeRange(
+          snapshot.departureTimeRange,
+        )
+          ? snapshot.departureTimeRange.from
+          : null;
+        const departureTimeTo = !isFullDayTimeRange(snapshot.departureTimeRange)
+          ? snapshot.departureTimeRange.to
+          : null;
+        const arrivalTimeFrom = !isFullDayTimeRange(snapshot.arrivalTimeRange)
+          ? snapshot.arrivalTimeRange.from
+          : null;
+        const arrivalTimeTo = !isFullDayTimeRange(snapshot.arrivalTimeRange)
+          ? snapshot.arrivalTimeRange.to
+          : null;
+        const seatTypeValue =
+          snapshot.seatType !== SeatType.ECONOMY ? snapshot.seatType : null;
+        const stopsValue =
+          snapshot.stops !== MaxStops.ANY ? snapshot.stops : null;
+        const airlinesValue =
+          snapshot.airlines.length > 0 ? [...snapshot.airlines] : null;
+
+        if (pathname === "/search") {
+          updateQueryState({
+            origin: route.origin.iata,
+            destination: route.destination.iata,
+            dateFrom,
+            dateTo,
+            searchWindowDays: snapshot.searchWindowDays,
+            departureTimeFrom,
+            departureTimeTo,
+            arrivalTimeFrom,
+            arrivalTimeTo,
+            seatType: seatTypeValue,
+            stops: stopsValue,
+            airlines: airlinesValue,
+            selectedDate: finalSelectedDate,
+          });
+        }
+
         // Navigate to /search with query params
         // Build query string manually to ensure navigation happens correctly
         const params = new URLSearchParams();
@@ -2183,54 +2124,22 @@ export function useFlightExplorer({
 
         setParam("origin", route.origin.iata);
         setParam("destination", route.destination.iata);
-        setParam("dateFrom", formatIsoDate(snapshot.dateRange.from));
-        setParam("dateTo", formatIsoDate(snapshot.dateRange.to));
+        setParam("dateFrom", dateFrom);
+        setParam("dateTo", dateTo);
         setParam("searchWindowDays", snapshot.searchWindowDays);
         setParam("selectedDate", finalSelectedDate);
-        setParam(
-          "departureTimeFrom",
-          !isFullDayTimeRange(snapshot.departureTimeRange)
-            ? snapshot.departureTimeRange.from
-            : null,
-        );
-        setParam(
-          "departureTimeTo",
-          !isFullDayTimeRange(snapshot.departureTimeRange)
-            ? snapshot.departureTimeRange.to
-            : null,
-        );
-        setParam(
-          "arrivalTimeFrom",
-          !isFullDayTimeRange(snapshot.arrivalTimeRange)
-            ? snapshot.arrivalTimeRange.from
-            : null,
-        );
-        setParam(
-          "arrivalTimeTo",
-          !isFullDayTimeRange(snapshot.arrivalTimeRange)
-            ? snapshot.arrivalTimeRange.to
-            : null,
-        );
-        setParam(
-          "seatType",
-          snapshot.seatType !== SeatType.ECONOMY ? snapshot.seatType : null,
-        );
-        setParam(
-          "stops",
-          snapshot.stops !== MaxStops.ANY ? snapshot.stops : null,
-        );
-        setParam(
-          "airlines",
-          snapshot.airlines.length > 0 ? snapshot.airlines : null,
-        );
+        setParam("departureTimeFrom", departureTimeFrom);
+        setParam("departureTimeTo", departureTimeTo);
+        setParam("arrivalTimeFrom", arrivalTimeFrom);
+        setParam("arrivalTimeTo", arrivalTimeTo);
+        setParam("seatType", seatTypeValue);
+        setParam("stops", stopsValue);
+        setParam("airlines", airlinesValue);
 
         const search = params.toString();
         const target = `/search${search ? `?${search}` : ""}`;
 
-        // Navigate to /search page - this will trigger nuqs to update from URL
-        if (pathname !== "/search") {
-          router.replace(target, { scroll: false });
-        }
+        router.replace(target, { scroll: false });
       } catch (error) {
         if (latestSearchRequestRef.current !== requestId) {
           return;
@@ -2257,6 +2166,7 @@ export function useFlightExplorer({
       pathname,
       router,
       selectedDate,
+      updateQueryState,
     ],
   );
 
