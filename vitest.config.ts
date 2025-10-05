@@ -3,6 +3,35 @@
 import { resolve } from "node:path";
 import { defineConfig } from "vitest/config";
 
+const projectPresets = {
+  default: {
+    extends: true,
+    test: {
+      name: "default",
+      environment: "happy-dom",
+      include: ["src/**/*.test.ts"],
+      exclude: ["src/lib/fli/__tests__/**"],
+    },
+  },
+  fli: {
+    extends: true,
+    test: {
+      name: "fli",
+      environment: "node",
+      include: ["src/lib/fli/__tests__/**/*.test.ts"],
+      testTimeout: 60_000,
+    },
+  },
+} as const;
+const selection = process.env.VITEST_SELECTION ?? "default";
+
+const selectedProjects =
+  selection === "all"
+    ? [projectPresets.default, projectPresets.fli]
+    : selection === "fli"
+      ? [projectPresets.fli]
+      : [projectPresets.default];
+
 export default defineConfig({
   test: {
     globals: true,
@@ -19,26 +48,7 @@ export default defineConfig({
       ],
     },
     setupFiles: ["./src/test/setup.ts"],
-    projects: [
-      {
-        extends: true,
-        test: {
-          name: "default",
-          environment: "happy-dom",
-          include: ["src/**/*.test.ts"],
-          exclude: ["src/lib/fli/__tests__/**"],
-        },
-      },
-      {
-        extends: true,
-        test: {
-          name: "fli",
-          environment: "node",
-          include: ["src/lib/fli/__tests__/**/*.test.ts"],
-          testTimeout: 60_000,
-        },
-      },
-    ],
+    projects: selectedProjects,
   },
   resolve: {
     alias: {
