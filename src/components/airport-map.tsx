@@ -14,6 +14,8 @@ interface AirportMapProps {
   onAirportClick?: (airport: AirportData) => void;
 }
 
+const ZOOM_OUT_THRESHOLD_DEGREES = 3;
+
 export function AirportMap({
   airports,
   originAirport,
@@ -23,18 +25,19 @@ export function AirportMap({
   onAirportClick,
 }: AirportMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
-  // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
-  const mapInstanceRef = useRef<any>(null);
+  const mapInstanceRef = useRef<mapkit.Map | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // biome-ignore lint/suspicious/noExplicitAny: MapKit annotation types are loaded at runtime
   const annotationsMapRef = useRef<Map<string, any>>(new Map());
   const routeOverlaysRef = useRef<unknown[]>([]);
   const isInitializingRef = useRef(false);
-  const renderModeRef = useRef<boolean | null>(null);
-  const [visibleAirportIds, setVisibleAirportIds] = useState<string[] | null>(
+  const renderModeRef = useRef<"dots" | "markers" | null>(null);
+  const programmaticRegionChangeRef = useRef(false);
+  const [viewportAirportIds, setViewportAirportIds] = useState<string[] | null>(
     null,
   );
+  const [showNearbyDots, setShowNearbyDots] = useState(false);
 
   const normalizeLongitude = useCallback((value: number) => {
     let result = value;
@@ -43,9 +46,9 @@ export function AirportMap({
     return result;
   }, []);
 
-  const updateVisibleAirports = useCallback(() => {
-    if (!showAllAirports || !mapInstanceRef.current) {
-      setVisibleAirportIds(null);
+  const updateViewportAirports = useCallback(() => {
+    if (!mapInstanceRef.current) {
+      setViewportAirportIds(null);
       return;
     }
 
@@ -77,7 +80,7 @@ export function AirportMap({
       })
       .map((airport) => airport.id);
 
-    setVisibleAirportIds((previous) => {
+    setViewportAirportIds((previous) => {
       if (
         previous &&
         previous.length === visibleIds.length &&
@@ -87,20 +90,68 @@ export function AirportMap({
       }
       return visibleIds;
     });
-  }, [airports, normalizeLongitude, showAllAirports]);
+  }, [airports, normalizeLongitude]);
+
+  const selectedAirportIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (originAirport) ids.add(originAirport.id);
+    if (destinationAirport) ids.add(destinationAirport.id);
+    return ids;
+  }, [destinationAirport, originAirport]);
+
+  const dotAirportIdSet = useMemo(() => {
+    if (!viewportAirportIds) {
+      return new Set<string>();
+    }
+
+    const visibleSet = new Set(viewportAirportIds);
+
+    if (showAllAirports) {
+      return visibleSet;
+    }
+
+    if (showNearbyDots) {
+      const filtered = new Set<string>();
+      for (const id of visibleSet) {
+        if (!selectedAirportIds.has(id)) {
+          filtered.add(id);
+        }
+      }
+      return filtered;
+    }
+
+    return new Set<string>();
+  }, [showAllAirports, showNearbyDots, selectedAirportIds, viewportAirportIds]);
 
   const airportsToRender = useMemo(() => {
-    if (showAllAirports) {
-      if (!visibleAirportIds) {
+    if (showAllAirports || showNearbyDots) {
+      if (!viewportAirportIds) {
         return [];
       }
 
-      const visibleSet = new Set(visibleAirportIds);
-      return airports.filter((airport) => visibleSet.has(airport.id));
+      const combinedIds = new Set<string>(dotAirportIdSet);
+      for (const id of selectedAirportIds) {
+        combinedIds.add(id);
+      }
+
+      return airports.filter((airport) => combinedIds.has(airport.id));
+    }
+
+    if (selectedAirportIds.size > 0) {
+      return airports.filter((airport) => selectedAirportIds.has(airport.id));
     }
 
     return airports;
-  }, [airports, showAllAirports, visibleAirportIds]);
+  }, [
+    airports,
+    dotAirportIdSet,
+    selectedAirportIds,
+    showAllAirports,
+    showNearbyDots,
+    viewportAirportIds,
+  ]);
+
+  const shouldRenderDots = showAllAirports || showNearbyDots;
 
   const computeGreatCirclePath = useCallback(
     (origin: AirportData, destination: AirportData) => {
@@ -251,6 +302,24 @@ export function AirportMap({
           colorScheme: mapkit.Map.ColorSchemes.Light,
         });
 
+        const originalSetRegionAnimated = map.setRegionAnimated.bind(map);
+        map.setRegionAnimated = (
+          region: mapkit.CoordinateRegion,
+          animate?: boolean,
+        ) => {
+          programmaticRegionChangeRef.current = true;
+          originalSetRegionAnimated(region, animate);
+        };
+
+        const originalShowItems = map.showItems.bind(map);
+        map.showItems = (
+          items: unknown[],
+          options?: mapkit.MapShowItemsOptions,
+        ) => {
+          programmaticRegionChangeRef.current = true;
+          originalShowItems(items, options);
+        };
+
         mapInstanceRef.current = map;
         setIsMapReady(true);
         setError(null);
@@ -294,26 +363,61 @@ export function AirportMap({
   }, []);
 
   useEffect(() => {
-    if (!showAllAirports) {
-      setVisibleAirportIds(null);
-      return;
+    if (!isMapReady) return;
+    updateViewportAirports();
+  }, [isMapReady, updateViewportAirports]);
+
+  useEffect(() => {
+    if (!isMapReady) return;
+    if (showAllAirports || showNearbyDots) {
+      updateViewportAirports();
     }
-
-    updateVisibleAirports();
-  }, [showAllAirports, updateVisibleAirports]);
+  }, [isMapReady, showAllAirports, showNearbyDots, updateViewportAirports]);
 
   useEffect(() => {
-    if (!showAllAirports) return;
-    updateVisibleAirports();
-  }, [showAllAirports, updateVisibleAirports]);
+    if (showAllAirports || (!originAirport && !destinationAirport)) {
+      setShowNearbyDots(false);
+    }
+  }, [destinationAirport, originAirport, showAllAirports]);
 
   useEffect(() => {
-    if (!isMapReady || !mapInstanceRef.current || !showAllAirports) return;
+    if (!isMapReady || !mapInstanceRef.current) return;
 
     const map = mapInstanceRef.current;
 
     const handleRegionChangeEnd = () => {
-      updateVisibleAirports();
+      updateViewportAirports();
+
+      if (programmaticRegionChangeRef.current) {
+        programmaticRegionChangeRef.current = false;
+        return;
+      }
+
+      if (showAllAirports) {
+        setShowNearbyDots(false);
+        return;
+      }
+
+      if (!originAirport && !destinationAirport) {
+        setShowNearbyDots(false);
+        return;
+      }
+
+      const region = map.region;
+      if (!region) return;
+
+      const { latitudeDelta, longitudeDelta } = region.span;
+
+      if (
+        latitudeDelta > ZOOM_OUT_THRESHOLD_DEGREES ||
+        longitudeDelta > ZOOM_OUT_THRESHOLD_DEGREES
+      ) {
+        if (!showNearbyDots) {
+          setShowNearbyDots(true);
+        }
+      } else if (showNearbyDots) {
+        setShowNearbyDots(false);
+      }
     };
 
     map.addEventListener("region-change-end", handleRegionChangeEnd);
@@ -321,13 +425,14 @@ export function AirportMap({
     return () => {
       map.removeEventListener("region-change-end", handleRegionChangeEnd);
     };
-  }, [isMapReady, showAllAirports, updateVisibleAirports]);
-
-  useEffect(() => {
-    if (!isMapReady) return;
-    if (!showAllAirports) return;
-    updateVisibleAirports();
-  }, [isMapReady, showAllAirports, updateVisibleAirports]);
+  }, [
+    destinationAirport,
+    isMapReady,
+    originAirport,
+    showAllAirports,
+    showNearbyDots,
+    updateViewportAirports,
+  ]);
 
   // Update annotations when airports change (with diffing)
   useEffect(() => {
@@ -339,7 +444,9 @@ export function AirportMap({
     const map = mapInstanceRef.current;
     const currentAnnotations = annotationsMapRef.current;
 
-    if (renderModeRef.current !== showAllAirports) {
+    const currentMode = shouldRenderDots ? "dots" : "markers";
+
+    if (renderModeRef.current !== currentMode) {
       const existingAnnotations = Array.from(currentAnnotations.values());
       if (existingAnnotations.length > 0) {
         try {
@@ -357,7 +464,7 @@ export function AirportMap({
       currentAnnotations.clear();
     }
 
-    renderModeRef.current = showAllAirports;
+    renderModeRef.current = currentMode;
 
     const newAirportIds = new Set(airportsToRender.map((a) => a.id));
 
@@ -383,7 +490,9 @@ export function AirportMap({
           airport.longitude,
         );
 
-        const annotation = showAllAirports
+        const shouldRenderDot = dotAirportIdSet.has(airport.id);
+
+        const annotation = shouldRenderDot
           ? (() => {
               if (typeof mapkit.Annotation === "function") {
                 const dotAnnotation = new mapkit.Annotation(
@@ -454,7 +563,13 @@ export function AirportMap({
 
       map.addAnnotations(newAnnotations);
     }
-  }, [airportsToRender, isMapReady, onAirportClick, showAllAirports]);
+  }, [
+    airportsToRender,
+    dotAirportIdSet,
+    isMapReady,
+    onAirportClick,
+    shouldRenderDots,
+  ]);
   useEffect(() => {
     if (!isMapReady || !mapInstanceRef.current) return;
 
