@@ -17,15 +17,15 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Airline, MaxStops, SeatType } from "@/lib/fli/models";
-import { cn } from "@/lib/utils";
-import { DEFAULT_SEARCH_WINDOW_DAYS, SEARCH_WINDOW_OPTIONS } from "./constants";
 import {
   DEFAULT_TIME_RANGE,
   type FlightExplorerFiltersState,
   type FlightExplorerPriceState,
   isFullDayTimeRange,
-} from "./use-flight-explorer";
+} from "@/hooks/use-flight-explorer";
+import { Airline, MaxStops, SeatType } from "@/lib/fli/models";
+import { cn } from "@/lib/utils";
+import { DEFAULT_SEARCH_WINDOW_DAYS, SEARCH_WINDOW_OPTIONS } from "./constants";
 
 type FlightFiltersPanelProps = {
   filters: FlightExplorerFiltersState;

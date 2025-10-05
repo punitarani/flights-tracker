@@ -2,11 +2,11 @@
 
 import { Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { useFlightExplorer } from "@/hooks/use-flight-explorer";
 import type { AirportData } from "@/server/services/airports";
 import { AirportMapView } from "./airport-map-view";
 import { FlightPricePanel } from "./flight-price-panel";
 import { RouteSearchPanel } from "./route-search-panel";
-import { useFlightExplorer } from "./use-flight-explorer";
 
 type FlightExplorerProps = {
   airports: AirportData[];

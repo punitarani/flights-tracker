@@ -1,7 +1,7 @@
 "use client";
 
 import { AirportMap } from "@/components/airport-map";
-import type { FlightExplorerMapState } from "./use-flight-explorer";
+import type { FlightExplorerMapState } from "@/hooks/use-flight-explorer";
 
 type AirportMapViewProps = {
   state: FlightExplorerMapState;

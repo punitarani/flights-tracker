@@ -11,16 +11,16 @@ import {
   startOfToday,
 } from "date-fns";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  DEFAULT_SEARCH_WINDOW_DAYS,
+  type FlightPricePoint,
+  SEARCH_WINDOW_OPTIONS,
+} from "@/components/flight-explorer/constants";
 import { MaxStops, SeatType, TripType } from "@/lib/fli/models";
 import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
 import { trpc } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
 import type { FlightOption } from "@/server/services/flights";
-import {
-  DEFAULT_SEARCH_WINDOW_DAYS,
-  type FlightPricePoint,
-  SEARCH_WINDOW_OPTIONS,
-} from "./constants";
 
 type ViewMode = "browse" | "search";
 

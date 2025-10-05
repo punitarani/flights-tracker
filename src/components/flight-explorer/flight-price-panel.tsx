@@ -18,13 +18,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
-import { PRICE_CHART_CONFIG, USD_FORMATTER } from "./constants";
-import { FlightFiltersPanel } from "./flight-filters-panel";
-import { FlightOptionsList } from "./flight-options-list";
 import type {
   FlightExplorerFiltersState,
   FlightExplorerPriceState,
-} from "./use-flight-explorer";
+} from "@/hooks/use-flight-explorer";
+import { PRICE_CHART_CONFIG, USD_FORMATTER } from "./constants";
+import { FlightFiltersPanel } from "./flight-filters-panel";
+import { FlightOptionsList } from "./flight-options-list";
 
 type FlightPricePanelProps = {
   state: FlightExplorerPriceState;

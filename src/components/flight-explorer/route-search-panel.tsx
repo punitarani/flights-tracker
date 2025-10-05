@@ -4,11 +4,11 @@ import { Loader2, MapPin, Search } from "lucide-react";
 import { AirportSearch } from "@/components/airport-search";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import type {
   FlightExplorerHeaderState,
   FlightExplorerSearchState,
-} from "./use-flight-explorer";
+} from "@/hooks/use-flight-explorer";
+import { cn } from "@/lib/utils";
 
 type RouteSearchPanelProps = {
   search: FlightExplorerSearchState;
