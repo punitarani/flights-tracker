@@ -25,6 +25,7 @@ interface AirportSearchProps {
   onChange: (value: string) => void;
   onSelect: (airport: AirportData | null) => void;
   onFocus?: () => void;
+  onBlur?: () => void;
   placeholder?: string;
   inputAriaLabel?: string;
   autoFocus?: boolean;
@@ -38,6 +39,7 @@ export function AirportSearch({
   onChange,
   onSelect,
   onFocus,
+  onBlur,
   placeholder = "Search by name, IATA, ICAO, city, or country...",
   inputAriaLabel,
   autoFocus = false,
@@ -162,6 +164,9 @@ export function AirportSearch({
                 if (filteredAirports.length > 0) {
                   setOpen(true);
                 }
+              }}
+              onBlur={() => {
+                onBlur?.();
               }}
               className={cn(
                 "w-full h-12 pl-10 pr-10 text-base rounded-md border border-input bg-background",

@@ -437,6 +437,7 @@ export default function Home() {
       placeholder: string,
       ariaLabel: string,
       autoFocusFlag: boolean,
+      onBlur?: () => void,
     ) => (
       <AirportSearch
         airports={airports}
@@ -447,6 +448,7 @@ export default function Home() {
           setActiveField(field);
           setViewMode("search");
         }}
+        onBlur={onBlur}
         placeholder={placeholder}
         inputAriaLabel={ariaLabel}
         autoFocus={autoFocusFlag}
@@ -543,6 +545,51 @@ export default function Home() {
   }
 
   const isSearchDisabled = isEditing && isActiveFieldDirty;
+
+  const handleFieldBlur = useCallback(
+    (field: "origin" | "destination") => {
+      if (activeField !== field) {
+        return;
+      }
+
+      const selectedAirport =
+        field === "origin" ? originAirport : destinationAirport;
+
+      if (!selectedAirport) {
+        return;
+      }
+
+      const currentQuery =
+        field === "origin"
+          ? normalizedOriginQuery
+          : normalizedDestinationQuery;
+
+      if (currentQuery !== formatAirportValue(selectedAirport)) {
+        return;
+      }
+
+      if (field === "origin") {
+        if (destinationAirport) {
+          setActiveField(null);
+          setViewMode("browse");
+        } else {
+          setActiveField("destination");
+          setViewMode("search");
+        }
+      } else if (originAirport && destinationAirport) {
+        setActiveField(null);
+        setViewMode("browse");
+      }
+    },
+    [
+      activeField,
+      destinationAirport,
+      formatAirportValue,
+      normalizedDestinationQuery,
+      normalizedOriginQuery,
+      originAirport,
+    ],
+  );
 
   const handleSearchClick = useCallback(() => {
     const route =
@@ -652,6 +699,7 @@ export default function Home() {
                       "Search origin airport...",
                       "Search origin airport",
                       true,
+                      () => handleFieldBlur("origin"),
                     )
                   : renderSummaryButton(originAirport, "origin", () => {
                       setActiveField("origin");
@@ -690,6 +738,7 @@ export default function Home() {
                         "Add destination airport...",
                         "Search destination airport",
                         activeField === "destination" || !destinationAirport,
+                        () => handleFieldBlur("destination"),
                       )}
                 </div>
               )}
