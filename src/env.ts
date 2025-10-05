@@ -5,6 +5,8 @@ export const env = createEnv({
   server: {
     DATABASE_URL: z.string().min(1),
     SUPABASE_SECRET_KEY: z.string().min(1),
+    RESEND_API_KEY: z.string().min(1),
+    RESEND_FROM_EMAIL: z.string().email().optional(),
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.url(),
@@ -18,5 +20,7 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY,
     NEXT_PUBLIC_MAPKIT_TOKEN: process.env.NEXT_PUBLIC_MAPKIT_TOKEN,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
   },
 });
