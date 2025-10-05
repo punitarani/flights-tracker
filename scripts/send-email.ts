@@ -1,5 +1,8 @@
-import type { NotificationEmailPayload } from "@/lib/notifications";
 import { sendNotificationEmail } from "@/lib/notifications";
+import type {
+  FlightOptionSummary,
+  NotificationEmailPayload,
+} from "@/lib/notifications";
 
 const [recipientEmail, templateArg] = process.argv.slice(2);
 
@@ -14,7 +17,7 @@ const template = templateArg === "price-drop" ? "price-drop" : "daily";
 
 const now = new Date();
 
-const sampleFlight = {
+const sampleFlight: FlightOptionSummary = {
   totalPrice: 219,
   currency: "USD",
   slices: [
@@ -40,7 +43,7 @@ const sampleFlight = {
       ],
     },
   ],
-} as const;
+};
 
 const baseAlert = {
   id: "alt-demo",

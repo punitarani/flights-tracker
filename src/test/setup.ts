@@ -15,6 +15,28 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
+class ResizeObserverMock {
+  // biome-ignore lint/suspicious/noExplicitAny: test environment mock
+  callback: any;
+
+  // biome-ignore lint/complexity/noUselessConstructor: storing callback for parity
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+  }
+
+  // biome-ignore lint/complexity/noUselessConstructor: parity with real observer
+  observe(): void {}
+
+  unobserve(): void {}
+
+  disconnect(): void {}
+}
+
+if (typeof globalThis.ResizeObserver === "undefined") {
+  // biome-ignore lint/style/noNonNullAssertion: assigning mock for tests
+  (globalThis as Record<string, unknown>).ResizeObserver = ResizeObserverMock;
+}
+
 afterEach(() => {
   vi.clearAllMocks();
   vi.resetModules();

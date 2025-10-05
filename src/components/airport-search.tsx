@@ -113,6 +113,33 @@ export function AirportSearch({
     [onChange, onSelect],
   );
 
+  const handleKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== "Enter") {
+        return;
+      }
+
+      const code = event.currentTarget.value.trim().toUpperCase();
+      if (!/^[A-Z]{3}$/.test(code)) {
+        return;
+      }
+
+      const matchedAirport =
+        filteredAirports.find(
+          (airport) => airport.iata.toUpperCase() === code,
+        ) ??
+        airports.find((airport) => airport.iata.toUpperCase() === code);
+
+      if (!matchedAirport) {
+        return;
+      }
+
+      event.preventDefault();
+      handleSelect(matchedAirport);
+    },
+    [airports, filteredAirports, handleSelect],
+  );
+
   const handleClear = React.useCallback(() => {
     onChange("");
     onSelect(null);
@@ -159,6 +186,7 @@ export function AirportSearch({
               aria-label={inputAriaLabel}
               value={value}
               onChange={(e) => onChange(e.target.value)}
+              onKeyDown={handleKeyDown}
               onFocus={() => {
                 onFocus?.();
                 if (filteredAirports.length > 0) {

@@ -1,36 +1,36 @@
 /// <reference types="vitest" />
 
 import { resolve } from "node:path";
-import { defineConfig } from "vitest/config";
+import { defineConfig, type TestProjectConfiguration } from "vitest/config";
 
-const projectPresets = {
-  default: {
-    extends: true,
-    test: {
-      name: "default",
-      environment: "happy-dom",
-      include: ["src/**/*.test.ts"],
-      exclude: ["src/lib/fli/__tests__/**"],
-    },
+const defaultProject: TestProjectConfiguration = {
+  extends: true,
+  test: {
+    name: "default",
+    environment: "happy-dom",
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    exclude: ["src/lib/fli/__tests__/**"],
   },
-  fli: {
-    extends: true,
-    test: {
-      name: "fli",
-      environment: "node",
-      include: ["src/lib/fli/__tests__/**/*.test.ts"],
-      testTimeout: 60_000,
-    },
+};
+
+const fliProject: TestProjectConfiguration = {
+  extends: true,
+  test: {
+    name: "fli",
+    environment: "node",
+    include: ["src/lib/fli/__tests__/**/*.test.ts"],
+    testTimeout: 60_000,
   },
-} as const;
+};
+
 const selection = process.env.VITEST_SELECTION ?? "default";
 
-const selectedProjects =
+const selectedProjects: TestProjectConfiguration[] =
   selection === "all"
-    ? [projectPresets.default, projectPresets.fli]
+    ? [defaultProject, fliProject]
     : selection === "fli"
-      ? [projectPresets.fli]
-      : [projectPresets.default];
+      ? [fliProject]
+      : [defaultProject];
 
 export default defineConfig({
   test: {
