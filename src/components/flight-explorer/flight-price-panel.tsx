@@ -17,7 +17,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Slider } from "@/components/ui/slider";
 import type {
   FlightExplorerFiltersState,
   FlightExplorerPriceState,
@@ -50,7 +49,6 @@ export function FlightPricePanel({ state, filters }: FlightPricePanelProps) {
     flightOptionsError,
     canRefetch,
     onRefetch,
-    onSelectPriceIndex,
     onSelectDate,
   } = state;
 
@@ -67,14 +65,6 @@ export function FlightPricePanel({ state, filters }: FlightPricePanelProps) {
     selectedPriceIndex !== null && chartData[selectedPriceIndex]
       ? chartData[selectedPriceIndex]
       : null;
-
-  const sliderMax = chartData.length > 0 ? chartData.length - 1 : 0;
-  const sliderValue =
-    selectedPriceIndex !== null
-      ? selectedPriceIndex
-      : chartData.length > 0
-        ? 0
-        : 0;
 
   return (
     <div className="h-full w-full overflow-auto bg-muted/10">
@@ -118,7 +108,16 @@ export function FlightPricePanel({ state, filters }: FlightPricePanelProps) {
 
           {chartData.length > 0 && !searchError ? (
             <ChartContainer config={PRICE_CHART_CONFIG} className="h-64 w-full">
-              <LineChart data={chartData} margin={{ left: 12, right: 12 }}>
+              <LineChart
+                data={chartData}
+                margin={{ left: 12, right: 12 }}
+                onClick={(data) => {
+                  if (data?.activePayload?.[0]?.payload?.date) {
+                    onSelectDate(data.activePayload[0].payload.date);
+                  }
+                }}
+                className="cursor-pointer"
+              >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis
                   dataKey="formattedDate"
@@ -151,8 +150,8 @@ export function FlightPricePanel({ state, filters }: FlightPricePanelProps) {
                   dataKey="price"
                   stroke="var(--color-price)"
                   strokeWidth={2}
-                  dot={{ r: 1.5 }}
-                  activeDot={{ r: 3 }}
+                  dot={{ r: 2, cursor: "pointer" }}
+                  activeDot={{ r: 5, cursor: "pointer" }}
                 />
               </LineChart>
             </ChartContainer>
@@ -171,8 +170,8 @@ export function FlightPricePanel({ state, filters }: FlightPricePanelProps) {
               <div className="space-y-1">
                 <h4 className="text-sm font-semibold">Choose a travel date</h4>
                 <p className="text-xs text-muted-foreground">
-                  Drag the slider or pick a date to load detailed flight
-                  options.
+                  Click a date on the chart or pick from the calendar to load
+                  detailed flight options.
                 </p>
               </div>
               <Popover>
@@ -206,29 +205,9 @@ export function FlightPricePanel({ state, filters }: FlightPricePanelProps) {
                       }
                       return date < firstChartDate || date > lastChartDate;
                     }}
-                    initialFocus
                   />
                 </PopoverContent>
               </Popover>
-            </div>
-
-            <Slider
-              min={0}
-              max={sliderMax}
-              step={1}
-              defaultValue={[0]}
-              value={selectedPriceIndex !== null ? [sliderValue] : undefined}
-              disabled={chartData.length <= 1 || isSearching}
-              onValueChange={(values) => {
-                if (!values.length) return;
-                onSelectPriceIndex(values[0]);
-              }}
-            />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>
-                {firstChartDate ? format(firstChartDate, "MMM d") : ""}
-              </span>
-              <span>{lastChartDate ? format(lastChartDate, "MMM d") : ""}</span>
             </div>
 
             {currentSelection ? (
@@ -252,11 +231,7 @@ export function FlightPricePanel({ state, filters }: FlightPricePanelProps) {
                   Clear selection
                 </Button>
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Select a price point above to load detailed flight options.
-              </p>
-            )}
+            ) : null}
 
             <FlightOptionsList
               options={flightOptions}
