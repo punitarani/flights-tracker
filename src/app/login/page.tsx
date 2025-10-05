@@ -88,11 +88,26 @@ export default async function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <AuthForms
-        signInAction={signInAction}
-        signUpAction={signUpAction}
-        initialState={authInitialState}
-      />
+      <div className="w-full max-w-md space-y-8">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <span className="text-4xl" role="img" aria-label="flight">
+            ✈️
+          </span>
+          <div className="space-y-1">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              Flights Tracker
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Sign in or create an account to manage your flight alerts.
+            </p>
+          </div>
+        </div>
+        <AuthForms
+          signInAction={signInAction}
+          signUpAction={signUpAction}
+          initialState={authInitialState}
+        />
+      </div>
     </div>
   );
 }
