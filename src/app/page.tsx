@@ -1,7 +1,14 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { Loader2, LogIn, LogOut, MapPin, UserRound } from "lucide-react";
+import {
+  Loader2,
+  LogIn,
+  LogOut,
+  MapPin,
+  Search,
+  UserRound,
+} from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AirportData } from "@/app/api/airports/route";
@@ -43,6 +50,10 @@ export default function Home() {
     lon: number;
   } | null>(null);
   const [isLoadingNearby, setIsLoadingNearby] = useState(false);
+  const [lastValidRoute, setLastValidRoute] = useState<{
+    origin: AirportData;
+    destination: AirportData;
+  } | null>(null);
 
   const viewModeRef = useRef<ViewMode>("browse");
   const pendingFetchTimeoutRef = useRef<number | null>(null);
@@ -94,6 +105,36 @@ export default function Home() {
         console.error("Failed to fetch auth user:", error);
       });
   }, []);
+
+  useEffect(() => {
+    if (originAirport && destinationAirport) {
+      setLastValidRoute((previous) => {
+        if (
+          previous &&
+          previous.origin.id === originAirport.id &&
+          previous.destination.id === destinationAirport.id
+        ) {
+          return previous;
+        }
+
+        return {
+          origin: originAirport,
+          destination: destinationAirport,
+        };
+      });
+    }
+  }, [destinationAirport, originAirport]);
+
+  useEffect(() => {
+    if (
+      !originAirport &&
+      !destinationAirport &&
+      !originQuery.trim() &&
+      !destinationQuery.trim()
+    ) {
+      setLastValidRoute(null);
+    }
+  }, [destinationAirport, destinationQuery, originAirport, originQuery]);
 
   const handleSignOut = useCallback(async () => {
     try {
@@ -311,6 +352,7 @@ export default function Home() {
         setActiveField("origin");
         setViewMode("browse");
         resetToBrowse();
+        setLastValidRoute(null);
         return;
       }
 
@@ -354,6 +396,9 @@ export default function Home() {
       setDestinationQuery(formatAirportValue(airport));
       setActiveField(null);
       setViewMode("browse");
+      if (originAirport) {
+        setLastValidRoute({ origin: originAirport, destination: airport });
+      }
     },
     [formatAirportValue, originAirport],
   );
@@ -470,6 +515,51 @@ export default function Home() {
     viewMode,
   ]);
 
+  const normalizedOriginQuery = originQuery.trim();
+  const normalizedDestinationQuery = destinationQuery.trim();
+  const hasCurrentRoute = Boolean(originAirport && destinationAirport);
+  const shouldShowSearchAction = hasCurrentRoute || Boolean(lastValidRoute);
+  const isEditing = activeField !== null;
+
+  const originMatchesSelection = Boolean(
+    originAirport &&
+      normalizedOriginQuery === formatAirportValue(originAirport),
+  );
+
+  const destinationMatchesSelection = Boolean(
+    destinationAirport &&
+      normalizedDestinationQuery === formatAirportValue(destinationAirport),
+  );
+
+  let isActiveFieldDirty = false;
+  if (activeField === "origin") {
+    isActiveFieldDirty =
+      !normalizedOriginQuery || !originAirport || !originMatchesSelection;
+  } else if (activeField === "destination") {
+    isActiveFieldDirty =
+      !normalizedDestinationQuery ||
+      !destinationAirport ||
+      !destinationMatchesSelection;
+  }
+
+  const isSearchDisabled = isEditing && isActiveFieldDirty;
+
+  const handleSearchClick = useCallback(() => {
+    const route =
+      originAirport && destinationAirport
+        ? { origin: originAirport, destination: destinationAirport }
+        : lastValidRoute;
+
+    if (!route) {
+      return;
+    }
+
+    console.log("Search flights requested", {
+      origin: route.origin,
+      destination: route.destination,
+    });
+  }, [destinationAirport, lastValidRoute, originAirport]);
+
   return (
     <div className="flex flex-col h-screen w-full bg-background">
       <div className="flex-none border-b bg-card/50 backdrop-blur-sm z-10">
@@ -539,67 +629,94 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
-            <div
-              className={cn(
-                "transition-all duration-200 ease-in-out",
-                originAirport && activeField !== "origin"
-                  ? "sm:w-60"
-                  : "sm:flex-1",
-                activeField === "origin"
-                  ? "opacity-100"
-                  : originAirport
-                    ? "opacity-90"
-                    : "opacity-100",
-              )}
-            >
-              {!originAirport || activeField === "origin"
-                ? renderSearchField(
-                    "origin",
-                    originQuery,
-                    handleOriginChange,
-                    handleOriginSelect,
-                    "Search origin airport...",
-                    "Search origin airport",
-                    true,
-                  )
-                : renderSummaryButton(originAirport, "origin", () => {
-                    setActiveField("origin");
-                    setViewMode("search");
-                  })}
-            </div>
-
-            {(originAirport || activeField === "destination") && (
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-1 sm:items-stretch">
               <div
                 className={cn(
                   "transition-all duration-200 ease-in-out",
-                  destinationAirport && activeField !== "destination"
+                  originAirport && activeField !== "origin"
                     ? "sm:w-60"
                     : "sm:flex-1",
-                  activeField === "destination"
+                  activeField === "origin"
                     ? "opacity-100"
-                    : destinationAirport
+                    : originAirport
                       ? "opacity-90"
-                      : "opacity-75",
+                      : "opacity-100",
                 )}
               >
-                {destinationAirport && activeField !== "destination"
-                  ? renderSummaryButton(
-                      destinationAirport,
-                      "destination",
-                      () => {
-                        setActiveField("destination");
-                        setViewMode("search");
-                      },
+                {!originAirport || activeField === "origin"
+                  ? renderSearchField(
+                      "origin",
+                      originQuery,
+                      handleOriginChange,
+                      handleOriginSelect,
+                      "Search origin airport...",
+                      "Search origin airport",
+                      true,
                     )
-                  : renderSearchField(
-                      "destination",
-                      destinationQuery,
-                      handleDestinationChange,
-                      handleDestinationSelect,
-                      "Add destination airport...",
-                      "Search destination airport",
-                      activeField === "destination" || !destinationAirport,
+                  : renderSummaryButton(originAirport, "origin", () => {
+                      setActiveField("origin");
+                      setViewMode("search");
+                    })}
+              </div>
+
+              {(originAirport || activeField === "destination") && (
+                <div
+                  className={cn(
+                    "transition-all duration-200 ease-in-out",
+                    destinationAirport && activeField !== "destination"
+                      ? "sm:w-60"
+                      : "sm:flex-1",
+                    activeField === "destination"
+                      ? "opacity-100"
+                      : destinationAirport
+                        ? "opacity-90"
+                        : "opacity-75",
+                  )}
+                >
+                  {destinationAirport && activeField !== "destination"
+                    ? renderSummaryButton(
+                        destinationAirport,
+                        "destination",
+                        () => {
+                          setActiveField("destination");
+                          setViewMode("search");
+                        },
+                      )
+                    : renderSearchField(
+                        "destination",
+                        destinationQuery,
+                        handleDestinationChange,
+                        handleDestinationSelect,
+                        "Add destination airport...",
+                        "Search destination airport",
+                        activeField === "destination" || !destinationAirport,
+                      )}
+                </div>
+              )}
+            </div>
+
+            {shouldShowSearchAction && (
+              <div className="flex w-full sm:ml-auto sm:w-auto sm:items-center sm:justify-end">
+                <Button
+                  type="button"
+                  className={cn(
+                    "h-12 w-full justify-center gap-2",
+                    "sm:w-auto sm:px-4",
+                    isEditing ? "sm:w-12 sm:px-0 sm:gap-0" : "",
+                  )}
+                  disabled={isSearchDisabled}
+                  onClick={handleSearchClick}
+                >
+                  <Search className="h-4 w-4" aria-hidden="true" />
+                  <span
+                    className={cn(
+                      "text-sm font-semibold",
+                      isEditing ? "sm:hidden" : "",
                     )}
+                  >
+                    Search Flights
+                  </span>
+                </Button>
               </div>
             )}
           </div>
