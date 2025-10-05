@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, MapPin, Search } from "lucide-react";
+import { Loader2, MapPin, Search, X } from "lucide-react";
 import { AirportSearch } from "@/components/airport-search";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     isSearchDisabled,
     isSearching,
     onSearch,
+    onReset,
     routeChangedSinceSearch,
   } = search;
 
@@ -153,33 +154,46 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
 
           {shouldShowSearchAction && (
             <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-              <Button
-                type="button"
-                className={cn(
-                  "h-12 w-full justify-center gap-2",
-                  "sm:w-auto sm:px-4",
-                  isEditing ? "sm:w-12 sm:px-0 sm:gap-0" : "",
-                )}
-                disabled={isSearchDisabled}
-                onClick={onSearch}
-              >
-                {isSearching ? (
-                  <Loader2
-                    className="h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <Search className="h-4 w-4" aria-hidden="true" />
-                )}
-                <span
-                  className={cn(
-                    "text-sm font-semibold",
-                    isEditing ? "sm:hidden" : "",
-                  )}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-12 w-12 shrink-0"
+                  onClick={onReset}
+                  aria-label="Reset search"
                 >
-                  {isSearching ? "Searching..." : "Search Flights"}
-                </span>
-              </Button>
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  <span className="sr-only">Reset</span>
+                </Button>
+                <Button
+                  type="button"
+                  className={cn(
+                    "h-12 flex-1 justify-center gap-2",
+                    "sm:flex-none sm:w-auto sm:px-4",
+                    isEditing ? "sm:w-12 sm:px-0 sm:gap-0" : "",
+                  )}
+                  disabled={isSearchDisabled}
+                  onClick={onSearch}
+                >
+                  {isSearching ? (
+                    <Loader2
+                      className="h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Search className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  <span
+                    className={cn(
+                      "text-sm font-semibold",
+                      isEditing ? "sm:hidden" : "",
+                    )}
+                  >
+                    {isSearching ? "Searching..." : "Search Flights"}
+                  </span>
+                </Button>
+              </div>
               {routeChangedSinceSearch && !isSearching ? (
                 <Badge
                   variant="secondary"

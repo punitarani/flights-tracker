@@ -412,6 +412,7 @@ export type FlightExplorerSearchState = {
   isSearchDisabled: boolean;
   isSearching: boolean;
   onSearch: () => void;
+  onReset: () => void;
   routeChangedSinceSearch: boolean;
 };
 
@@ -962,6 +963,16 @@ export function useFlightExplorer({
       setRouteChangedSinceSearch(false);
       clearStoredSearchState();
 
+      // Clear airport selections and input fields
+      setOriginAirport(null);
+      setDestinationAirport(null);
+      setOriginQuery("");
+      setDestinationQuery("");
+      setActiveField("origin");
+      setLastValidRoute(null);
+      lastHydratedOriginIdRef.current = null;
+      lastHydratedDestinationIdRef.current = null;
+
       // Clear all query params
       updateQueryState({
         origin: null,
@@ -979,11 +990,8 @@ export function useFlightExplorer({
         selectedDate: null,
       });
 
-      // Only navigate to home if we should AND we're not on a valid search page
-      const hasValidQueryRoute = Boolean(
-        queryState.origin && queryState.destination,
-      );
-      if (shouldNavigate && pathname !== "/" && !hasValidQueryRoute) {
+      // Navigate to home
+      if (shouldNavigate) {
         router.replace("/", { scroll: false });
       }
 
@@ -1000,11 +1008,8 @@ export function useFlightExplorer({
       scheduleNearbyFetch,
       clearSelectedDateAndOptions,
       setShowAllAirportsPersisted,
-      pathname,
       router,
       updateQueryState,
-      queryState.origin,
-      queryState.destination,
     ],
   );
 
@@ -1236,12 +1241,18 @@ export function useFlightExplorer({
   ]);
 
   // Sync airport selection to query params (but not during initial hydration)
+  // Only sync on /search page - on home page, params are set when user clicks search
   useEffect(() => {
     if (!didHydrateFromQueryRef.current) {
       return;
     }
 
     if (suppressQueryUpdatesRef.current) {
+      return;
+    }
+
+    // Only sync on /search page
+    if (pathname !== "/search") {
       return;
     }
 
@@ -1267,6 +1278,108 @@ export function useFlightExplorer({
     queryState.origin,
     queryState.destination,
     updateQueryState,
+    pathname,
+  ]);
+
+  // Sync filter changes to query params when on /search page
+  useEffect(() => {
+    if (!didHydrateFromQueryRef.current) {
+      return;
+    }
+
+    if (suppressQueryUpdatesRef.current) {
+      return;
+    }
+
+    // Only sync filters on /search page
+    if (pathname !== "/search") {
+      return;
+    }
+
+    // Only sync if we have a valid route (search in progress or completed)
+    if (!originAirport || !destinationAirport) {
+      return;
+    }
+
+    // Sync date range
+    const dateFrom = formatIsoDate(filters.dateRange.from);
+    const dateTo = formatIsoDate(filters.dateRange.to);
+    const searchWindowDays = filters.searchWindowDays;
+
+    // Sync time ranges (only if customized)
+    const departureTimeFrom = !isFullDayTimeRange(filters.departureTimeRange)
+      ? filters.departureTimeRange.from
+      : null;
+    const departureTimeTo = !isFullDayTimeRange(filters.departureTimeRange)
+      ? filters.departureTimeRange.to
+      : null;
+    const arrivalTimeFrom = !isFullDayTimeRange(filters.arrivalTimeRange)
+      ? filters.arrivalTimeRange.from
+      : null;
+    const arrivalTimeTo = !isFullDayTimeRange(filters.arrivalTimeRange)
+      ? filters.arrivalTimeRange.to
+      : null;
+
+    // Sync other filters (only if non-default)
+    const seatType =
+      filters.seatType !== SeatType.ECONOMY ? filters.seatType : null;
+    const stops = filters.stops !== MaxStops.ANY ? filters.stops : null;
+    const airlines = filters.airlines.length > 0 ? filters.airlines : null;
+
+    // Check if any values need updating
+    const needsUpdate =
+      queryState.dateFrom !== dateFrom ||
+      queryState.dateTo !== dateTo ||
+      queryState.searchWindowDays !== searchWindowDays ||
+      queryState.departureTimeFrom !== departureTimeFrom ||
+      queryState.departureTimeTo !== departureTimeTo ||
+      queryState.arrivalTimeFrom !== arrivalTimeFrom ||
+      queryState.arrivalTimeTo !== arrivalTimeTo ||
+      queryState.seatType !== seatType ||
+      queryState.stops !== stops ||
+      (airlines === null
+        ? queryState.airlines !== null
+        : queryState.airlines === null ||
+          airlines.length !== queryState.airlines.length ||
+          !airlines.every((a, i) => a === queryState.airlines?.[i]));
+
+    if (needsUpdate) {
+      updateQueryState({
+        dateFrom,
+        dateTo,
+        searchWindowDays,
+        departureTimeFrom,
+        departureTimeTo,
+        arrivalTimeFrom,
+        arrivalTimeTo,
+        seatType,
+        stops,
+        airlines,
+      });
+    }
+  }, [
+    originAirport,
+    destinationAirport,
+    filters.dateRange.from,
+    filters.dateRange.to,
+    filters.searchWindowDays,
+    filters.departureTimeRange,
+    filters.arrivalTimeRange,
+    filters.seatType,
+    filters.stops,
+    filters.airlines,
+    queryState.dateFrom,
+    queryState.dateTo,
+    queryState.searchWindowDays,
+    queryState.departureTimeFrom,
+    queryState.departureTimeTo,
+    queryState.arrivalTimeFrom,
+    queryState.arrivalTimeTo,
+    queryState.seatType,
+    queryState.stops,
+    queryState.airlines,
+    updateQueryState,
+    pathname,
   ]);
 
   const handleOriginChange = useCallback(
@@ -2156,6 +2269,12 @@ export function useFlightExplorer({
       return;
     }
 
+    // Only auto-search when on /search page (i.e., hydrating from URL)
+    // On home page, user must explicitly click search button
+    if (pathname !== "/search") {
+      return;
+    }
+
     // Don't trigger search if one is already in progress
     if (flightsDatesMutation.isLoading) {
       return;
@@ -2177,11 +2296,19 @@ export function useFlightExplorer({
     originAirport,
     performSearch,
     flightsDatesMutation.isLoading,
+    pathname,
   ]);
 
   const handleSearchClick = useCallback(() => {
     void performSearch();
   }, [performSearch]);
+
+  const handleResetSearch = useCallback(() => {
+    // Clear filters first
+    handleResetFilters();
+    // Then clear search and navigate home
+    resetToBrowse({ shouldNavigate: true });
+  }, [handleResetFilters, resetToBrowse]);
 
   const handleRefetch = useCallback(() => {
     if (!hasPendingFilterChanges) {
@@ -2351,6 +2478,7 @@ export function useFlightExplorer({
       isSearchDisabled,
       isSearching,
       onSearch: handleSearchClick,
+      onReset: handleResetSearch,
       routeChangedSinceSearch,
     },
     header: {
