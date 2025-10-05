@@ -2,11 +2,16 @@
 
 import { Loader2, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
-import { Button, type ButtonProps } from "@/components/ui/button";
+import { type ComponentProps, useTransition } from "react";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 
-type SignOutButtonProps = Pick<ButtonProps, "variant" | "size" | "className">;
+type ButtonComponentProps = ComponentProps<typeof Button>;
+
+type SignOutButtonProps = Pick<
+  ButtonComponentProps,
+  "variant" | "size" | "className"
+>;
 
 export function SignOutButton({
   className,

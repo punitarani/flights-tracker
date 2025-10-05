@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AirportData } from "@/app/api/airports/route";
-import { mapKitLoader } from "@/lib/mapkit-service";
+import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
 
 interface AirportMapProps {
   airports: AirportData[];
@@ -25,7 +25,7 @@ export function AirportMap({
   onAirportClick,
 }: AirportMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<mapkit.Map | null>(null);
+  const mapInstanceRef = useRef<MapKitMap | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // biome-ignore lint/suspicious/noExplicitAny: MapKit annotation types are loaded at runtime
@@ -303,19 +303,13 @@ export function AirportMap({
         });
 
         const originalSetRegionAnimated = map.setRegionAnimated.bind(map);
-        map.setRegionAnimated = (
-          region: mapkit.CoordinateRegion,
-          animate?: boolean,
-        ) => {
+        map.setRegionAnimated = (region, animate) => {
           programmaticRegionChangeRef.current = true;
           originalSetRegionAnimated(region, animate);
         };
 
         const originalShowItems = map.showItems.bind(map);
-        map.showItems = (
-          items: unknown[],
-          options?: mapkit.MapShowItemsOptions,
-        ) => {
+        map.showItems = (items, options) => {
           programmaticRegionChangeRef.current = true;
           originalShowItems(items, options);
         };

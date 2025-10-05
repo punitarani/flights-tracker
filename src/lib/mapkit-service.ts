@@ -20,7 +20,7 @@ interface MapKitAnnotationConstructor {
     factory?: (
       coordinate: MapKitCoordinate,
       options: Record<string, unknown>,
-    ) => MapKitBaseAnnotation,
+    ) => MapKitBaseAnnotation | HTMLElement,
     options?: Record<string, unknown>,
   ): MapKitBaseAnnotation;
 }
@@ -42,8 +42,7 @@ interface MapKitPolylineOverlayConstructor {
     options?: Record<string, unknown>,
   ): MapKitOverlay;
 }
-
-interface MapKitMap {
+export interface MapKitMap {
   destroy: () => void;
   addAnnotations: (annotations: MapKitBaseAnnotation[]) => void;
   removeAnnotation: (annotation: MapKitBaseAnnotation) => void;
@@ -54,9 +53,24 @@ interface MapKitMap {
     annotations: Array<MapKitBaseAnnotation | MapKitOverlay>,
     options?: { animate?: boolean; padding?: unknown },
   ) => void;
-  setRegionAnimated: (region: unknown, animated: boolean) => void;
+  setRegionAnimated: (region: unknown, animated?: boolean) => void;
   selectedAnnotation: MapKitBaseAnnotation | null;
   camera?: unknown;
+  region: {
+    center: { latitude: number; longitude: number };
+    span: { latitudeDelta: number; longitudeDelta: number };
+  } | null;
+  center: { latitude: number; longitude: number };
+  addEventListener: (
+    type: string,
+    listener: (...args: unknown[]) => void,
+    thisObject?: unknown,
+  ) => void;
+  removeEventListener: (
+    type: string,
+    listener: (...args: unknown[]) => void,
+    thisObject?: unknown,
+  ) => void;
 }
 
 interface MapKitMapConstructor {

@@ -22,7 +22,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { mapKitLoader } from "@/lib/mapkit-service";
+import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +61,7 @@ export default function Home() {
   const pendingFetchTimeoutRef = useRef<number | null>(null);
   const nearbyAbortRef = useRef<AbortController | null>(null);
   const lastFetchRef = useRef<{ lat: number; lon: number } | null>(null);
-  const mapInstanceRef = useRef<mapkit.Map | null>(null);
+  const mapInstanceRef = useRef<MapKitMap | null>(null);
 
   const displayedAirports = useMemo(() => {
     if (showAllAirports) {
