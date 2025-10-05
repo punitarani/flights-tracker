@@ -1,29 +1,15 @@
 "use client";
 
-import type { User } from "@supabase/supabase-js";
-import {
-  Loader2,
-  LogIn,
-  LogOut,
-  MapPin,
-  Search,
-  UserRound,
-} from "lucide-react";
-import Link from "next/link";
+import { Loader2, MapPin, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AirportData } from "@/app/api/airports/route";
 import { AirportMap } from "@/components/airport-map";
 import { AirportSearch } from "@/components/airport-search";
+import { Header } from "@/components/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "browse" | "search";
@@ -43,8 +29,6 @@ export default function Home() {
     "origin" | "destination" | null
   >("origin");
   const [isLoading, setIsLoading] = useState(true);
-  const [authUser, setAuthUser] = useState<User | null>(null);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("browse");
   const [mapCenter, setMapCenter] = useState<{
     lat: number;
@@ -107,19 +91,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const supabase = createClient();
-
-    supabase.auth
-      .getUser()
-      .then(({ data }) => {
-        setAuthUser(data.user ?? null);
-      })
-      .catch((error) => {
-        console.error("Failed to fetch auth user:", error);
-      });
-  }, []);
-
-  useEffect(() => {
     if (originAirport && destinationAirport) {
       setLastValidRoute((previous) => {
         if (
@@ -148,17 +119,6 @@ export default function Home() {
       setLastValidRoute(null);
     }
   }, [destinationAirport, destinationQuery, originAirport, originQuery]);
-
-  const handleSignOut = useCallback(async () => {
-    try {
-      const supabase = createClient();
-      await supabase.auth.signOut();
-      setAuthUser(null);
-      setIsProfileOpen(false);
-    } catch (error) {
-      console.error("Failed to sign out:", error);
-    }
-  }, []);
 
   const clearPendingFetch = useCallback(() => {
     if (pendingFetchTimeoutRef.current !== null) {
@@ -673,72 +633,9 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-background">
+      <Header />
       <div className="flex-none border-b bg-card/50 backdrop-blur-sm z-10">
         <div className="container mx-auto p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl" role="img" aria-label="flight">
-                ✈️
-              </span>
-              <h1 className="text-2xl font-bold tracking-tight">
-                Flights Tracker
-              </h1>
-            </div>
-            {authUser ? (
-              <Popover open={isProfileOpen} onOpenChange={setIsProfileOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="px-3 gap-2 max-w-[220px]"
-                  >
-                    <UserRound className="h-4 w-4" aria-hidden="true" />
-                    <span className="truncate">
-                      {authUser.email ?? "Profile"}
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="end"
-                  className="p-2 space-y-1 min-w-[var(--trigger-width)]"
-                  style={{
-                    // Ensures popover matches trigger width when Radix data attr is available
-                    // Fallback using inline style for browsers without support
-                    width: "var(--trigger-width)",
-                  }}
-                >
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start gap-2"
-                  >
-                    <Link href="/profile">
-                      <UserRound className="h-4 w-4" aria-hidden="true" />
-                      Profile
-                    </Link>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start gap-2"
-                    onClick={handleSignOut}
-                  >
-                    <LogOut className="h-4 w-4" aria-hidden="true" />
-                    Sign out
-                  </Button>
-                </PopoverContent>
-              </Popover>
-            ) : (
-              <Button asChild variant="outline" size="sm" className="px-3">
-                <Link href="/login" className="flex items-center gap-2">
-                  <LogIn className="h-4 w-4" aria-hidden="true" />
-                  <span>Login</span>
-                </Link>
-              </Button>
-            )}
-          </div>
-
           <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-1 sm:items-stretch">
               <div

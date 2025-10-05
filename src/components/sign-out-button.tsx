@@ -11,12 +11,15 @@ type ButtonComponentProps = ComponentProps<typeof Button>;
 type SignOutButtonProps = Pick<
   ButtonComponentProps,
   "variant" | "size" | "className"
->;
+> & {
+  onSignOut?: () => void;
+};
 
 export function SignOutButton({
   className,
   size,
   variant,
+  onSignOut,
 }: SignOutButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -25,6 +28,7 @@ export function SignOutButton({
     startTransition(async () => {
       const supabase = createClient();
       await supabase.auth.signOut();
+      onSignOut?.();
       router.push("/login");
     });
   };

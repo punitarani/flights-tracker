@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
+import { Header } from "@/components/header";
 import { SignOutButton } from "@/components/sign-out-button";
-import { SiteHeader } from "@/components/site-header";
 import {
   Card,
   CardContent,
@@ -24,7 +24,7 @@ export default async function ProfilePage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <SiteHeader />
+      <Header />
       <main className="flex flex-1 items-start justify-center px-4 py-12">
         <div className="w-full max-w-md space-y-6">
           <Card>
