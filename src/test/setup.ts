@@ -1,8 +1,12 @@
 import { afterEach, vi } from "vitest";
 
+process.env.WEBHOOK_SECRET =
+  process.env.WEBHOOK_SECRET ?? "test-webhook-secret";
+
 vi.mock("@/env", () => ({
   env: {
     DATABASE_URL: "mock://test-database-url-for-testing",
+    WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
   },
 }));
 
@@ -19,12 +23,10 @@ class ResizeObserverMock {
   // biome-ignore lint/suspicious/noExplicitAny: test environment mock
   callback: any;
 
-  // biome-ignore lint/complexity/noUselessConstructor: storing callback for parity
   constructor(callback: ResizeObserverCallback) {
     this.callback = callback;
   }
 
-  // biome-ignore lint/complexity/noUselessConstructor: parity with real observer
   observe(): void {}
 
   unobserve(): void {}
@@ -33,7 +35,6 @@ class ResizeObserverMock {
 }
 
 if (typeof globalThis.ResizeObserver === "undefined") {
-  // biome-ignore lint/style/noNonNullAssertion: assigning mock for tests
   (globalThis as Record<string, unknown>).ResizeObserver = ResizeObserverMock;
 }
 
