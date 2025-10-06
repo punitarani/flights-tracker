@@ -12,6 +12,34 @@ type QueueRow = {
   msg: { userId?: string } | null;
 };
 
+type TransactionLike = {
+  execute: (
+    query: unknown,
+  ) =>
+    | Promise<{ rows?: Record<string, unknown>[] | undefined } | undefined>
+    | { rows?: Record<string, unknown>[] | undefined }
+    | undefined;
+};
+
+type AlertRecord = {
+  id: string;
+  type: string;
+  filters: unknown;
+  alertEnd: string | null;
+  createdAt: string;
+};
+
+type FlightDetails = {
+  reference: string;
+  note: string;
+  filters: unknown;
+};
+
+type AlertNotificationSummary = {
+  alert: AlertRecord;
+  flights: FlightDetails[];
+};
+
 export async function POST(request: Request) {
   const signature = request.headers.get(SIGNATURE_HEADER);
 
@@ -24,7 +52,7 @@ export async function POST(request: Request) {
       sql`select * from pgmq.receive(${QUEUE_NAME}, ${VISIBILITY_TIMEOUT_SECONDS}, ${BATCH_SIZE});`,
     );
 
-    const rows = ((receiveResult as unknown) ?? []) as QueueRow[];
+    const rows = (extractRows(receiveResult) ?? []) as QueueRow[];
 
     if (rows.length === 0) {
       return Response.json({ processed: [], skipped: [] });
@@ -51,10 +79,10 @@ export async function POST(request: Request) {
             sql`select pg_try_advisory_xact_lock(hashtext(${userId})) as locked;`,
           );
 
-          const lockRows = (
-            Array.isArray(lockResult) ? lockResult : []
-          ) as Array<{ locked?: boolean | "t" | "f" } | undefined>;
-          const lockedRow = lockRows[0];
+          const lockRows = extractRows(lockResult) as
+            | Array<{ locked?: boolean | "t" | "f" } | undefined>
+            | undefined;
+          const lockedRow = lockRows?.[0];
           const lockedValue = lockedRow?.locked;
           const locked =
             typeof lockedValue === "boolean"
@@ -69,7 +97,11 @@ export async function POST(request: Request) {
             return;
           }
 
-          console.log("Processing alerts for user", userId);
+          const alerts = await fetchActiveAlertsForUser(tx, userId);
+          const email = await fetchUserEmail(userId);
+          const summaries = buildAlertSummaries(alerts);
+
+          sendUserNotification({ userId, email, summaries });
 
           await tx.execute(
             sql`select pgmq.delete(${QUEUE_NAME}, ${row.msg_id});`,
@@ -89,4 +121,104 @@ export async function POST(request: Request) {
     console.error("Failed to process flight alerts", error);
     return new Response(null, { status: 500 });
   }
+}
+
+async function fetchActiveAlertsForUser(
+  tx: TransactionLike,
+  userId: string,
+): Promise<AlertRecord[]> {
+  const result = await tx.execute(
+    sql`select id, type, filters, alert_end, created_at from alert where user_id = ${userId} and status = 'active';`,
+  );
+
+  const rows = extractRows(result);
+
+  return (rows ?? []).map((row) => ({
+    id: String(row?.id ?? ""),
+    type: String(row?.type ?? ""),
+    filters: row?.filters ?? null,
+    alertEnd:
+      row?.alert_end === null || row?.alert_end === undefined
+        ? null
+        : String(row?.alert_end),
+    createdAt: String(row?.created_at ?? ""),
+  }));
+}
+
+function buildAlertSummaries(alerts: AlertRecord[]): AlertNotificationSummary[] {
+  return alerts.map((alert) => ({
+    alert,
+    flights: generateMockFlights(alert),
+  }));
+}
+
+function generateMockFlights(alert: AlertRecord): FlightDetails[] {
+  return [
+    {
+      reference: `mock-flight-${alert.id}`,
+      note: "Replace with real flight search results",
+      filters: alert.filters,
+    },
+  ];
+}
+
+async function fetchUserEmail(_userId: string): Promise<string | null> {
+  return null;
+}
+
+function sendUserNotification(input: {
+  userId: string;
+  email: string | null;
+  summaries: AlertNotificationSummary[];
+}) {
+  const { userId, email, summaries } = input;
+
+  console.log("===== Flight Alert Notification =====");
+  console.log(`User ID: ${userId}`);
+  console.log(`Email: ${email ?? "unknown"}`);
+
+  if (summaries.length === 0) {
+    console.log("No active alerts found for this user.");
+  } else {
+    summaries.forEach((summary, index) => {
+      console.log(
+        `Alert ${index + 1} (${summary.alert.id}) - ${summary.alert.type}`,
+      );
+      console.log("  Filters:");
+      console.log(indentBlock(JSON.stringify(summary.alert.filters, null, 2)));
+      console.log("  Flight data:");
+
+      if (summary.flights.length === 0) {
+        console.log("    (no mock flight data available)");
+        return;
+      }
+
+      summary.flights.forEach((flight, flightIndex) => {
+        console.log(`    Flight ${flightIndex + 1}:`);
+        console.log(indentBlock(JSON.stringify(flight, null, 2), 6));
+      });
+    });
+  }
+
+  console.log("====================================");
+}
+
+function indentBlock(text: string, spaces = 4) {
+  const padding = " ".repeat(spaces);
+  return text
+    .split("\n")
+    .map((line) => `${padding}${line}`)
+    .join("\n");
+}
+
+function extractRows(
+  result:
+    | { rows?: Record<string, unknown>[] | undefined }
+    | Record<string, unknown>[]
+    | undefined
+    | null,
+) {
+  if (!result) return undefined;
+  if (Array.isArray(result)) return result as Record<string, unknown>[];
+  return result.rows;
 }
