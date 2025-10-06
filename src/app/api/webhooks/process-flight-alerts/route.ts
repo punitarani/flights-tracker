@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       sql`select * from pgmq.receive(${QUEUE_NAME}, ${VISIBILITY_TIMEOUT_SECONDS}, ${BATCH_SIZE});`,
     );
 
-    const rows = (receiveResult.rows ?? []) as QueueRow[];
+    const rows = ((receiveResult as unknown) ?? []) as QueueRow[];
 
     if (rows.length === 0) {
       return Response.json({ processed: [], skipped: [] });
@@ -51,9 +51,10 @@ export async function POST(request: Request) {
             sql`select pg_try_advisory_xact_lock(hashtext(${userId})) as locked;`,
           );
 
-          const lockedRow = lockResult.rows?.[0] as
-            | { locked?: boolean | "t" | "f" }
-            | undefined;
+          const lockRows = (
+            Array.isArray(lockResult) ? lockResult : []
+          ) as Array<{ locked?: boolean | "t" | "f" } | undefined>;
+          const lockedRow = lockRows[0];
           const lockedValue = lockedRow?.locked;
           const locked =
             typeof lockedValue === "boolean"

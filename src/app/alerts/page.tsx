@@ -1,6 +1,6 @@
 "use client";
 
-import { differenceInCalendarDays, format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -8,7 +8,6 @@ import {
   AlertsTable,
   type AlertTableRow,
 } from "@/components/alerts/alerts-table";
-import { SEARCH_WINDOW_OPTIONS } from "@/components/flight-explorer/constants";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,9 +17,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  buildSearchParamsFromNormalizedFilters,
+  normalizeAlertFilters,
+} from "@/core/alert-filter-utils";
 import type { AlertFiltersV1, SeatClass, Stops } from "@/core/filters";
 import type { Alert } from "@/db/schema";
-import { MaxStops, SeatType } from "@/lib/fli/models/google-flights/base";
 import { trpc } from "@/lib/trpc/react";
 
 const STOP_LABELS: Record<Stops, string> = {
@@ -30,40 +32,12 @@ const STOP_LABELS: Record<Stops, string> = {
   TWO_STOPS: "Up to 2 stops",
 };
 
-const STOP_QUERY_MAP: Record<Stops, number> = {
-  ANY: MaxStops.ANY,
-  NONSTOP: MaxStops.NON_STOP,
-  ONE_STOP: MaxStops.ONE_STOP_OR_FEWER,
-  TWO_STOPS: MaxStops.TWO_OR_FEWER_STOPS,
-};
-
 const SEAT_CLASS_LABELS: Record<SeatClass, string> = {
   ECONOMY: "Economy",
   PREMIUM_ECONOMY: "Premium Economy",
   BUSINESS: "Business",
   FIRST: "First",
 };
-
-const SEAT_QUERY_MAP: Record<SeatClass, number> = {
-  ECONOMY: SeatType.ECONOMY,
-  PREMIUM_ECONOMY: SeatType.PREMIUM_ECONOMY,
-  BUSINESS: SeatType.BUSINESS,
-  FIRST: SeatType.FIRST,
-};
-
-const SEARCH_WINDOW_SET = new Set<number>(SEARCH_WINDOW_OPTIONS);
-
-function clampToAllowedWindow(days: number): number {
-  if (SEARCH_WINDOW_SET.has(days)) {
-    return days;
-  }
-
-  return SEARCH_WINDOW_OPTIONS.reduce((closest, option) => {
-    const diff = Math.abs(option - days);
-    const bestDiff = Math.abs(closest - days);
-    return diff < bestDiff ? option : closest;
-  }, SEARCH_WINDOW_OPTIONS[0]);
-}
 
 function capitalize(value: string): string {
   if (!value) return value;
@@ -76,69 +50,29 @@ function toAlertRow(alert: Alert): AlertTableRow | null {
     return null;
   }
 
-  const route = filters.route;
-  const criteria = filters.filters ?? {};
-  const dateFromIso = criteria.dateFrom ?? null;
-  const dateToIso = criteria.dateTo ?? null;
-  const dateFrom = dateFromIso ? parseISO(dateFromIso) : null;
-  const dateTo = dateToIso ? parseISO(dateToIso) : null;
-
-  if (
-    !dateFromIso ||
-    !dateToIso ||
-    !dateFrom ||
-    !dateTo ||
-    Number.isNaN(dateFrom.getTime()) ||
-    Number.isNaN(dateTo.getTime())
-  ) {
+  const normalized = normalizeAlertFilters(filters);
+  if (!normalized) {
     return null;
   }
 
-  const totalDays = Math.max(1, differenceInCalendarDays(dateTo, dateFrom) + 1);
-  const searchWindowDays = clampToAllowedWindow(totalDays);
+  const params = buildSearchParamsFromNormalizedFilters(normalized);
 
-  const params = new URLSearchParams({
-    origin: route.from,
-    destination: route.to,
-    dateFrom: dateFromIso,
-    dateTo: dateToIso,
-    searchWindowDays: searchWindowDays.toString(),
-  });
-
-  if (criteria.stops) {
-    const stopsValue = STOP_QUERY_MAP[criteria.stops];
-    if (typeof stopsValue === "number") {
-      params.set("stops", stopsValue.toString());
-    }
-  }
-
-  if (criteria.class) {
-    const seatValue = SEAT_QUERY_MAP[criteria.class];
-    if (typeof seatValue === "number") {
-      params.set("seatType", seatValue.toString());
-    }
-  }
-
-  if (criteria.airlines?.length) {
-    params.set("airlines", criteria.airlines.join(","));
-  }
-
-  const travelDatesLabel = `${format(dateFrom, "MMM d, yyyy")} – ${format(
-    dateTo,
+  const travelDatesLabel = `${format(normalized.dateFrom, "MMM d, yyyy")} – ${format(
+    normalized.dateTo,
     "MMM d, yyyy",
-  )} (${totalDays} days)`;
+  )} (${normalized.searchWindowDays} days)`;
 
   const createdAtValue = new Date(alert.createdAt);
 
   return {
     id: alert.id,
-    routeLabel: `${route.from} → ${route.to}`,
+    routeLabel: `${normalized.origin} → ${normalized.destination}`,
     travelDatesLabel,
-    stopsLabel: criteria.stops ? STOP_LABELS[criteria.stops] : "Any",
-    seatClassLabel: criteria.class
-      ? SEAT_CLASS_LABELS[criteria.class]
+    stopsLabel: normalized.stops ? STOP_LABELS[normalized.stops] : "Any",
+    seatClassLabel: normalized.seatClass
+      ? SEAT_CLASS_LABELS[normalized.seatClass]
       : "Economy",
-    airlines: criteria.airlines ?? [],
+    airlines: normalized.airlines,
     statusLabel: capitalize(alert.status),
     createdAtLabel: Number.isNaN(createdAtValue.getTime())
       ? "—"
