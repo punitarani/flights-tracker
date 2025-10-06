@@ -2,8 +2,8 @@
 
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import Link from "next/link";
-import { useMemo } from "react";
-
+import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   AlertsTable,
   type AlertTableRow,
@@ -150,6 +150,28 @@ function toAlertRow(alert: Alert): AlertTableRow | null {
 
 export default function AlertsPage() {
   const { data, isLoading } = trpc.useQuery(["alerts.list"]);
+  const utils = trpc.useContext();
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  const deleteMutation = trpc.useMutation(["alerts.delete"], {
+    onMutate: ({ id }) => {
+      setPendingDeleteId(id);
+    },
+    onSuccess: () => {
+      toast.success("Alert deleted");
+      void utils.invalidateQueries(["alerts.list"]);
+    },
+    onError: (error) => {
+      const message =
+        (error instanceof Error && error.message) ||
+        (typeof error?.message === "string" && error.message) ||
+        "Failed to delete alert.";
+      toast.error(message);
+    },
+    onSettled: () => {
+      setPendingDeleteId(null);
+    },
+  });
 
   const rows = useMemo(() => {
     if (!data) {
@@ -161,6 +183,13 @@ export default function AlertsPage() {
       .filter((row): row is AlertTableRow => Boolean(row))
       .sort((a, b) => b.createdAtValue.getTime() - a.createdAtValue.getTime());
   }, [data]);
+
+  const handleDelete = useCallback(
+    (alertRow: AlertTableRow) => {
+      deleteMutation.mutate({ id: alertRow.id });
+    },
+    [deleteMutation],
+  );
 
   const showEmptyState = !isLoading && rows.length === 0;
 
@@ -192,7 +221,12 @@ export default function AlertsPage() {
               </CardContent>
             </Card>
           ) : (
-            <AlertsTable data={rows} isLoading={isLoading} />
+            <AlertsTable
+              data={rows}
+              isLoading={isLoading}
+              onDelete={handleDelete}
+              pendingDeleteId={pendingDeleteId}
+            />
           )}
         </div>
       </main>
