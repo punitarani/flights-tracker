@@ -120,7 +120,6 @@ export function isFullDayTimeRange(
 
 const FETCH_DEBOUNCE_MS = 350;
 const MOVEMENT_THRESHOLD_DEGREES = 0.05;
-const FLIGHT_OPTIONS_DEBOUNCE_MS = 2000;
 const DEFAULT_PASSENGERS = {
   adults: 1,
   children: 0,
@@ -769,27 +768,18 @@ export function useFlightExplorer({
   const latestNearbyRequestRef = useRef(0);
   const latestSearchRequestRef = useRef(0);
   const latestFlightOptionsRequestRef = useRef(0);
-  const flightOptionsDebounceRef = useRef<number | null>(null);
   const trpcContext = trpc.useContext();
   const flightsDatesMutation = trpc.useMutation(["flights.dates"]);
   const flightsSearchMutation = trpc.useMutation(["flights.search"]);
 
-  const clearFlightOptionsDebounce = useCallback(() => {
-    if (flightOptionsDebounceRef.current !== null) {
-      window.clearTimeout(flightOptionsDebounceRef.current);
-      flightOptionsDebounceRef.current = null;
-    }
-  }, []);
-
   const clearSelectedDateAndOptions = useCallback(() => {
     latestFlightOptionsRequestRef.current += 1;
-    clearFlightOptionsDebounce();
     setSelectedDate(null);
     setSelectedPriceIndex(null);
     setFlightOptions([]);
     setFlightOptionsError(null);
     setIsFlightOptionsLoading(false);
-  }, [clearFlightOptionsDebounce]);
+  }, []);
 
   const markFiltersDirty = useCallback(() => {
     setHasPendingFilterChanges(true);
@@ -975,12 +965,6 @@ export function useFlightExplorer({
       clearPendingFetch();
     };
   }, [clearPendingFetch]);
-
-  useEffect(() => {
-    return () => {
-      clearFlightOptionsDebounce();
-    };
-  }, [clearFlightOptionsDebounce]);
 
   const resetToBrowse = useCallback(
     (options?: { shouldNavigate?: boolean }) => {
@@ -2046,21 +2030,6 @@ export function useFlightExplorer({
     ],
   );
 
-  const scheduleFlightOptionsLoad = useCallback(
-    (isoDate: string) => {
-      clearFlightOptionsDebounce();
-      latestFlightOptionsRequestRef.current += 1;
-      setIsFlightOptionsLoading(true);
-      setFlightOptionsError(null);
-      setFlightOptions([]);
-      flightOptionsDebounceRef.current = window.setTimeout(() => {
-        flightOptionsDebounceRef.current = null;
-        void loadFlightOptions(isoDate);
-      }, FLIGHT_OPTIONS_DEBOUNCE_MS);
-    },
-    [clearFlightOptionsDebounce, loadFlightOptions],
-  );
-
   const performSearch = useCallback(
     async (options?: { preserveSelection?: boolean }) => {
       const preserveSelection = options?.preserveSelection ?? false;
@@ -2138,7 +2107,7 @@ export function useFlightExplorer({
             setSelectedPriceIndex((previousIndex) =>
               previousIndex === index ? previousIndex : index,
             );
-            scheduleFlightOptionsLoad(previouslySelectedDate);
+            void loadFlightOptions(previouslySelectedDate);
           } else {
             clearSelectedDateAndOptions();
           }
@@ -2240,7 +2209,7 @@ export function useFlightExplorer({
       destinationAirport,
       filters,
       flightsDatesMutation,
-      scheduleFlightOptionsLoad,
+      loadFlightOptions,
       lastValidRoute,
       originAirport,
       pathname,
@@ -2319,13 +2288,13 @@ export function useFlightExplorer({
       const entry = flightPrices[index];
       setSelectedPriceIndex(index);
       setSelectedDate(entry.date);
-      scheduleFlightOptionsLoad(entry.date);
+      void loadFlightOptions(entry.date);
       updateQueryState({ selectedDate: entry.date });
     },
     [
       clearSelectedDateAndOptions,
       flightPrices,
-      scheduleFlightOptionsLoad,
+      loadFlightOptions,
       updateQueryState,
     ],
   );
@@ -2344,13 +2313,13 @@ export function useFlightExplorer({
         (entry) => entry.date === normalized,
       );
       setSelectedPriceIndex(index >= 0 ? index : null);
-      scheduleFlightOptionsLoad(normalized);
+      void loadFlightOptions(normalized);
       updateQueryState({ selectedDate: normalized });
     },
     [
       clearSelectedDateAndOptions,
       flightPrices,
-      scheduleFlightOptionsLoad,
+      loadFlightOptions,
       updateQueryState,
     ],
   );
