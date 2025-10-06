@@ -1,7 +1,14 @@
 "use client";
 
 import { Check, Loader2, RefreshCcw, X } from "lucide-react";
-import { type FocusEvent, useCallback, useMemo, useRef, useState } from "react";
+import {
+  type FocusEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -241,6 +248,39 @@ export function FlightFiltersPanel({
   const showAirlineList =
     !isDisabled && (isAirlinePickerOpen || airlineSearch.trim().length > 0);
 
+  // Auto-refetch with 2-second debounce
+  const refetchTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!price.canRefetch) {
+      // Clear any pending timeout if we can't refetch
+      if (refetchTimeoutRef.current !== null) {
+        window.clearTimeout(refetchTimeoutRef.current);
+        refetchTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    // Clear any existing timeout
+    if (refetchTimeoutRef.current !== null) {
+      window.clearTimeout(refetchTimeoutRef.current);
+    }
+
+    // Set new timeout for 2 seconds
+    refetchTimeoutRef.current = window.setTimeout(() => {
+      price.onRefetch();
+      refetchTimeoutRef.current = null;
+    }, 2000);
+
+    // Cleanup on unmount
+    return () => {
+      if (refetchTimeoutRef.current !== null) {
+        window.clearTimeout(refetchTimeoutRef.current);
+        refetchTimeoutRef.current = null;
+      }
+    };
+  }, [price.canRefetch, price.onRefetch]);
+
   return (
     <Card className="space-y-4 border bg-card/80 p-4 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -270,58 +310,8 @@ export function FlightFiltersPanel({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-4">
-        <div className="space-y-2 xl:col-span-2">
-          <div className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            <span>Search window</span>
-            <span>{filters.searchWindowDays} days</span>
-          </div>
-          <Slider
-            min={SEARCH_WINDOW_OPTIONS[0]}
-            max={SEARCH_WINDOW_OPTIONS[SEARCH_WINDOW_OPTIONS.length - 1]}
-            step={30}
-            value={[filters.searchWindowDays]}
-            disabled={isDisabled}
-            onValueChange={(values) => {
-              if (!values.length) return;
-              filters.onSearchWindowDaysChange(values[0]);
-            }}
-          />
-          <div className="flex justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
-            {SEARCH_WINDOW_OPTIONS.map((value) => (
-              <span key={value}>{value}</span>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Cabin
-          </span>
-          <ToggleGroup
-            type="single"
-            value={String(filters.seatType)}
-            onValueChange={(value) => {
-              if (!value) return;
-              filters.onSeatTypeChange(Number(value) as SeatType);
-            }}
-            variant="outline"
-            size="sm"
-            disabled={isDisabled}
-            className="flex w-full gap-px"
-          >
-            {seatTypeOptions.map((option) => (
-              <ToggleGroupItem
-                key={option.value}
-                value={String(option.value)}
-                className="text-xs font-medium"
-              >
-                {option.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-        </div>
-
+      {/* Row 1: Stops and Cabin */}
+      <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Stops
@@ -352,6 +342,37 @@ export function FlightFiltersPanel({
 
         <div className="space-y-2">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Cabin
+          </span>
+          <ToggleGroup
+            type="single"
+            value={String(filters.seatType)}
+            onValueChange={(value) => {
+              if (!value) return;
+              filters.onSeatTypeChange(Number(value) as SeatType);
+            }}
+            variant="outline"
+            size="sm"
+            disabled={isDisabled}
+            className="flex w-full gap-px"
+          >
+            {seatTypeOptions.map((option) => (
+              <ToggleGroupItem
+                key={option.value}
+                value={String(option.value)}
+                className="text-xs font-medium"
+              >
+                {option.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+      </div>
+
+      {/* Row 2: Days and Search Window */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Days
           </span>
           <ToggleGroup
@@ -379,6 +400,29 @@ export function FlightFiltersPanel({
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <span>Search window</span>
+            <span>{filters.searchWindowDays} days</span>
+          </div>
+          <Slider
+            min={SEARCH_WINDOW_OPTIONS[0]}
+            max={SEARCH_WINDOW_OPTIONS[SEARCH_WINDOW_OPTIONS.length - 1]}
+            step={30}
+            value={[filters.searchWindowDays]}
+            disabled={isDisabled}
+            onValueChange={(values) => {
+              if (!values.length) return;
+              filters.onSearchWindowDaysChange(values[0]);
+            }}
+          />
+          <div className="flex justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
+            {SEARCH_WINDOW_OPTIONS.map((value) => (
+              <span key={value}>{value}</span>
+            ))}
+          </div>
         </div>
       </div>
 
