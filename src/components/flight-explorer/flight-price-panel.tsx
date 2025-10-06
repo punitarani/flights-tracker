@@ -285,7 +285,7 @@ export function FlightPricePanel({
         .slice()
         .sort((a, b) => a - b)
         .map((day) => DAY_NAMES[day] ?? null)
-        .filter((day): day is string => Boolean(day))
+        .filter((day): day is (typeof DAY_NAMES)[number] => Boolean(day))
         .join(", ");
       if (dayNames) {
         items.push({ label: "Days", value: dayNames });
