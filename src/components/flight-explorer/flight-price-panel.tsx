@@ -136,7 +136,17 @@ export function FlightPricePanel({ state, filters }: FlightPricePanelProps) {
                   cursor={{ strokeDasharray: "4 4" }}
                   content={
                     <ChartTooltipContent
-                      labelKey="formattedDate"
+                      labelFormatter={(_, items) => {
+                        const isoDate = items?.[0]?.payload?.date;
+                        if (typeof isoDate === "string") {
+                          const parsed = parseISO(isoDate);
+                          if (!Number.isNaN(parsed.getTime())) {
+                            return format(parsed, "EEE, MMM d");
+                          }
+                        }
+                        const fallback = items?.[0]?.payload?.formattedDate;
+                        return typeof fallback === "string" ? fallback : "";
+                      }}
                       formatter={(value) =>
                         typeof value === "number"
                           ? USD_FORMATTER.format(value)
