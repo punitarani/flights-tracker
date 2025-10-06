@@ -87,13 +87,18 @@ export async function updateAlert(
 }
 
 /**
- * Soft deletes an alert by setting its status to 'deleted'
+ * Soft deletes an alert by marking it as deleted
  * @param alertId - The alert ID
  * @returns True if the alert was deleted, false otherwise
  */
 export async function deleteAlert(alertId: string): Promise<boolean> {
-  const result = await updateAlert(alertId, { status: "deleted" });
-  return result !== null;
+  const result = await db
+    .update(alert)
+    .set({ status: "deleted" })
+    .where(eq(alert.id, alertId))
+    .returning();
+
+  return result.length > 0;
 }
 
 /**

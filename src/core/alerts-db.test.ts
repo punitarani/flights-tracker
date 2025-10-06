@@ -179,11 +179,10 @@ describe("alerts-db", () => {
 
   describe("deleteAlert", () => {
     it("should soft delete alert successfully", async () => {
-      const mockAlert = createMockAlert({ status: "deleted" });
       const updateMock = vi.fn().mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([mockAlert]),
+            returning: vi.fn().mockResolvedValue([createMockAlert()]),
           }),
         }),
       });
