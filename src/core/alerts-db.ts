@@ -1,6 +1,7 @@
 import { and, eq, gte, isNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { type Alert, airline, airport, alert } from "@/db/schema";
+import { AlertType } from "./alert-types";
 import type { CreateAlertInput, UpdateAlertInput } from "./types";
 
 /**
@@ -119,6 +120,27 @@ export async function getActiveAlerts(): Promise<Alert[]> {
       ),
     )
     .orderBy(alert.createdAt);
+}
+
+/**
+ * Retrieves unique user IDs that have at least one active daily alert
+ */
+export async function getUserIdsWithActiveDailyAlerts(): Promise<string[]> {
+  const now = new Date().toISOString();
+
+  const results = await db
+    .select({ userId: alert.userId })
+    .from(alert)
+    .where(
+      and(
+        eq(alert.status, "active"),
+        eq(alert.type, AlertType.DAILY),
+        or(isNull(alert.alertEnd), gte(alert.alertEnd, now)),
+      ),
+    )
+    .groupBy(alert.userId);
+
+  return results.map((row) => row.userId);
 }
 
 /**

@@ -16,6 +16,15 @@ vi.mock("@/db/client", () => ({
     insert: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    execute: vi.fn(),
+    transaction: vi.fn(
+      async (
+        callback: (tx: { execute: ReturnType<typeof vi.fn> }) => unknown,
+      ) => {
+        const txExecute = vi.fn();
+        return await callback({ execute: txExecute });
+      },
+    ),
   },
 }));
 
