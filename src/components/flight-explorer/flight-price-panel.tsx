@@ -1,13 +1,12 @@
 "use client";
 
 import { addDays, addYears, format, parseISO, startOfDay } from "date-fns";
-import { CalendarIcon, ExternalLink, Loader2, X } from "lucide-react";
-import Link from "next/link";
+import { CalendarIcon, Loader2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { renderAlertCreatedToast } from "@/components/alerts/alert-created-toast";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
@@ -191,23 +190,7 @@ export function FlightPricePanel({
 
   const createAlertMutation = trpc.useMutation(["alerts.create"], {
     onSuccess: () => {
-      toast.custom(() => (
-        <Alert className="max-w-sm">
-          <AlertTitle>Alert created</AlertTitle>
-          <AlertDescription>
-            <p>Your flight alert is ready.</p>
-            <Link
-              href="/alerts"
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex items-center gap-1 text-primary underline underline-offset-4"
-            >
-              View alerts
-              <ExternalLink className="size-3" aria-hidden="true" />
-            </Link>
-          </AlertDescription>
-        </Alert>
-      ));
+      toast.custom(renderAlertCreatedToast, { duration: 6000 });
       setIsSheetOpen(false);
     },
     onError: (error) => {
