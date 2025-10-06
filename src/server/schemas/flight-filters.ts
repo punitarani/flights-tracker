@@ -97,6 +97,8 @@ const segmentInputSchema = z
     }
   });
 
+const dayOfWeekValueSchema = z.number().int().min(0).max(6);
+
 const dateRangeSchema = z
   .object({
     from: isoDateSchema,
@@ -123,6 +125,7 @@ export const FlightFiltersInputSchema = z
     stops: z.nativeEnum(MaxStops).default(MaxStops.ANY),
     dateRange: dateRangeSchema,
     airlines: z.array(airlineCodeSchema).max(16).optional(),
+    daysOfWeek: z.array(dayOfWeekValueSchema).max(7).optional(),
     priceLimit: z
       .object({
         amount: z.number().positive(),

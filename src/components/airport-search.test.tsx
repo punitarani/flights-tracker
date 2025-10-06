@@ -1,10 +1,9 @@
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
-import { act } from "react-dom/test-utils";
 import { createRoot } from "react-dom/client";
-
-import { AirportSearch } from "./airport-search";
+import { act } from "react-dom/test-utils";
+import { describe, expect, it, vi } from "vitest";
 import type { AirportData } from "@/server/services/airports";
+import { AirportSearch } from "./airport-search";
 
 const airports: AirportData[] = [
   {
@@ -83,9 +82,7 @@ describe("AirportSearch", () => {
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ iata: "JFK" }),
     );
-    expect(input.value).toBe(
-      "John F. Kennedy International Airport (JFK)",
-    );
+    expect(input.value).toBe("John F. Kennedy International Airport (JFK)");
 
     await act(async () => {
       root.unmount();

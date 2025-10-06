@@ -127,8 +127,7 @@ export function AirportSearch({
       const matchedAirport =
         filteredAirports.find(
           (airport) => airport.iata.toUpperCase() === code,
-        ) ??
-        airports.find((airport) => airport.iata.toUpperCase() === code);
+        ) ?? airports.find((airport) => airport.iata.toUpperCase() === code);
 
       if (!matchedAirport) {
         return;

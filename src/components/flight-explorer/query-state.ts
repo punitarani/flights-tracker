@@ -26,6 +26,7 @@ export const flightExplorerQueryParsers = {
   seatType: parseAsInteger,
   stops: parseAsInteger,
   airlines: parseAsArrayOf(parseAsString, ","),
+  daysOfWeek: parseAsArrayOf(parseAsInteger, ","),
 
   // Selected date for flight details
   selectedDate: parseAsString,

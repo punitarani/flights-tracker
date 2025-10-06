@@ -120,9 +120,38 @@ export async function searchCalendarPrices(
       .filter((entry): entry is CalendarPriceEntry => entry !== null)
       .sort((a, b) => a.date.localeCompare(b.date));
 
+    const selectedDays = Array.isArray(filtersInput.daysOfWeek)
+      ? Array.from(
+          new Set(
+            filtersInput.daysOfWeek.filter(
+              (day): day is number =>
+                typeof day === "number" &&
+                Number.isInteger(day) &&
+                day >= 0 &&
+                day <= 6,
+            ),
+          ),
+        )
+      : [];
+
+    const filteredPrices =
+      selectedDays.length > 0
+        ? (() => {
+            const allowedDays = new Set(selectedDays);
+            return prices.filter((entry) => {
+              const departureDate = new Date(`${entry.date}T00:00:00Z`);
+              if (Number.isNaN(departureDate.getTime())) {
+                return false;
+              }
+              const weekday = departureDate.getUTCDay();
+              return allowedDays.has(weekday);
+            });
+          })()
+        : prices;
+
     return {
       currency: filters.priceLimit?.currency ?? defaultCurrency,
-      prices,
+      prices: filteredPrices,
     };
   } catch (error) {
     throw new FlightSearchError(

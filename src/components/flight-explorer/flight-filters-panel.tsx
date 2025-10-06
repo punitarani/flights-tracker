@@ -48,6 +48,16 @@ const stopOptions: Array<{ value: MaxStops; label: string }> = [
   { value: MaxStops.TWO_OR_FEWER_STOPS, label: "≤2 stops" },
 ];
 
+const dayOptions: Array<{ value: number; label: string }> = [
+  { value: 0, label: "Sun" },
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+];
+
 const ALL_HOURS_RANGE: [number, number] = [0, 24];
 
 function formatHourLabel(hourValue: number) {
@@ -329,6 +339,37 @@ export function FlightFiltersPanel({
             className="flex w-full gap-px"
           >
             {stopOptions.map((option) => (
+              <ToggleGroupItem
+                key={option.value}
+                value={String(option.value)}
+                className="text-xs font-medium"
+              >
+                {option.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+
+        <div className="space-y-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Days
+          </span>
+          <ToggleGroup
+            type="multiple"
+            value={filters.daysOfWeek.map(String)}
+            onValueChange={(values) => {
+              const normalized = values
+                .map((value) => Number.parseInt(value, 10))
+                .filter((value) => Number.isInteger(value));
+              filters.onDaysOfWeekChange(normalized);
+            }}
+            variant="outline"
+            size="sm"
+            disabled={isDisabled}
+            className="flex w-full gap-px"
+            aria-label="Select days of week"
+          >
+            {dayOptions.map((option) => (
               <ToggleGroupItem
                 key={option.value}
                 value={String(option.value)}

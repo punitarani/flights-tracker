@@ -53,6 +53,7 @@ type StoredSearchFilters = {
   seatType: SeatType;
   stops: MaxStops;
   airlines: string[];
+  daysOfWeek: number[];
 };
 
 type StoredSearchState = {
@@ -171,6 +172,7 @@ function createDefaultFilters(): FiltersState {
     departureTimeRange: { ...DEFAULT_TIME_RANGE },
     arrivalTimeRange: { ...DEFAULT_TIME_RANGE },
     airlines: [],
+    daysOfWeek: [],
     seatType: SeatType.ECONOMY,
     stops: MaxStops.ANY,
     searchWindowDays: windowDays,
@@ -258,6 +260,27 @@ function sanitizeStoredAirlines(value: unknown): string[] {
   );
 }
 
+function sanitizeStoredDaysOfWeek(value: unknown): number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const validDays = value
+    .map((item) => {
+      if (typeof item === "number" && Number.isInteger(item)) {
+        return item;
+      }
+      if (typeof item === "string" && item.trim().length > 0) {
+        const parsed = Number.parseInt(item, 10);
+        return Number.isNaN(parsed) ? null : parsed;
+      }
+      return null;
+    })
+    .filter((item): item is number => item !== null && item >= 0 && item <= 6);
+
+  return Array.from(new Set(validDays)).sort((a, b) => a - b);
+}
+
 function isSeatTypeValue(value: unknown): value is SeatType {
   return Object.values(SeatType).includes(value as SeatType);
 }
@@ -318,6 +341,7 @@ function parseStoredSearchState(
     const stops = isMaxStopsValue(filters.stops) ? filters.stops : MaxStops.ANY;
 
     const airlines = sanitizeStoredAirlines(filters.airlines);
+    const daysOfWeek = sanitizeStoredDaysOfWeek(filters.daysOfWeek);
 
     return {
       originId: parsed.originId,
@@ -331,6 +355,7 @@ function parseStoredSearchState(
         seatType,
         stops,
         airlines,
+        daysOfWeek,
       },
     } satisfies StoredSearchState;
   } catch {
@@ -460,6 +485,7 @@ type FiltersState = {
   departureTimeRange: TimeRangeValue;
   arrivalTimeRange: TimeRangeValue;
   airlines: string[];
+  daysOfWeek: number[];
   seatType: SeatType;
   stops: MaxStops;
   searchWindowDays: number;
@@ -480,6 +506,7 @@ function buildSearchSignature(
     String(filters.arrivalTimeRange.from),
     String(filters.arrivalTimeRange.to),
     filters.airlines.join(","),
+    filters.daysOfWeek.join(","),
     String(filters.seatType),
     String(filters.stops),
     String(filters.searchWindowDays),
@@ -495,6 +522,7 @@ function areFiltersEqual(a: FiltersState, b: FiltersState): boolean {
     a.arrivalTimeRange.from === b.arrivalTimeRange.from &&
     a.arrivalTimeRange.to === b.arrivalTimeRange.to &&
     arraysShallowEqual(a.airlines, b.airlines) &&
+    arraysShallowEqual(a.daysOfWeek, b.daysOfWeek) &&
     a.seatType === b.seatType &&
     a.stops === b.stops &&
     a.searchWindowDays === b.searchWindowDays
@@ -510,6 +538,7 @@ function cloneFilters(source: FiltersState): FiltersState {
     departureTimeRange: { ...ensureTimeRange(source.departureTimeRange) },
     arrivalTimeRange: { ...ensureTimeRange(source.arrivalTimeRange) },
     airlines: [...source.airlines],
+    daysOfWeek: [...source.daysOfWeek],
     seatType: source.seatType,
     stops: source.stops,
     searchWindowDays: source.searchWindowDays,
@@ -550,6 +579,7 @@ function filtersFromStoredState(
     departureTimeRange: departureRange,
     arrivalTimeRange: arrivalRange,
     airlines: normalizedAirlines,
+    daysOfWeek: sanitizeStoredDaysOfWeek(stored.filters.daysOfWeek),
     seatType: stored.filters.seatType,
     stops: stored.filters.stops,
     searchWindowDays: computedRange.windowDays,
@@ -576,6 +606,7 @@ function buildStoredSearchState(
       seatType: filters.seatType,
       stops: filters.stops,
       airlines: [...filters.airlines],
+      daysOfWeek: [...filters.daysOfWeek],
     },
   };
 }
@@ -585,6 +616,7 @@ export type FlightExplorerFiltersState = {
   departureTimeRange: FiltersState["departureTimeRange"];
   arrivalTimeRange: FiltersState["arrivalTimeRange"];
   airlines: string[];
+  daysOfWeek: number[];
   seatType: SeatType;
   stops: MaxStops;
   searchWindowDays: number;
@@ -594,6 +626,7 @@ export type FlightExplorerFiltersState = {
   onDepartureTimeRangeChange: (range: TimeRangeValue | null) => void;
   onArrivalTimeRangeChange: (range: TimeRangeValue | null) => void;
   onAirlinesChange: (codes: string[]) => void;
+  onDaysOfWeekChange: (days: number[]) => void;
   onSeatTypeChange: (seatType: SeatType) => void;
   onStopsChange: (stops: MaxStops) => void;
   onSearchWindowDaysChange: (days: number) => void;
@@ -619,6 +652,7 @@ type FlightFiltersPayload = {
   seatType?: SeatType;
   stops?: MaxStops;
   airlines?: string[];
+  daysOfWeek?: number[];
 };
 
 type FlightSearchOverrides = {
@@ -987,6 +1021,7 @@ export function useFlightExplorer({
         seatType: null,
         stops: null,
         airlines: null,
+        daysOfWeek: null,
         selectedDate: null,
       });
 
@@ -1094,12 +1129,16 @@ export function useFlightExplorer({
               : defaults.stops;
 
             const airlines = sanitizeStoredAirlines(queryState.airlines ?? []);
+            const daysOfWeek = sanitizeStoredDaysOfWeek(
+              queryState.daysOfWeek ?? [],
+            );
 
             nextFilters = {
               dateRange: { from: parsedFrom, to: parsedTo },
               departureTimeRange: departureRange,
               arrivalTimeRange: arrivalRange,
               airlines,
+              daysOfWeek,
               seatType,
               stops,
               searchWindowDays: windowDays,
@@ -1236,6 +1275,7 @@ export function useFlightExplorer({
     queryState.seatType,
     queryState.stops,
     queryState.airlines,
+    queryState.daysOfWeek,
     queryState.selectedDate,
     setShowAllAirportsPersisted,
   ]);
@@ -1280,7 +1320,6 @@ export function useFlightExplorer({
     updateQueryState,
     pathname,
   ]);
-
 
   const handleOriginChange = useCallback(
     (value: string) => {
@@ -1643,6 +1682,35 @@ export function useFlightExplorer({
     [filters, markFiltersDirty],
   );
 
+  const handleDaysOfWeekChange = useCallback(
+    (days: number[]) => {
+      const normalized = Array.from(
+        new Set(
+          days.filter(
+            (day): day is number =>
+              typeof day === "number" &&
+              Number.isInteger(day) &&
+              day >= 0 &&
+              day <= 6,
+          ),
+        ),
+      ).sort((a, b) => a - b);
+
+      if (arraysShallowEqual(normalized, filters.daysOfWeek)) {
+        return;
+      }
+
+      const nextFilters: FiltersState = {
+        ...filters,
+        daysOfWeek: normalized,
+      };
+
+      setFilters(nextFilters);
+      markFiltersDirty();
+    },
+    [filters, markFiltersDirty],
+  );
+
   const handleSeatTypeChange = useCallback(
     (seatType: SeatType) => {
       if (filters.seatType === seatType) {
@@ -1768,6 +1836,10 @@ export function useFlightExplorer({
         payload.airlines = filters.airlines;
       }
 
+      if (filters.daysOfWeek.length > 0) {
+        payload.daysOfWeek = [...filters.daysOfWeek];
+      }
+
       return payload;
     },
     [filters],
@@ -1865,6 +1937,7 @@ export function useFlightExplorer({
     return (
       !isDefaultRange ||
       filters.airlines.length > 0 ||
+      filters.daysOfWeek.length > 0 ||
       !hasDefaultDeparture ||
       !hasDefaultArrival ||
       filters.seatType !== defaults.seatType ||
@@ -2090,6 +2163,8 @@ export function useFlightExplorer({
           snapshot.stops !== MaxStops.ANY ? snapshot.stops : null;
         const airlinesValue =
           snapshot.airlines.length > 0 ? [...snapshot.airlines] : null;
+        const daysOfWeekValue =
+          snapshot.daysOfWeek.length > 0 ? [...snapshot.daysOfWeek] : null;
 
         if (pathname === "/search") {
           updateQueryState({
@@ -2105,6 +2180,7 @@ export function useFlightExplorer({
             seatType: seatTypeValue,
             stops: stopsValue,
             airlines: airlinesValue,
+            daysOfWeek: daysOfWeekValue,
             selectedDate: finalSelectedDate,
           });
         }
@@ -2135,6 +2211,7 @@ export function useFlightExplorer({
         setParam("seatType", seatTypeValue);
         setParam("stops", stopsValue);
         setParam("airlines", airlinesValue);
+        setParam("daysOfWeek", daysOfWeekValue);
 
         const search = params.toString();
         const target = `/search${search ? `?${search}` : ""}`;
@@ -2360,6 +2437,7 @@ export function useFlightExplorer({
     departureTimeRange: filters.departureTimeRange,
     arrivalTimeRange: filters.arrivalTimeRange,
     airlines: filters.airlines,
+    daysOfWeek: filters.daysOfWeek,
     seatType: filters.seatType,
     stops: filters.stops,
     searchWindowDays: filters.searchWindowDays,
@@ -2369,6 +2447,7 @@ export function useFlightExplorer({
     onDepartureTimeRangeChange: handleDepartureTimeRangeChange,
     onArrivalTimeRangeChange: handleArrivalTimeRangeChange,
     onAirlinesChange: handleAirlinesChange,
+    onDaysOfWeekChange: handleDaysOfWeekChange,
     onSeatTypeChange: handleSeatTypeChange,
     onStopsChange: handleStopsChange,
     onSearchWindowDaysChange: handleSearchWindowDaysChange,

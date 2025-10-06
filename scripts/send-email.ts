@@ -1,8 +1,8 @@
-import { sendNotificationEmail } from "@/lib/notifications";
 import type {
   FlightOptionSummary,
   NotificationEmailPayload,
 } from "@/lib/notifications";
+import { sendNotificationEmail } from "@/lib/notifications";
 
 const [recipientEmail, templateArg] = process.argv.slice(2);
 
