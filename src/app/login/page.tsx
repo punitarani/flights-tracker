@@ -94,7 +94,7 @@ export default async function LoginPage() {
             ✈️
           </span>
           <div className="space-y-1">
-            <h1 className="text-3xl font-semibold tracking-tight">Fli</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">GrayPane</h1>
             <p className="text-muted-foreground text-sm">
               Sign in or create an account to manage your flight alerts.
             </p>

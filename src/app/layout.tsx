@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://graypane.com"),
   title: {
-    default: "Fli – Flight Tracker & Alerts",
-    template: "%s | Fli by Graypane",
+    default: "GrayPane – Flight Search & Alerts",
+    template: "%s | GrayPane by Graypane",
   },
   description:
     "Track flight prices, monitor fare trends, and manage alerts seamlessly on graypane.com.",
@@ -35,8 +35,8 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "https://graypane.com",
-    siteName: "Fli by Graypane",
-    title: "Fli – Flight Tracker & Alerts",
+    siteName: "Graypane",
+    title: "Flight Search & Alerts",
     description:
       "Monitor flight prices, explore fare history, and stay ahead with personalized alerts.",
     images: [
@@ -44,22 +44,22 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "Fli flight pricing dashboard",
+        alt: "GrayPane flight pricing dashboard",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
     site: "@graypane",
-    title: "Fli – Flight Tracker & Alerts",
+    title: "Flight Search & Alerts",
     description:
-      "Track fare trends and manage flight alerts with the Fli dashboard on graypane.com.",
+      "Track fare trends and manage flight alerts with the GrayPane dashboard on graypane.com.",
     images: [
       {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "Fli flight pricing dashboard",
+        alt: "GrayPane flight pricing dashboard",
       },
     ],
   },

@@ -93,7 +93,7 @@ export function Header() {
           <span className="text-2xl" role="img" aria-label="flight">
             ✈️
           </span>
-          <span className="text-2xl font-bold tracking-tight">Fli</span>
+          <span className="text-2xl font-bold tracking-tight">GrayPane</span>
         </Link>
         <div className="flex items-center gap-2">
           {renderDesktopNav()}

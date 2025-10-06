@@ -1,6 +1,6 @@
-# Fli – Flights Tracker
+# GrayPane – Flight Search & Alerts
 
-Flights Tracker helps travelers check available flights, monitor price trends, plan upcoming trips, and create personalized alerts. The application is built with Next.js 15, React 19, Supabase authentication, a PostgreSQL database via Drizzle ORM, Apple MapKit visualizations, Tailwind CSS, and TypeScript.
+GrayPane helps travelers check available flights, monitor price trends, plan upcoming trips, and create personalized alerts. The application is built with Next.js 15, React 19, Supabase authentication, a PostgreSQL database via Drizzle ORM, Apple MapKit visualizations, Tailwind CSS, and TypeScript.
 
 ![Flight route planning interface showing a map from San Francisco to London](./data/demo-map.png)
 

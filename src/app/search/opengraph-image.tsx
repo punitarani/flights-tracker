@@ -1,6 +1,6 @@
 import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
-import { ImageResponse } from "next/og";
 import type { ReadonlyURLSearchParams } from "next/navigation";
+import { ImageResponse } from "next/og";
 import { OG_IMAGE_SIZE, OgCard } from "@/lib/og/card";
 
 export const size = OG_IMAGE_SIZE;
