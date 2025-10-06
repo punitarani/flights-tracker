@@ -16,13 +16,50 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fli",
-  description: "Track flight prices and create alerts",
+  metadataBase: new URL("https://graypane.com"),
+  title: {
+    default: "Fli – Flight Tracker & Alerts",
+    template: "%s | Fli by Graypane",
+  },
+  description:
+    "Track flight prices, monitor fare trends, and manage alerts seamlessly on graypane.com.",
+  alternates: {
+    canonical: "/",
+  },
   icons: {
-    icon: [
+    icon: "/icon",
+    shortcut: "/icon",
+    apple: "/apple-icon",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://graypane.com",
+    siteName: "Fli by Graypane",
+    title: "Fli – Flight Tracker & Alerts",
+    description:
+      "Monitor flight prices, explore fare history, and stay ahead with personalized alerts.",
+    images: [
       {
-        url: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHRleHQgeD0iMTYiIHk9IjI0IiBmb250LXNpemU9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7inIjvuI88L3RleHQ+PC9zdmc+",
-        type: "image/svg+xml",
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Fli flight pricing dashboard",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@graypane",
+    title: "Fli – Flight Tracker & Alerts",
+    description:
+      "Track fare trends and manage flight alerts with the Fli dashboard on graypane.com.",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Fli flight pricing dashboard",
       },
     ],
   },

@@ -14,7 +14,7 @@ type SupabaseCookie = {
     path?: string;
     secure?: boolean;
     httpOnly?: boolean;
-    sameSite?: "lax" | "strict" | "none" | string;
+    sameSite?: true | false | "lax" | "strict" | "none";
   };
 };
 
@@ -77,8 +77,24 @@ function serializeCookie({ name, value, options }: SupabaseCookie): string {
     segments.push("HttpOnly");
   }
 
-  if (opts.sameSite) {
-    segments.push(`SameSite=${opts.sameSite}`);
+  if (opts.sameSite !== undefined) {
+    if (typeof opts.sameSite === "boolean") {
+      if (opts.sameSite) {
+        segments.push("SameSite=Strict");
+      }
+    } else {
+      const normalized = opts.sameSite.toLowerCase();
+      const sameSiteValue =
+        normalized === "strict"
+          ? "Strict"
+          : normalized === "lax"
+            ? "Lax"
+            : normalized === "none"
+              ? "None"
+              : opts.sameSite;
+
+      segments.push(`SameSite=${sameSiteValue}`);
+    }
   }
 
   return segments.join("; ");
