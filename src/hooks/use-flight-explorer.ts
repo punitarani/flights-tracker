@@ -2,6 +2,8 @@
 
 import {
   addDays,
+  addMonths,
+  addWeeks,
   differenceInCalendarDays,
   format,
   isSameDay,
@@ -9,6 +11,7 @@ import {
   parseISO,
   startOfDay,
   startOfToday,
+  subDays,
 } from "date-fns";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryStates } from "nuqs";
@@ -161,14 +164,14 @@ function resolveWindowFromRange(range: { from: Date; to: Date }): number {
 
 function createDefaultFilters(): FiltersState {
   const today = startOfToday();
-  const from = addDays(today, 1);
-  const {
-    from: normalizedFrom,
-    to,
-    windowDays,
-  } = computeDateRange(from, DEFAULT_SEARCH_WINDOW_DAYS);
+  const defaultStart = startOfDay(addWeeks(today, 1));
+  const defaultEnd = startOfDay(subDays(addMonths(defaultStart, 1), 1));
+  const windowDays = clampToAllowedWindow(
+    differenceInCalendarDays(defaultEnd, defaultStart) + 1,
+  );
+
   return {
-    dateRange: { from: normalizedFrom, to },
+    dateRange: { from: defaultStart, to: defaultEnd },
     departureTimeRange: { ...DEFAULT_TIME_RANGE },
     arrivalTimeRange: { ...DEFAULT_TIME_RANGE },
     airlines: [],

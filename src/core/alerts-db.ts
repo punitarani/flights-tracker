@@ -18,6 +18,7 @@ export async function createAlert(input: CreateAlertInput): Promise<Alert> {
     .insert(alert)
     .values({
       userId: input.userId,
+      type: input.type,
       filters: input.filters,
       status: "active",
       alertEnd: input.alertEnd,

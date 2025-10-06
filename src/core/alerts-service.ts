@@ -1,4 +1,6 @@
 import type { Alert } from "@/db/schema";
+import { getDefaultAlertDateRangeIso } from "./alert-defaults";
+import type { AlertType } from "./alert-types";
 import {
   createAlert,
   deleteAlert,
@@ -9,7 +11,11 @@ import {
   validateAirportExists,
 } from "./alerts-db";
 import { AlertNotFoundError, AlertValidationError } from "./errors";
-import { type AlertFilters, AlertFiltersSchema } from "./filters";
+import {
+  type AlertFilterCriteria,
+  type AlertFilters,
+  AlertFiltersSchema,
+} from "./filters";
 import type { CreateAlertInput, UpdateAlertInput } from "./types";
 
 /**
@@ -17,11 +23,9 @@ import type { CreateAlertInput, UpdateAlertInput } from "./types";
  * @param filters - The alert filters to validate
  * @throws AlertValidationError if validation fails
  */
-export async function validateAlertFilters(
-  filters: AlertFilters,
-): Promise<void> {
+export async function validateAlertFilters(data: AlertFilters): Promise<void> {
   // Validate filters schema first
-  const parseResult = AlertFiltersSchema.safeParse(filters);
+  const parseResult = AlertFiltersSchema.safeParse(data);
   if (!parseResult.success) {
     throw new AlertValidationError(
       `Invalid filter format: ${parseResult.error.message}`,
@@ -29,28 +33,56 @@ export async function validateAlertFilters(
   }
 
   const validFilters = parseResult.data;
+  const route = validFilters.route;
+  const criteria: AlertFilterCriteria = validFilters.filters ?? {};
+
+  if (criteria.dateFrom || criteria.dateTo) {
+    if (!criteria.dateFrom || !criteria.dateTo) {
+      throw new AlertValidationError(
+        "Both dateFrom and dateTo are required when specifying a date range",
+        "dateRange",
+      );
+    }
+
+    const fromDate = new Date(criteria.dateFrom);
+    const toDate = new Date(criteria.dateTo);
+
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+      throw new AlertValidationError(
+        "Invalid alert date range format",
+        "dateRange",
+      );
+    }
+
+    if (fromDate > toDate) {
+      throw new AlertValidationError(
+        "dateFrom must be on or before dateTo",
+        "dateRange",
+      );
+    }
+  }
 
   // Validate origin airport exists
-  const fromExists = await validateAirportExists(validFilters.from);
+  const fromExists = await validateAirportExists(route.from);
   if (!fromExists) {
     throw new AlertValidationError(
-      `Origin airport '${validFilters.from}' not found`,
+      `Origin airport '${route.from}' not found`,
       "from",
     );
   }
 
   // Validate destination airport exists
-  const toExists = await validateAirportExists(validFilters.to);
+  const toExists = await validateAirportExists(route.to);
   if (!toExists) {
     throw new AlertValidationError(
-      `Destination airport '${validFilters.to}' not found`,
+      `Destination airport '${route.to}' not found`,
       "to",
     );
   }
 
   // Validate airlines if specified
-  if (validFilters.airlines && validFilters.airlines.length > 0) {
-    for (const airlineCode of validFilters.airlines) {
+  if (criteria.airlines && criteria.airlines.length > 0) {
+    for (const airlineCode of criteria.airlines) {
       const airlineExists = await validateAirlineExists(airlineCode);
       if (!airlineExists) {
         throw new AlertValidationError(
@@ -62,14 +94,14 @@ export async function validateAlertFilters(
   }
 
   // Additional business logic validation
-  if (validFilters.from === validFilters.to) {
+  if (route.from === route.to) {
     throw new AlertValidationError(
       "Origin and destination airports cannot be the same",
       "to",
     );
   }
 
-  if (validFilters.price && validFilters.price <= 0) {
+  if (criteria.price && criteria.price <= 0) {
     throw new AlertValidationError("Price must be a positive number", "price");
   }
 }
@@ -84,15 +116,34 @@ export async function validateAlertFilters(
  */
 export async function createFlightAlert(
   userId: string,
-  filters: AlertFilters,
+  type: AlertType,
+  data: AlertFilters,
   alertEnd?: string,
 ): Promise<Alert> {
   if (!userId?.trim()) {
     throw new AlertValidationError("User ID is required");
   }
 
+  const filtersWithDefaults: AlertFilters = {
+    ...data,
+    route: { ...data.route },
+    filters: { ...(data.filters ?? {}) },
+  };
+
+  if (
+    !filtersWithDefaults.filters?.dateFrom ||
+    !filtersWithDefaults.filters?.dateTo
+  ) {
+    const { dateFrom, dateTo } = getDefaultAlertDateRangeIso();
+    filtersWithDefaults.filters = {
+      ...filtersWithDefaults.filters,
+      dateFrom,
+      dateTo,
+    };
+  }
+
   // Validate filters and check airports/airlines exist
-  await validateAlertFilters(filters);
+  await validateAlertFilters(filtersWithDefaults);
 
   // Validate alert end date if provided
   if (alertEnd) {
@@ -110,7 +161,8 @@ export async function createFlightAlert(
 
   const input: CreateAlertInput = {
     userId,
-    filters,
+    type,
+    filters: filtersWithDefaults,
     alertEnd,
   };
 

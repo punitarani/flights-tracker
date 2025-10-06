@@ -1,3 +1,5 @@
+import { getDefaultAlertDateRangeIso } from "@/core/alert-defaults";
+import { AlertType } from "@/core/alert-types";
 import type { AlertFilters } from "@/core/filters";
 import type { Airline, Airport, Alert } from "@/db/schema";
 
@@ -58,20 +60,44 @@ export const mockAirlines: Airline[] = [
 
 export const createMockAlertFilters = (
   overrides?: Partial<AlertFilters>,
-): AlertFilters => ({
-  version: 1,
-  from: "LAX",
-  to: "JFK",
-  stops: "ANY",
-  class: "ECONOMY",
-  airlines: ["AA"],
-  price: 500,
-  ...overrides,
-});
+): AlertFilters => {
+  const base: AlertFilters = {
+    version: 1,
+    route: {
+      from: "LAX",
+      to: "JFK",
+    },
+    filters: {
+      ...getDefaultAlertDateRangeIso(),
+      stops: "ANY",
+      class: "ECONOMY",
+      airlines: ["AA"],
+      price: 500,
+    },
+  };
+
+  if (!overrides) {
+    return base;
+  }
+
+  return {
+    ...base,
+    ...overrides,
+    route: {
+      ...base.route,
+      ...(overrides.route ?? {}),
+    },
+    filters: {
+      ...base.filters,
+      ...(overrides.filters ?? {}),
+    },
+  };
+};
 
 export const createMockAlert = (overrides?: Partial<Alert>): Alert => ({
   id: "alert_test123",
   userId: "user_123",
+  type: AlertType.DAILY,
   filters: createMockAlertFilters(),
   status: "active",
   alertEnd: null,

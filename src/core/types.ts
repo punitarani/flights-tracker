@@ -1,11 +1,15 @@
 import { z } from "zod";
+import { AlertType } from "./alert-types";
 import { AlertFiltersSchema } from "./filters";
+
+export const AlertTypeSchema = z.nativeEnum(AlertType);
 
 /**
  * Schema for creating a new alert
  */
 export const CreateAlertInputSchema = z.object({
   userId: z.string().min(1),
+  type: AlertTypeSchema,
   filters: AlertFiltersSchema,
   alertEnd: z.string().optional(),
 });

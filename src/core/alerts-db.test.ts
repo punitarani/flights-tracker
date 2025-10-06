@@ -1,4 +1,5 @@
 import "@/test/setup";
+import { AlertType } from "@/core/alert-types";
 import {
   createAlert,
   deleteAlert,
@@ -31,6 +32,7 @@ describe("alerts-db", () => {
 
       const input = {
         userId: "user_123",
+        type: AlertType.DAILY,
         filters: createMockAlertFilters(),
         alertEnd: "2024-12-31T23:59:59.000Z",
       };
@@ -53,6 +55,7 @@ describe("alerts-db", () => {
 
       const input = {
         userId: "user_123",
+        type: AlertType.DAILY,
         filters: createMockAlertFilters(),
       };
 

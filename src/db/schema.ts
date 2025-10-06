@@ -7,7 +7,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { AlertType } from "@/core/alert-types";
+import type { AlertType } from "@/core/alert-types";
 import type { AlertFilters } from "@/core/filters";
 import { generateId } from "./id";
 

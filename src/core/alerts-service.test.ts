@@ -1,4 +1,5 @@
 import "@/test/setup";
+import { AlertType } from "@/core/alert-types";
 import * as alertsDb from "@/core/alerts-db";
 import {
   createFlightAlert,
@@ -42,7 +43,11 @@ describe("alerts-service", () => {
     it("should throw error for invalid filter schema", async () => {
       const invalidFilters = {
         version: 1,
-        from: "INVALID",
+        route: {
+          from: "INVALID",
+          to: "JFK",
+        },
+        filters: {},
       } as unknown as AlertFilters;
 
       await expect(validateAlertFilters(invalidFilters)).rejects.toThrow(
@@ -53,7 +58,9 @@ describe("alerts-service", () => {
     it("should throw error when origin airport does not exist", async () => {
       mockedAlertsDb.validateAirportExists.mockResolvedValueOnce(false); // from airport
 
-      const filters = createMockAlertFilters({ from: "XXX" });
+      const filters = createMockAlertFilters({
+        route: { from: "XXX" },
+      });
 
       await expect(validateAlertFilters(filters)).rejects.toThrow(
         AlertValidationError,
@@ -64,7 +71,9 @@ describe("alerts-service", () => {
       mockedAlertsDb.validateAirportExists.mockResolvedValueOnce(true); // from airport
       mockedAlertsDb.validateAirportExists.mockResolvedValueOnce(false); // to airport
 
-      const filters = createMockAlertFilters({ to: "YYY" });
+      const filters = createMockAlertFilters({
+        route: { to: "YYY" },
+      });
 
       await expect(validateAlertFilters(filters)).rejects.toThrow(
         AlertValidationError,
@@ -75,7 +84,9 @@ describe("alerts-service", () => {
       mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
       mockedAlertsDb.validateAirlineExists.mockResolvedValue(false);
 
-      const filters = createMockAlertFilters({ airlines: ["XX"] });
+      const filters = createMockAlertFilters({
+        filters: { airlines: ["XX"] },
+      });
 
       await expect(validateAlertFilters(filters)).rejects.toThrow(
         AlertValidationError,
@@ -85,7 +96,9 @@ describe("alerts-service", () => {
     it("should throw error when origin and destination are the same", async () => {
       mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
 
-      const filters = createMockAlertFilters({ from: "LAX", to: "LAX" });
+      const filters = createMockAlertFilters({
+        route: { from: "LAX", to: "LAX" },
+      });
 
       await expect(validateAlertFilters(filters)).rejects.toThrow(
         AlertValidationError,
@@ -96,7 +109,22 @@ describe("alerts-service", () => {
       mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
       mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
 
-      const filters = createMockAlertFilters({ price: -100 });
+      const filters = createMockAlertFilters({
+        filters: { price: -100 },
+      });
+
+      await expect(validateAlertFilters(filters)).rejects.toThrow(
+        AlertValidationError,
+      );
+    });
+
+    it("should throw error when only one date boundary is provided", async () => {
+      mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
+      mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
+
+      const filters = createMockAlertFilters({
+        filters: { dateTo: undefined },
+      });
 
       await expect(validateAlertFilters(filters)).rejects.toThrow(
         AlertValidationError,
@@ -114,10 +142,11 @@ describe("alerts-service", () => {
       mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
       mockedAlertsDb.createAlert.mockResolvedValue(mockAlert);
 
-      const result = await createFlightAlert(userId, filters);
+      const result = await createFlightAlert(userId, AlertType.DAILY, filters);
 
       expect(mockedAlertsDb.createAlert).toHaveBeenCalledWith({
         userId,
+        type: AlertType.DAILY,
         filters,
         alertEnd: undefined,
       });
@@ -136,10 +165,16 @@ describe("alerts-service", () => {
       mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
       mockedAlertsDb.createAlert.mockResolvedValue(mockAlert);
 
-      const result = await createFlightAlert(userId, filters, alertEnd);
+      const result = await createFlightAlert(
+        userId,
+        AlertType.DAILY,
+        filters,
+        alertEnd,
+      );
 
       expect(mockedAlertsDb.createAlert).toHaveBeenCalledWith({
         userId,
+        type: AlertType.DAILY,
         filters,
         alertEnd,
       });
@@ -149,9 +184,9 @@ describe("alerts-service", () => {
     it("should throw error for empty user ID", async () => {
       const filters = createMockAlertFilters();
 
-      await expect(createFlightAlert("", filters)).rejects.toThrow(
-        AlertValidationError,
-      );
+      await expect(
+        createFlightAlert("", AlertType.DAILY, filters),
+      ).rejects.toThrow(AlertValidationError);
     });
 
     it("should throw error for invalid end date format", async () => {
@@ -162,7 +197,7 @@ describe("alerts-service", () => {
       mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
 
       await expect(
-        createFlightAlert(userId, filters, "invalid-date"),
+        createFlightAlert(userId, AlertType.DAILY, filters, "invalid-date"),
       ).rejects.toThrow(AlertValidationError);
     });
 
@@ -177,7 +212,7 @@ describe("alerts-service", () => {
       mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
 
       await expect(
-        createFlightAlert(userId, filters, alertEnd),
+        createFlightAlert(userId, AlertType.DAILY, filters, alertEnd),
       ).rejects.toThrow(AlertValidationError);
     });
   });
