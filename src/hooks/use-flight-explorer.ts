@@ -966,6 +966,34 @@ export function useFlightExplorer({
     };
   }, [clearPendingFetch]);
 
+  const clearPersistedRouteState = useCallback(() => {
+    clearStoredSearchState();
+    updateQueryState({
+      origin: null,
+      destination: null,
+      dateFrom: null,
+      dateTo: null,
+      searchWindowDays: null,
+      departureTimeFrom: null,
+      departureTimeTo: null,
+      arrivalTimeFrom: null,
+      arrivalTimeTo: null,
+      seatType: null,
+      stops: null,
+      airlines: null,
+      daysOfWeek: null,
+      selectedDate: null,
+    });
+  }, [updateQueryState]);
+
+  const clearPersistedDestinationState = useCallback(() => {
+    clearStoredSearchState();
+    updateQueryState({
+      destination: null,
+      selectedDate: null,
+    });
+  }, [updateQueryState]);
+
   const resetToBrowse = useCallback(
     (options?: { shouldNavigate?: boolean }) => {
       const shouldNavigate = options?.shouldNavigate ?? true;
@@ -1344,6 +1372,7 @@ export function useFlightExplorer({
         setDestinationQuery("");
         lastHydratedOriginIdRef.current = null;
         lastHydratedDestinationIdRef.current = null;
+        clearPersistedRouteState();
 
         // Only reset and navigate if we're on /search without valid query params
         if (hadPreviousRoute && pathname === "/search") {
@@ -1360,6 +1389,7 @@ export function useFlightExplorer({
       setViewMode("search");
     },
     [
+      clearPersistedRouteState,
       destinationAirport,
       formatAirportValue,
       lastValidRoute,
@@ -1395,11 +1425,17 @@ export function useFlightExplorer({
       if (!trimmed) {
         setDestinationAirport(null);
         lastHydratedDestinationIdRef.current = null;
+        clearPersistedDestinationState();
       } else {
         setViewMode("search");
       }
     },
-    [destinationAirport, formatAirportValue, setShowAllAirportsPersisted],
+    [
+      clearPersistedDestinationState,
+      destinationAirport,
+      formatAirportValue,
+      setShowAllAirportsPersisted,
+    ],
   );
 
   const handleOriginSelect = useCallback(
@@ -1431,6 +1467,7 @@ export function useFlightExplorer({
         setShowAllAirportsPersisted(true);
         lastHydratedOriginIdRef.current = null;
         lastHydratedDestinationIdRef.current = null;
+        clearPersistedRouteState();
         return;
       }
 
@@ -1445,6 +1482,7 @@ export function useFlightExplorer({
         setDestinationAirport(null);
         setDestinationQuery("");
         lastHydratedDestinationIdRef.current = null;
+        clearPersistedDestinationState();
       }
 
       const shouldPromptDestination = !destinationAirport || matchesDestination;
@@ -1453,6 +1491,7 @@ export function useFlightExplorer({
       setViewMode(shouldPromptDestination ? "search" : "browse");
     },
     [
+      clearPersistedDestinationState,
       destinationAirport,
       formatAirportValue,
       lastValidRoute,
@@ -1462,6 +1501,7 @@ export function useFlightExplorer({
       queryState.destination,
       resetToBrowse,
       setShowAllAirportsPersisted,
+      clearPersistedRouteState,
     ],
   );
 
@@ -1473,6 +1513,7 @@ export function useFlightExplorer({
         setActiveField("destination");
         setViewMode("search");
         lastHydratedDestinationIdRef.current = null;
+        clearPersistedDestinationState();
         return;
       }
 
@@ -1482,6 +1523,7 @@ export function useFlightExplorer({
         setActiveField("destination");
         setViewMode("search");
         lastHydratedDestinationIdRef.current = null;
+        clearPersistedDestinationState();
         return;
       }
 
@@ -1505,7 +1547,12 @@ export function useFlightExplorer({
         });
       }
     },
-    [formatAirportValue, originAirport, setShowAllAirportsPersisted],
+    [
+      clearPersistedDestinationState,
+      formatAirportValue,
+      originAirport,
+      setShowAllAirportsPersisted,
+    ],
   );
 
   const handleMapReady = useCallback(
