@@ -13,4 +13,24 @@ export default createNextApiHandler({
 
     console.error(`tRPC failed on ${path ?? "unknown path"}:`, error);
   },
+  responseMeta({ type, errors, paths }) {
+    if (type !== "query" || errors.length > 0) {
+      return {};
+    }
+
+    const isAirportsSearch =
+      Array.isArray(paths) &&
+      paths.length === 1 &&
+      paths[0] === "airports.search";
+
+    if (!isAirportsSearch) {
+      return {};
+    }
+
+    return {
+      headers: {
+        "Cache-Control": "s-maxage=600, stale-while-revalidate=120",
+      },
+    };
+  },
 });
