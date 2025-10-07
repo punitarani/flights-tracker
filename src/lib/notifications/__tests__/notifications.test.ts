@@ -14,6 +14,7 @@ vi.mock("../resend-client", () => ({
   sendWithResend: sendWithResendMock,
 }));
 
+import type { FlightOptionSummary } from "@/lib/notifications";
 import {
   renderDailyPriceUpdateEmail,
   renderPriceDropAlertEmail,
@@ -31,7 +32,7 @@ const baseAlert = {
   priceLimit: { amount: 350, currency: "USD" },
 };
 
-const sampleFlight = {
+const sampleFlight: FlightOptionSummary = {
   totalPrice: 280,
   currency: "USD",
   slices: [
@@ -55,7 +56,7 @@ const sampleFlight = {
       ],
     },
   ],
-} as const;
+};
 
 beforeEach(() => {
   sendWithResendMock.mockClear();

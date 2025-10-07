@@ -59,7 +59,7 @@ describe("alerts-service", () => {
       mockedAlertsDb.validateAirportExists.mockResolvedValueOnce(false); // from airport
 
       const filters = createMockAlertFilters({
-        route: { from: "XXX" },
+        route: { from: "XXX", to: "JFK" },
       });
 
       await expect(validateAlertFilters(filters)).rejects.toThrow(
@@ -72,7 +72,7 @@ describe("alerts-service", () => {
       mockedAlertsDb.validateAirportExists.mockResolvedValueOnce(false); // to airport
 
       const filters = createMockAlertFilters({
-        route: { to: "YYY" },
+        route: { from: "LAX", to: "YYY" },
       });
 
       await expect(validateAlertFilters(filters)).rejects.toThrow(

@@ -74,6 +74,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link
+          rel="preconnect"
+          href="https://cdn.apple-mapkit.com"
+          crossOrigin=""
+        />
+        <link rel="dns-prefetch" href="https://cdn.apple-mapkit.com" />
+        <link
+          rel="preload"
+          as="script"
+          href="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
