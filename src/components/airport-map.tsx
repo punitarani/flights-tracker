@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
 import type { AirportData } from "@/server/services/airports";
 
@@ -9,10 +9,21 @@ interface AirportMapProps {
   originAirport?: AirportData | null;
   destinationAirport?: AirportData | null;
   showAllAirports: boolean;
+  popularRoutes?: AirportMapPopularRoute[];
+  activeRouteId?: string | null;
+  onRouteHover?: (route: AirportMapPopularRoute | null) => void;
+  onRouteSelect?: (route: AirportMapPopularRoute) => void;
   // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
   onMapReady?: (map: any) => void;
   onAirportClick?: (airport: AirportData) => void;
 }
+
+export type AirportMapPopularRoute = {
+  id: string;
+  origin: AirportData;
+  destination: AirportData;
+  distanceMiles?: number;
+};
 
 const WORLD_CENTER = { latitude: 20, longitude: 0 };
 const WORLD_SPAN = { latitudeDelta: 160, longitudeDelta: 360 };
@@ -30,6 +41,10 @@ export function AirportMap({
   originAirport,
   destinationAirport,
   showAllAirports: _showAllAirports,
+  popularRoutes = [],
+  activeRouteId = null,
+  onRouteHover,
+  onRouteSelect,
   onMapReady,
   onAirportClick,
 }: AirportMapProps) {
@@ -40,11 +55,78 @@ export function AirportMap({
     destination?: AirportMarkerEntry;
   }>({});
   const routeOverlayRef = useRef<unknown | null>(null);
+  const routeOverlaysRef = useRef(
+    new Map<string, { overlay: unknown; cleanup?: () => void }>(),
+  );
+  const hoveredRouteIdRef = useRef<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   void _airports;
   void _showAllAirports;
+
+  const applyRouteStyle = useCallback(
+    (routeId: string, mode: "default" | "hover" | "active") => {
+      const entry = routeOverlaysRef.current.get(routeId);
+      if (!entry) {
+        return;
+      }
+
+      let mapkit: ReturnType<typeof mapKitLoader.getMapKit>;
+      try {
+        mapkit = mapKitLoader.getMapKit();
+      } catch {
+        return;
+      }
+
+      const styleConfig = {
+        lineCap: "round",
+        lineJoin: "round",
+        lineWidth: 2.5,
+        strokeColor: "#0f172a",
+        opacity: 0.35,
+      } satisfies Record<string, unknown>;
+
+      if (mode === "hover") {
+        styleConfig.lineWidth = 4;
+        styleConfig.strokeColor = "#1d4ed8";
+        styleConfig.opacity = 0.65;
+      } else if (mode === "active") {
+        styleConfig.lineWidth = 5.5;
+        styleConfig.strokeColor = "#1d4ed8";
+        styleConfig.opacity = 0.9;
+      }
+
+      (entry.overlay as { style?: unknown }).style = styleConfig;
+    },
+    [],
+  );
+
+  const updateHoveredRoute = useCallback(
+    (route: AirportMapPopularRoute | null) => {
+      const previous = hoveredRouteIdRef.current;
+
+      if (previous && previous !== activeRouteId) {
+        applyRouteStyle(previous, "default");
+      } else if (previous && previous === activeRouteId) {
+        applyRouteStyle(previous, "active");
+      }
+
+      if (!route) {
+        hoveredRouteIdRef.current = null;
+        onRouteHover?.(null);
+        return;
+      }
+
+      hoveredRouteIdRef.current = route.id;
+      applyRouteStyle(
+        route.id,
+        route.id === activeRouteId ? "active" : "hover",
+      );
+      onRouteHover?.(route);
+    },
+    [activeRouteId, applyRouteStyle, onRouteHover],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -113,10 +195,20 @@ export function AirportMap({
       const { origin, destination } = markersRef.current;
       markersRef.current = {};
 
+      const overlayEntries = Array.from(routeOverlaysRef.current.values());
+
       if (map) {
         try {
           if (routeOverlayRef.current) {
             map.removeOverlay(routeOverlayRef.current as never);
+          }
+          for (const entry of overlayEntries) {
+            entry.cleanup?.();
+            try {
+              map.removeOverlay(entry.overlay as never);
+            } catch {
+              // ignore overlay cleanup errors
+            }
           }
           if (origin?.annotation) {
             map.removeAnnotation(origin.annotation);
@@ -136,6 +228,7 @@ export function AirportMap({
       }
 
       routeOverlayRef.current = null;
+      routeOverlaysRef.current.clear();
     };
   }, [onMapReady]);
 
@@ -231,7 +324,19 @@ export function AirportMap({
       markers.destination?.annotation ?? null,
     ].filter(Boolean) as unknown[];
 
-    if (originAirport && destinationAirport) {
+    const activePopularRouteEntry = activeRouteId
+      ? routeOverlaysRef.current.get(activeRouteId)
+      : undefined;
+
+    if (activeRouteId && activePopularRouteEntry) {
+      applyRouteStyle(activeRouteId, "active");
+    }
+
+    const shouldRenderDedicatedOverlay = Boolean(
+      originAirport && destinationAirport && !activePopularRouteEntry,
+    );
+
+    if (shouldRenderDedicatedOverlay && originAirport && destinationAirport) {
       const overlay = new mapkit.PolylineOverlay(
         [
           new mapkit.Coordinate(
@@ -258,8 +363,15 @@ export function AirportMap({
       } catch {
         routeOverlayRef.current = null;
       }
+    }
 
-      const items = [...activeAnnotations, overlay];
+    const overlayForSelection =
+      activePopularRouteEntry?.overlay ?? routeOverlayRef.current;
+
+    if (originAirport && destinationAirport) {
+      const items = overlayForSelection
+        ? [...activeAnnotations, overlayForSelection]
+        : activeAnnotations;
 
       try {
         map.showItems(items as never, {
@@ -325,7 +437,167 @@ export function AirportMap({
       }
       map.selectedAnnotation = null;
     }
-  }, [destinationAirport, originAirport, onAirportClick, isReady]);
+  }, [
+    destinationAirport,
+    originAirport,
+    onAirportClick,
+    isReady,
+    activeRouteId,
+    applyRouteStyle,
+  ]);
+
+  useEffect(() => {
+    if (!isReady || !mapRef.current) {
+      return;
+    }
+
+    const map = mapRef.current;
+    let mapkit: ReturnType<typeof mapKitLoader.getMapKit>;
+
+    try {
+      mapkit = mapKitLoader.getMapKit();
+    } catch (err) {
+      console.error("MapKit loader is not ready:", err);
+      return;
+    }
+
+    const overlays = routeOverlaysRef.current;
+    const nextRoutes = popularRoutes ?? [];
+    const nextIds = new Set(nextRoutes.map((route) => route.id));
+
+    for (const [id, entry] of overlays) {
+      if (!nextIds.has(id)) {
+        entry.cleanup?.();
+        try {
+          map.removeOverlay(entry.overlay as never);
+        } catch {
+          // ignore removal errors
+        }
+        overlays.delete(id);
+      }
+    }
+
+    if (nextRoutes.length === 0) {
+      if (hoveredRouteIdRef.current) {
+        hoveredRouteIdRef.current = null;
+        onRouteHover?.(null);
+      }
+      return;
+    }
+
+    const getOverlayStyleMode = (
+      routeId: string,
+    ): "default" | "hover" | "active" => {
+      if (routeId === activeRouteId) {
+        return "active";
+      }
+      if (routeId === hoveredRouteIdRef.current) {
+        return "hover";
+      }
+      return "default";
+    };
+
+    nextRoutes.forEach((route) => {
+      const existing = overlays.get(route.id);
+      if (existing) {
+        (existing.overlay as { data?: unknown }).data = {
+          type: "popularRoute",
+          route,
+        };
+        applyRouteStyle(route.id, getOverlayStyleMode(route.id));
+        return;
+      }
+
+      const coordinates = [
+        new mapkit.Coordinate(route.origin.latitude, route.origin.longitude),
+        new mapkit.Coordinate(
+          route.destination.latitude,
+          route.destination.longitude,
+        ),
+      ];
+
+      const overlay = new mapkit.PolylineOverlay(coordinates, {
+        lineCap: "round",
+        lineJoin: "round",
+        lineWidth: 2.5,
+        strokeColor: "#0f172a",
+        opacity: 0.35,
+      }) as unknown;
+
+      const overlayWithMeta = overlay as {
+        data?: unknown;
+        addEventListener?: (
+          type: string,
+          listener: (...args: unknown[]) => void,
+        ) => void;
+        removeEventListener?: (
+          type: string,
+          listener: (...args: unknown[]) => void,
+        ) => void;
+      };
+
+      overlayWithMeta.data = { type: "popularRoute", route };
+
+      const handleMouseEnter = () => {
+        updateHoveredRoute(route);
+      };
+
+      const handleMouseLeave = () => {
+        if (hoveredRouteIdRef.current === route.id) {
+          updateHoveredRoute(null);
+        }
+      };
+
+      const handleSelect = () => {
+        updateHoveredRoute(route);
+        onRouteSelect?.(route);
+      };
+
+      overlayWithMeta.addEventListener?.("mouseenter", handleMouseEnter);
+      overlayWithMeta.addEventListener?.("mouseleave", handleMouseLeave);
+      overlayWithMeta.addEventListener?.("select", handleSelect);
+
+      try {
+        map.addOverlay(overlayWithMeta as never);
+      } catch {
+        overlayWithMeta.removeEventListener?.(
+          "mouseenter",
+          handleMouseEnter,
+        );
+        overlayWithMeta.removeEventListener?.(
+          "mouseleave",
+          handleMouseLeave,
+        );
+        overlayWithMeta.removeEventListener?.("select", handleSelect);
+        return;
+      }
+
+      overlays.set(route.id, {
+        overlay: overlayWithMeta,
+        cleanup: () => {
+          overlayWithMeta.removeEventListener?.(
+            "mouseenter",
+            handleMouseEnter,
+          );
+          overlayWithMeta.removeEventListener?.(
+            "mouseleave",
+            handleMouseLeave,
+          );
+          overlayWithMeta.removeEventListener?.("select", handleSelect);
+        },
+      });
+
+      applyRouteStyle(route.id, getOverlayStyleMode(route.id));
+    });
+  }, [
+    activeRouteId,
+    applyRouteStyle,
+    isReady,
+    onRouteHover,
+    onRouteSelect,
+    popularRoutes,
+    updateHoveredRoute,
+  ]);
 
   if (error) {
     return (
