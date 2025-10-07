@@ -174,7 +174,9 @@ export function Header() {
                   variant="ghost"
                   size="sm"
                   className="w-full justify-start gap-2"
-                  onSignOut={() => setIsPopoverOpen(false)}
+                  onSignOut={() => {
+                    setIsPopoverOpen(false);
+                  }}
                 />
               </PopoverContent>
             </Popover>
