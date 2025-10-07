@@ -30,13 +30,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     routeChangedSinceSearch,
   } = search;
 
-  const {
-    displayMessage,
-    isInitialLoading,
-    isLoadingNearby,
-    totalAirports,
-    onShowAllAirports,
-  } = header;
+  const { displayMessage, isInitialLoading, isLoadingNearby } = header;
 
   const showOriginSummary = Boolean(origin.selectedAirport && !origin.isActive);
   const showDestinationSummary = Boolean(
@@ -157,17 +151,6 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
               <div className="flex gap-2">
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-12 w-12 shrink-0"
-                  onClick={onReset}
-                  aria-label="Reset search"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">Reset</span>
-                </Button>
-                <Button
-                  type="button"
                   className={cn(
                     "h-12 flex-1 justify-center gap-2",
                     "sm:flex-none sm:w-auto sm:px-4",
@@ -213,20 +196,19 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
             )}
             {displayMessage}
           </p>
-          <Badge
-            asChild
-            variant="secondary"
-            className="hidden sm:flex cursor-pointer"
-          >
-            <button
-              type="button"
-              onClick={onShowAllAirports}
-              className="flex items-center gap-1"
-              aria-label="Show all airports worldwide"
-            >
-              Support {totalAirports.toLocaleString()} Total Airports
-            </button>
-          </Badge>
+          {shouldShowSearchAction && (
+            <Badge asChild variant="secondary" className="cursor-pointer">
+              <button
+                type="button"
+                onClick={onReset}
+                className="flex items-center gap-1"
+                aria-label="Clear search"
+              >
+                <X className="h-3 w-3" aria-hidden="true" />
+                Clear
+              </button>
+            </Badge>
+          )}
         </div>
       </div>
     </div>
