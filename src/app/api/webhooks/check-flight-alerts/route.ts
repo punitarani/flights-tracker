@@ -1,7 +1,6 @@
-import { sql } from "drizzle-orm";
 import { getUserIdsWithActiveDailyAlerts } from "@/core/alerts-db";
-import { db } from "@/db/client";
 import { env } from "@/env";
+import { createServiceClient } from "@/lib/supabase/service";
 
 const SIGNATURE_HEADER = "x-signature";
 const QUEUE_NAME = "check_alerts";
@@ -14,15 +13,22 @@ export async function POST(request: Request) {
   }
 
   try {
+    const supabase = createServiceClient();
     const userIds = await getUserIdsWithActiveDailyAlerts();
 
     let enqueued = 0;
 
     for (const userId of userIds) {
       try {
-        await db.execute(
-          sql`select pgmq.send(${QUEUE_NAME}, jsonb_build_object('userId', ${userId}));`,
-        );
+        const { error } = await supabase.schema("pgmq_public").rpc("send", {
+          queue_name: QUEUE_NAME,
+          message: { userId },
+        });
+
+        if (error) {
+          throw error;
+        }
+
         enqueued += 1;
       } catch (error) {
         console.error("Failed to enqueue user", userId, error);

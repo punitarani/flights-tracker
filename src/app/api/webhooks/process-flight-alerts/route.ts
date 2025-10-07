@@ -1,6 +1,6 @@
-import { sql } from "drizzle-orm";
-import { db } from "@/db/client";
+import { acquireUserLock } from "@/core/alerts-db";
 import { env } from "@/env";
+import { createServiceClient } from "@/lib/supabase/service";
 
 const SIGNATURE_HEADER = "x-signature";
 const QUEUE_NAME = "check_alerts";
@@ -20,67 +20,68 @@ export async function POST(request: Request) {
   }
 
   try {
-    const receiveResult = await db.execute(
-      sql`select * from pgmq.receive(${QUEUE_NAME}, ${VISIBILITY_TIMEOUT_SECONDS}, ${BATCH_SIZE});`,
-    );
+    const supabase = createServiceClient();
+    const { data: rows, error: receiveError } = await supabase
+      .schema("pgmq_public")
+      .rpc("receive", {
+        queue_name: QUEUE_NAME,
+        vt: VISIBILITY_TIMEOUT_SECONDS,
+        limit: BATCH_SIZE,
+      });
 
-    const rows = ((receiveResult as unknown) ?? []) as QueueRow[];
+    if (receiveError) {
+      throw receiveError;
+    }
 
-    if (rows.length === 0) {
+    const messages = Array.isArray(rows) ? (rows as QueueRow[]) : [];
+
+    if (messages.length === 0) {
       return Response.json({ processed: [], skipped: [] });
     }
 
     const processed: string[] = [];
     const skipped: string[] = [];
 
-    for (const row of rows) {
+    for (const row of messages) {
       const message = row.msg ?? {};
       const userId = typeof message.userId === "string" ? message.userId : null;
 
       if (!userId) {
         console.error("Invalid queue payload", message);
-        await db.execute(
-          sql`select pgmq.delete(${QUEUE_NAME}, ${row.msg_id});`,
-        );
+        await supabase.schema("pgmq_public").rpc("delete", {
+          queue_name: QUEUE_NAME,
+          msg_id: row.msg_id,
+        });
         continue;
       }
 
       try {
-        await db.transaction(async (tx) => {
-          const lockResult = await tx.execute(
-            sql`select pg_try_advisory_xact_lock(hashtext(${userId})) as locked;`,
-          );
+        const locked = await acquireUserLock(userId);
 
-          const lockRows = (
-            Array.isArray(lockResult) ? lockResult : []
-          ) as Array<{ locked?: boolean | "t" | "f" } | undefined>;
-          const lockedRow = lockRows[0];
-          const lockedValue = lockedRow?.locked;
-          const locked =
-            typeof lockedValue === "boolean"
-              ? lockedValue
-              : lockedValue === "t";
+        if (!locked) {
+          skipped.push(userId);
+          await supabase.schema("pgmq_public").rpc("set_vt", {
+            queue_name: QUEUE_NAME,
+            msg_id: row.msg_id,
+            vt: 0,
+          });
+          continue;
+        }
 
-          if (!locked) {
-            skipped.push(userId);
-            await tx.execute(
-              sql`select pgmq.set_vt(${QUEUE_NAME}, ${row.msg_id}, 0);`,
-            );
-            return;
-          }
+        console.log("Processing alerts for user", userId);
 
-          console.log("Processing alerts for user", userId);
-
-          await tx.execute(
-            sql`select pgmq.delete(${QUEUE_NAME}, ${row.msg_id});`,
-          );
-          processed.push(userId);
+        await supabase.schema("pgmq_public").rpc("delete", {
+          queue_name: QUEUE_NAME,
+          msg_id: row.msg_id,
         });
+        processed.push(userId);
       } catch (error) {
         console.error("Failed processing user", userId, error);
-        await db.execute(
-          sql`select pgmq.set_vt(${QUEUE_NAME}, ${row.msg_id}, ${VISIBILITY_TIMEOUT_SECONDS});`,
-        );
+        await supabase.schema("pgmq_public").rpc("set_vt", {
+          queue_name: QUEUE_NAME,
+          msg_id: row.msg_id,
+          vt: VISIBILITY_TIMEOUT_SECONDS,
+        });
       }
     }
 
