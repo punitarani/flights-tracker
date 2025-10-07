@@ -18,6 +18,7 @@ export function BentoGrid({ className, ...props }: BentoGridProps) {
 }
 
 type BentoCardProps = ComponentPropsWithoutRef<"div"> & {
+  as?: "div" | "button";
   title: string;
   description?: string;
   eyebrow?: ReactNode;
@@ -36,18 +37,18 @@ export function BentoCard({
   background,
   children,
   className,
-  ...props
+  as = "div",
+  ...rest
 }: BentoCardProps) {
-  return (
-    <div
-      className={cn(
-        "group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border/40",
-        "bg-background/75 p-5 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.6)] transition-all duration-300",
-        "hover:-translate-y-1 hover:shadow-[0_36px_90px_-45px_rgba(37,99,235,0.35)]",
-        className,
-      )}
-      {...props}
-    >
+  const baseClasses = cn(
+    "group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border/40",
+    "bg-background/75 p-5 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.6)] transition-all duration-300",
+    "hover:-translate-y-1 hover:shadow-[0_36px_90px_-45px_rgba(37,99,235,0.35)]",
+    className,
+  );
+
+  const content = (
+    <>
       {background ? (
         <div className="pointer-events-none absolute inset-0 opacity-90 transition-opacity duration-500 group-hover:opacity-100">
           {background}
@@ -80,6 +81,31 @@ export function BentoCard({
 
         <div className="relative flex-1 overflow-hidden">{children}</div>
       </div>
+    </>
+  );
+
+  if (as === "button") {
+    const { type, ...buttonProps } = rest as ComponentPropsWithoutRef<"button"> & {
+      type?: string;
+    };
+
+    return (
+      <button
+        {...buttonProps}
+        type={type ?? "button"}
+        className={cn(
+          baseClasses,
+          "text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        )}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div {...(rest as ComponentPropsWithoutRef<"div">)} className={baseClasses}>
+      {content}
     </div>
   );
 }
