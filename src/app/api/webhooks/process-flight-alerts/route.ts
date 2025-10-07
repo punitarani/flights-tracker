@@ -21,16 +21,16 @@ export async function POST(request: Request) {
 
   try {
     const supabase = createServiceClient();
-    const { data: rows, error: receiveError } = await supabase
+    const { data: rows, error: readError } = await supabase
       .schema("pgmq_public")
-      .rpc("receive", {
+      .rpc("read", {
         queue_name: QUEUE_NAME,
-        vt: VISIBILITY_TIMEOUT_SECONDS,
-        limit: BATCH_SIZE,
+        sleep_seconds: VISIBILITY_TIMEOUT_SECONDS,
+        n: BATCH_SIZE,
       });
 
-    if (receiveError) {
-      throw receiveError;
+    if (readError) {
+      throw readError;
     }
 
     const messages = Array.isArray(rows) ? (rows as QueueRow[]) : [];
