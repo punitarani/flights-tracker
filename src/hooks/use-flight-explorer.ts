@@ -2043,6 +2043,8 @@ export function useFlightExplorer({
         return;
       }
 
+      const isOnSearchPage = pathname === "/search";
+
       setSearchError(null);
       const signature = buildSearchSignature(
         route.origin.id,
@@ -2061,6 +2063,81 @@ export function useFlightExplorer({
 
       if (!preserveSelection) {
         clearSelectedDateAndOptions();
+      }
+
+      const dateFrom = formatIsoDate(snapshot.dateRange.from);
+      const dateTo = formatIsoDate(snapshot.dateRange.to);
+      const departureTimeFrom = !isFullDayTimeRange(snapshot.departureTimeRange)
+        ? snapshot.departureTimeRange.from
+        : null;
+      const departureTimeTo = !isFullDayTimeRange(snapshot.departureTimeRange)
+        ? snapshot.departureTimeRange.to
+        : null;
+      const arrivalTimeFrom = !isFullDayTimeRange(snapshot.arrivalTimeRange)
+        ? snapshot.arrivalTimeRange.from
+        : null;
+      const arrivalTimeTo = !isFullDayTimeRange(snapshot.arrivalTimeRange)
+        ? snapshot.arrivalTimeRange.to
+        : null;
+      const seatTypeValue =
+        snapshot.seatType !== SeatType.ECONOMY ? snapshot.seatType : null;
+      const stopsValue =
+        snapshot.stops !== MaxStops.ANY ? snapshot.stops : null;
+      const airlinesValue =
+        snapshot.airlines.length > 0 ? [...snapshot.airlines] : null;
+      const daysOfWeekValue =
+        snapshot.daysOfWeek.length > 0 ? [...snapshot.daysOfWeek] : null;
+      const initialSelectedDate =
+        preserveSelection && previouslySelectedDate
+          ? previouslySelectedDate
+          : null;
+
+      if (!isOnSearchPage) {
+        const params = new URLSearchParams();
+        const setParam = (key: string, value: unknown) => {
+          if (value === null || value === undefined) {
+            return;
+          }
+          if (Array.isArray(value)) {
+            if (value.length > 0) {
+              params.set(key, value.join(","));
+            }
+            return;
+          }
+          const stringValue = String(value);
+          if (stringValue.length > 0) {
+            params.set(key, stringValue);
+          }
+        };
+
+        setParam("origin", route.origin.iata);
+        setParam("destination", route.destination.iata);
+        setParam("dateFrom", dateFrom);
+        setParam("dateTo", dateTo);
+        setParam("searchWindowDays", snapshot.searchWindowDays);
+        setParam("selectedDate", initialSelectedDate);
+        setParam("departureTimeFrom", departureTimeFrom);
+        setParam("departureTimeTo", departureTimeTo);
+        setParam("arrivalTimeFrom", arrivalTimeFrom);
+        setParam("arrivalTimeTo", arrivalTimeTo);
+        setParam("seatType", seatTypeValue);
+        setParam("stops", stopsValue);
+        setParam("airlines", airlinesValue);
+        setParam("daysOfWeek", daysOfWeekValue);
+
+        const search = params.toString();
+        const target = `/search${search ? `?${search}` : ""}`;
+
+        router.replace(target, { scroll: false });
+        setCommittedFilters(snapshot);
+        setHasPendingFilterChanges(false);
+        setLastSearchRoute({
+          originId: route.origin.id,
+          destinationId: route.destination.id,
+        });
+        setRouteChangedSinceSearch(false);
+
+        return;
       }
 
       const requestId = latestSearchRequestRef.current + 1;
@@ -2095,7 +2172,7 @@ export function useFlightExplorer({
         setCommittedFilters(snapshot);
         setHasPendingFilterChanges(false);
 
-        let finalSelectedDate: string | null = null;
+        let finalSelectedDate: string | null = initialSelectedDate;
 
         if (preserveSelection && previouslySelectedDate) {
           const index = sanitized.findIndex(
@@ -2110,85 +2187,39 @@ export function useFlightExplorer({
             void loadFlightOptions(previouslySelectedDate);
           } else {
             clearSelectedDateAndOptions();
+            finalSelectedDate = null;
           }
         }
 
-        const dateFrom = formatIsoDate(snapshot.dateRange.from);
-        const dateTo = formatIsoDate(snapshot.dateRange.to);
-        const departureTimeFrom = !isFullDayTimeRange(
-          snapshot.departureTimeRange,
-        )
-          ? snapshot.departureTimeRange.from
-          : null;
-        const departureTimeTo = !isFullDayTimeRange(snapshot.departureTimeRange)
-          ? snapshot.departureTimeRange.to
-          : null;
-        const arrivalTimeFrom = !isFullDayTimeRange(snapshot.arrivalTimeRange)
-          ? snapshot.arrivalTimeRange.from
-          : null;
-        const arrivalTimeTo = !isFullDayTimeRange(snapshot.arrivalTimeRange)
-          ? snapshot.arrivalTimeRange.to
-          : null;
-        const seatTypeValue =
-          snapshot.seatType !== SeatType.ECONOMY ? snapshot.seatType : null;
-        const stopsValue =
-          snapshot.stops !== MaxStops.ANY ? snapshot.stops : null;
-        const airlinesValue =
-          snapshot.airlines.length > 0 ? [...snapshot.airlines] : null;
-        const daysOfWeekValue =
-          snapshot.daysOfWeek.length > 0 ? [...snapshot.daysOfWeek] : null;
-
-        if (pathname === "/search") {
-          updateQueryState({
-            origin: route.origin.iata,
-            destination: route.destination.iata,
-            dateFrom,
-            dateTo,
-            searchWindowDays: snapshot.searchWindowDays,
-            departureTimeFrom,
-            departureTimeTo,
-            arrivalTimeFrom,
-            arrivalTimeTo,
-            seatType: seatTypeValue,
-            stops: stopsValue,
-            airlines: airlinesValue,
-            daysOfWeek: daysOfWeekValue,
-            selectedDate: finalSelectedDate,
-          });
+        if (!preserveSelection) {
+          setSelectedPriceIndex(null);
+          setSelectedDate(null);
         }
 
-        // Navigate to /search with query params
-        // Build query string manually to ensure navigation happens correctly
-        const params = new URLSearchParams();
-        const setParam = (key: string, value: unknown) => {
-          if (value === null || value === undefined) return;
-          if (Array.isArray(value)) {
-            if (value.length > 0) params.set(key, value.join(","));
-            return;
-          }
-          const stringValue = String(value);
-          if (stringValue.length > 0) params.set(key, stringValue);
-        };
+        const selectionWasCleared = finalSelectedDate === null;
+        if (selectionWasCleared) {
+          clearSelectedDateAndOptions();
+        }
 
-        setParam("origin", route.origin.iata);
-        setParam("destination", route.destination.iata);
-        setParam("dateFrom", dateFrom);
-        setParam("dateTo", dateTo);
-        setParam("searchWindowDays", snapshot.searchWindowDays);
-        setParam("selectedDate", finalSelectedDate);
-        setParam("departureTimeFrom", departureTimeFrom);
-        setParam("departureTimeTo", departureTimeTo);
-        setParam("arrivalTimeFrom", arrivalTimeFrom);
-        setParam("arrivalTimeTo", arrivalTimeTo);
-        setParam("seatType", seatTypeValue);
-        setParam("stops", stopsValue);
-        setParam("airlines", airlinesValue);
-        setParam("daysOfWeek", daysOfWeekValue);
+        const finalDateFrom = formatIsoDate(snapshot.dateRange.from);
+        const finalDateTo = formatIsoDate(snapshot.dateRange.to);
 
-        const search = params.toString();
-        const target = `/search${search ? `?${search}` : ""}`;
-
-        router.replace(target, { scroll: false });
+        updateQueryState({
+          origin: route.origin.iata,
+          destination: route.destination.iata,
+          dateFrom: finalDateFrom,
+          dateTo: finalDateTo,
+          searchWindowDays: snapshot.searchWindowDays,
+          departureTimeFrom,
+          departureTimeTo,
+          arrivalTimeFrom,
+          arrivalTimeTo,
+          seatType: seatTypeValue,
+          stops: stopsValue,
+          airlines: airlinesValue,
+          daysOfWeek: daysOfWeekValue,
+          selectedDate: finalSelectedDate,
+        });
       } catch (error) {
         if (latestSearchRequestRef.current !== requestId) {
           return;
