@@ -4,6 +4,7 @@ import { Loader2, LogOut } from "lucide-react";
 import { type ComponentProps, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { isSecureRoute } from "@/lib/routes";
 
 type ButtonComponentProps = ComponentProps<typeof Button>;
 
@@ -27,7 +28,10 @@ export function SignOutButton({
       const supabase = createClient();
       await supabase.auth.signOut();
       onSignOut?.();
-      window.location.assign("/login");
+      const currentPath = window.location.pathname;
+      if (isSecureRoute(currentPath)) {
+        window.location.assign("/login");
+      }
     });
   };
 

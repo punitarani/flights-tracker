@@ -2,31 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { env } from "@/env";
-
-const PUBLIC_ROUTES = new Set(["/", "/login", "/auth", "/error", "/search"]);
-
-function isSecureRoute(pathname: string): boolean {
-  if (!pathname) {
-    return true;
-  }
-
-  const withoutFragment = pathname.split("#")[0] ?? pathname;
-  const withoutQuery = withoutFragment.split("?")[0] ?? withoutFragment;
-
-  const normalized = withoutQuery.endsWith("/")
-    ? withoutQuery.slice(0, -1) || "/"
-    : withoutQuery;
-
-  if (PUBLIC_ROUTES.has(normalized)) {
-    return false;
-  }
-
-  return (
-    !normalized.startsWith("/api/") &&
-    !normalized.startsWith("/auth/") &&
-    !normalized.startsWith("/error/")
-  );
-}
+import { isSecureRoute } from "@/lib/routes";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
