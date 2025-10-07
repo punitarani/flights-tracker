@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
 import type { AirportData } from "@/server/services/airports";
 
@@ -14,265 +14,47 @@ interface AirportMapProps {
   onAirportClick?: (airport: AirportData) => void;
 }
 
-const ZOOM_OUT_THRESHOLD_DEGREES = 3;
+const WORLD_CENTER = { latitude: 20, longitude: 0 };
+const WORLD_SPAN = { latitudeDelta: 160, longitudeDelta: 360 };
+const ROUTE_PADDING = 64;
+const SINGLE_MARKER_PADDING = 80;
+
+type AirportMarkerEntry = {
+  id: string;
+  // biome-ignore lint/suspicious/noExplicitAny: MapKit annotations are runtime objects
+  annotation: any;
+};
 
 export function AirportMap({
-  airports,
+  airports: _airports,
   originAirport,
   destinationAirport,
-  showAllAirports,
+  showAllAirports: _showAllAirports,
   onMapReady,
   onAirportClick,
 }: AirportMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<MapKitMap | null>(null);
-  const [isMapReady, setIsMapReady] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapKitMap | null>(null);
+  const markersRef = useRef<{
+    origin?: AirportMarkerEntry;
+    destination?: AirportMarkerEntry;
+  }>({});
+  const routeOverlayRef = useRef<unknown | null>(null);
+  const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // biome-ignore lint/suspicious/noExplicitAny: MapKit annotation types are loaded at runtime
-  const annotationsMapRef = useRef<Map<string, any>>(new Map());
-  const routeOverlaysRef = useRef<unknown[]>([]);
-  const isInitializingRef = useRef(false);
-  const renderModeRef = useRef<"dots" | "markers" | null>(null);
-  const programmaticRegionChangeRef = useRef(false);
-  const [viewportAirportIds, setViewportAirportIds] = useState<string[] | null>(
-    null,
-  );
-  const [showNearbyDots, setShowNearbyDots] = useState(false);
 
-  const normalizeLongitude = useCallback((value: number) => {
-    let result = value;
-    while (result < -180) result += 360;
-    while (result > 180) result -= 360;
-    return result;
-  }, []);
+  void _airports;
+  void _showAllAirports;
 
-  const updateViewportAirports = useCallback(() => {
-    if (!mapInstanceRef.current) {
-      setViewportAirportIds(null);
-      return;
-    }
-
-    const map = mapInstanceRef.current;
-    const region = map.region;
-    if (!region) return;
-
-    const halfLat = region.span.latitudeDelta / 2;
-    const halfLon = region.span.longitudeDelta / 2;
-    const latMin = region.center.latitude - halfLat;
-    const latMax = region.center.latitude + halfLat;
-    const lonMin = normalizeLongitude(region.center.longitude - halfLon);
-    const lonMax = normalizeLongitude(region.center.longitude + halfLon);
-    const crossesDateline = lonMin > lonMax;
-
-    const visibleIds = airports
-      .filter((airport) => {
-        const lat = airport.latitude;
-        if (lat < latMin || lat > latMax) {
-          return false;
-        }
-
-        const lon = normalizeLongitude(airport.longitude);
-        if (crossesDateline) {
-          return lon >= lonMin || lon <= lonMax;
-        }
-
-        return lon >= lonMin && lon <= lonMax;
-      })
-      .map((airport) => airport.id);
-
-    setViewportAirportIds((previous) => {
-      if (
-        previous &&
-        previous.length === visibleIds.length &&
-        previous.every((id, index) => id === visibleIds[index])
-      ) {
-        return previous;
-      }
-      return visibleIds;
-    });
-  }, [airports, normalizeLongitude]);
-
-  const selectedAirportIds = useMemo(() => {
-    const ids = new Set<string>();
-    if (originAirport) ids.add(originAirport.id);
-    if (destinationAirport) ids.add(destinationAirport.id);
-    return ids;
-  }, [destinationAirport, originAirport]);
-
-  const dotAirportIdSet = useMemo(() => {
-    if (!viewportAirportIds) {
-      return new Set<string>();
-    }
-
-    const visibleSet = new Set(viewportAirportIds);
-
-    if (showAllAirports) {
-      return visibleSet;
-    }
-
-    if (showNearbyDots) {
-      const filtered = new Set<string>();
-      for (const id of visibleSet) {
-        if (!selectedAirportIds.has(id)) {
-          filtered.add(id);
-        }
-      }
-      return filtered;
-    }
-
-    return new Set<string>();
-  }, [showAllAirports, showNearbyDots, selectedAirportIds, viewportAirportIds]);
-
-  const airportsToRender = useMemo(() => {
-    if (showAllAirports || showNearbyDots) {
-      if (!viewportAirportIds) {
-        return [];
-      }
-
-      const combinedIds = new Set<string>(dotAirportIdSet);
-      for (const id of selectedAirportIds) {
-        combinedIds.add(id);
-      }
-
-      return airports.filter((airport) => combinedIds.has(airport.id));
-    }
-
-    if (selectedAirportIds.size > 0) {
-      return airports.filter((airport) => selectedAirportIds.has(airport.id));
-    }
-
-    return airports;
-  }, [
-    airports,
-    dotAirportIdSet,
-    selectedAirportIds,
-    showAllAirports,
-    showNearbyDots,
-    viewportAirportIds,
-  ]);
-
-  const shouldRenderDots = showAllAirports || showNearbyDots;
-
-  const computeGreatCirclePath = useCallback(
-    (origin: AirportData, destination: AirportData) => {
-      const toRadians = (value: number) => (value * Math.PI) / 180;
-      const toDegrees = (value: number) => (value * 180) / Math.PI;
-      const normalizeLongitude = (lon: number) =>
-        ((lon + 180 + 360) % 360) - 180;
-
-      const lat1 = toRadians(origin.latitude);
-      const lon1 = toRadians(origin.longitude);
-      const lat2 = toRadians(destination.latitude);
-      const lon2 = toRadians(destination.longitude);
-
-      const delta =
-        2 *
-        Math.asin(
-          Math.sqrt(
-            Math.sin((lat2 - lat1) / 2) ** 2 +
-              Math.cos(lat1) *
-                Math.cos(lat2) *
-                Math.sin((lon2 - lon1) / 2) ** 2,
-          ),
-        );
-
-      if (delta === 0 || Number.isNaN(delta)) {
-        return [[[origin.latitude, origin.longitude]]];
-      }
-
-      const numPoints = Math.max(32, Math.ceil((delta / Math.PI) * 128));
-      const sinDelta = Math.sin(delta);
-
-      const interpolatePoint = (fraction: number): [number, number] => {
-        const factorA = Math.sin((1 - fraction) * delta) / sinDelta;
-        const factorB = Math.sin(fraction * delta) / sinDelta;
-
-        const x =
-          factorA * Math.cos(lat1) * Math.cos(lon1) +
-          factorB * Math.cos(lat2) * Math.cos(lon2);
-        const y =
-          factorA * Math.cos(lat1) * Math.sin(lon1) +
-          factorB * Math.cos(lat2) * Math.sin(lon2);
-        const z = factorA * Math.sin(lat1) + factorB * Math.sin(lat2);
-
-        const interpolatedLat = Math.atan2(z, Math.sqrt(x * x + y * y));
-        const interpolatedLon = Math.atan2(y, x);
-
-        return [toDegrees(interpolatedLat), toDegrees(interpolatedLon)];
-      };
-
-      const segments: Array<Array<[number, number]>> = [];
-      let currentSegment: Array<[number, number]> = [];
-      let previousLon: number | null = null;
-      let previousFraction = 0;
-
-      for (let i = 0; i <= numPoints; i++) {
-        const fraction = i / numPoints;
-        const [lat, lonRaw] = interpolatePoint(fraction);
-        const lon = normalizeLongitude(lonRaw);
-
-        if (previousLon !== null) {
-          const diff = Math.abs(lon - previousLon);
-
-          if (diff > 180) {
-            const targetLon = previousLon > 0 ? 180 : -180;
-
-            let low = previousFraction;
-            let high = fraction;
-            let mid = fraction;
-            for (let step = 0; step < 20; step++) {
-              mid = (low + high) / 2;
-              const [, candidateLonRaw] = interpolatePoint(mid);
-              const candidateLon = normalizeLongitude(candidateLonRaw);
-              if (
-                (targetLon === 180 && candidateLon >= 0) ||
-                (targetLon === -180 && candidateLon <= 0)
-              ) {
-                low = mid;
-              } else {
-                high = mid;
-              }
-            }
-
-            const [boundaryLat] = interpolatePoint(mid);
-            currentSegment.push([boundaryLat, targetLon]);
-            segments.push(currentSegment);
-
-            const wrappedLon = targetLon === 180 ? -180 : 180;
-            currentSegment = [[boundaryLat, wrappedLon]];
-            previousLon = wrappedLon;
-            previousFraction = mid;
-          }
-        }
-
-        if (currentSegment.length === 0) {
-          currentSegment.push([lat, lon]);
-        } else {
-          currentSegment.push([lat, lon]);
-        }
-        previousLon = lon;
-        previousFraction = fraction;
-      }
-
-      if (currentSegment.length > 0) {
-        segments.push(currentSegment);
-      }
-
-      return segments;
-    },
-    [],
-  );
-
-  // Initialize MapKit and create map instance
-  // biome-ignore lint/correctness/useExhaustiveDependencies: onMapReady is intentionally not a dependency - only run once on mount
   useEffect(() => {
-    if (!mapRef.current || isInitializingRef.current) return;
+    let isMounted = true;
 
-    isInitializingRef.current = true;
+    const initialize = async () => {
+      if (!containerRef.current || mapRef.current) {
+        return;
+      }
 
-    const initializeMap = async () => {
       try {
-        // Load MapKit
         await mapKitLoader.load();
 
         if (!mapKitLoader.isReady()) {
@@ -280,478 +62,292 @@ export function AirportMap({
         }
 
         const mapkit = mapKitLoader.getMapKit();
-        if (!mapRef.current || mapInstanceRef.current) {
+        if (!containerRef.current) {
           return;
         }
 
-        const initialCenter = new mapkit.Coordinate(39.8283, -98.5795);
-        const initialRegion = new mapkit.CoordinateRegion(
-          initialCenter,
-          new mapkit.CoordinateSpan(30, 60),
-        );
-
-        // Create map instance
-        const map = new mapkit.Map(mapRef.current, {
-          region: initialRegion,
+        const map = new mapkit.Map(containerRef.current, {
+          region: new mapkit.CoordinateRegion(
+            new mapkit.Coordinate(
+              WORLD_CENTER.latitude,
+              WORLD_CENTER.longitude,
+            ),
+            new mapkit.CoordinateSpan(
+              WORLD_SPAN.latitudeDelta,
+              WORLD_SPAN.longitudeDelta,
+            ),
+          ),
           showsMapTypeControl: false,
           showsZoomControl: true,
-          showsUserLocationControl: true,
-          isRotationEnabled: true,
-          showsCompass: mapkit.FeatureVisibility.Adaptive,
-          showsScale: mapkit.FeatureVisibility.Adaptive,
+          showsUserLocationControl: false,
+          showsCompass: mapkit.FeatureVisibility.Hidden,
+          showsScale: mapkit.FeatureVisibility.Hidden,
+          isRotationEnabled: false,
           colorScheme: mapkit.Map.ColorSchemes.Light,
         });
 
-        const originalSetRegionAnimated = map.setRegionAnimated.bind(map);
-        map.setRegionAnimated = (region, animate) => {
-          programmaticRegionChangeRef.current = true;
-          originalSetRegionAnimated(region, animate);
-        };
+        if (!isMounted) {
+          map.destroy();
+          return;
+        }
 
-        const originalShowItems = map.showItems.bind(map);
-        map.showItems = (items, options) => {
-          programmaticRegionChangeRef.current = true;
-          originalShowItems(items, options);
-        };
-
-        mapInstanceRef.current = map;
-        setIsMapReady(true);
+        mapRef.current = map;
+        setIsReady(true);
         setError(null);
         onMapReady?.(map);
       } catch (err) {
         console.error("Failed to initialize MapKit:", err);
-        setError(err instanceof Error ? err.message : "Failed to load map");
-      } finally {
-        isInitializingRef.current = false;
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : "Failed to load map");
+        }
       }
     };
 
-    initializeMap();
+    void initialize();
 
-    // Cleanup
     return () => {
-      const mapInstance = mapInstanceRef.current;
-      if (routeOverlaysRef.current.length > 0) {
-        for (const overlay of routeOverlaysRef.current) {
+      isMounted = false;
+      const map = mapRef.current;
+      mapRef.current = null;
+
+      const { origin, destination } = markersRef.current;
+      markersRef.current = {};
+
+      if (map) {
+        try {
+          if (routeOverlayRef.current) {
+            map.removeOverlay(routeOverlayRef.current as never);
+          }
+          if (origin?.annotation) {
+            map.removeAnnotation(origin.annotation);
+          }
+          if (destination?.annotation) {
+            map.removeAnnotation(destination.annotation);
+          }
+        } catch {
+          // ignore cleanup errors
+        } finally {
           try {
-            mapInstance?.removeOverlay(overlay);
+            map.destroy();
           } catch {
-            // ignore cleanup errors
+            // ignore destroy errors
           }
         }
       }
-      routeOverlaysRef.current = [];
 
-      if (mapInstance) {
-        try {
-          mapInstance.destroy();
-        } catch (err) {
-          console.error("Error destroying map:", err);
-        }
-      }
-      mapInstanceRef.current = null;
-      annotationsMapRef.current.clear();
-      setIsMapReady(false);
-      isInitializingRef.current = false;
+      routeOverlayRef.current = null;
     };
-  }, []);
+  }, [onMapReady]);
 
   useEffect(() => {
-    if (!isMapReady) return;
-    updateViewportAirports();
-  }, [isMapReady, updateViewportAirports]);
-
-  useEffect(() => {
-    if (!isMapReady) return;
-    if (showAllAirports || showNearbyDots) {
-      updateViewportAirports();
-    }
-  }, [isMapReady, showAllAirports, showNearbyDots, updateViewportAirports]);
-
-  useEffect(() => {
-    if (showAllAirports || (!originAirport && !destinationAirport)) {
-      setShowNearbyDots(false);
-    }
-  }, [destinationAirport, originAirport, showAllAirports]);
-
-  useEffect(() => {
-    if (!isMapReady || !mapInstanceRef.current) return;
-
-    const map = mapInstanceRef.current;
-
-    const handleRegionChangeEnd = () => {
-      updateViewportAirports();
-
-      if (programmaticRegionChangeRef.current) {
-        programmaticRegionChangeRef.current = false;
-        return;
-      }
-
-      if (showAllAirports) {
-        setShowNearbyDots(false);
-        return;
-      }
-
-      if (!originAirport && !destinationAirport) {
-        setShowNearbyDots(false);
-        return;
-      }
-
-      const region = map.region;
-      if (!region) return;
-
-      const { latitudeDelta, longitudeDelta } = region.span;
-
-      if (
-        latitudeDelta > ZOOM_OUT_THRESHOLD_DEGREES ||
-        longitudeDelta > ZOOM_OUT_THRESHOLD_DEGREES
-      ) {
-        if (!showNearbyDots) {
-          setShowNearbyDots(true);
-        }
-      } else if (showNearbyDots) {
-        setShowNearbyDots(false);
-      }
-    };
-
-    map.addEventListener("region-change-end", handleRegionChangeEnd);
-
-    return () => {
-      map.removeEventListener("region-change-end", handleRegionChangeEnd);
-    };
-  }, [
-    destinationAirport,
-    isMapReady,
-    originAirport,
-    showAllAirports,
-    showNearbyDots,
-    updateViewportAirports,
-  ]);
-
-  // Update annotations when airports change (with diffing)
-  useEffect(() => {
-    if (!isMapReady || !mapInstanceRef.current) return;
-
-    const mapkit = mapKitLoader.getMapKit();
-    if (!mapkit) return;
-
-    const map = mapInstanceRef.current;
-    const currentAnnotations = annotationsMapRef.current;
-
-    const currentMode = shouldRenderDots ? "dots" : "markers";
-
-    if (renderModeRef.current !== currentMode) {
-      const existingAnnotations = Array.from(currentAnnotations.values());
-      if (existingAnnotations.length > 0) {
-        try {
-          if (typeof map.removeAnnotations === "function") {
-            map.removeAnnotations(existingAnnotations);
-          } else {
-            for (const annotation of existingAnnotations) {
-              map.removeAnnotation(annotation);
-            }
-          }
-        } catch {
-          // ignore bulk removal errors
-        }
-      }
-      currentAnnotations.clear();
-    }
-
-    renderModeRef.current = currentMode;
-
-    const newAirportIds = new Set(airportsToRender.map((a) => a.id));
-
-    for (const [id, annotation] of currentAnnotations) {
-      if (!newAirportIds.has(id)) {
-        try {
-          map.removeAnnotation(annotation);
-        } catch {
-          // ignore removal errors
-        }
-        currentAnnotations.delete(id);
-      }
-    }
-
-    const airportsToAdd = airportsToRender.filter(
-      (airport) => !currentAnnotations.has(airport.id),
-    );
-
-    if (airportsToAdd.length > 0) {
-      const newAnnotations = airportsToAdd.map((airport) => {
-        const coordinate = new mapkit.Coordinate(
-          airport.latitude,
-          airport.longitude,
-        );
-
-        const shouldRenderDot = dotAirportIdSet.has(airport.id);
-
-        const annotation = shouldRenderDot
-          ? (() => {
-              if (typeof mapkit.Annotation === "function") {
-                const dotAnnotation = new mapkit.Annotation(
-                  coordinate,
-                  () => {
-                    const dotElement = document.createElement("div");
-                    dotElement.style.width = "8px";
-                    dotElement.style.height = "8px";
-                    dotElement.style.backgroundColor = "#2563eb";
-                    dotElement.style.borderRadius = "50%";
-                    dotElement.style.border = "2px solid white";
-                    dotElement.style.boxShadow = "0 0 2px rgba(0,0,0,0.3)";
-                    dotElement.style.pointerEvents = "auto";
-                    dotElement.style.transform = "translate(-50%, -50%)";
-                    dotElement.style.cursor = "pointer";
-
-                    dotElement.addEventListener("click", (event) => {
-                      event.stopPropagation();
-                      onAirportClick?.(airport);
-                    });
-
-                    return dotElement;
-                  },
-                  {
-                    animates: false,
-                    data: airport,
-                  } as Record<string, unknown>,
-                );
-
-                dotAnnotation.data = airport;
-                return dotAnnotation;
-              }
-
-              const fallback = new mapkit.MarkerAnnotation(coordinate, {
-                color: "#2563eb",
-                glyphText: "",
-                clusteringIdentifier: undefined,
-                animates: false,
-              });
-
-              fallback.data = airport;
-              fallback.addEventListener("select", () => {
-                onAirportClick?.(airport);
-              });
-              return fallback;
-            })()
-          : (() => {
-              const marker = new mapkit.MarkerAnnotation(coordinate, {
-                title: `${airport.name}`,
-                subtitle: `${airport.iata} • ${airport.city}, ${airport.country}`,
-                color: "#3b82f6",
-                glyphText: airport.iata.substring(0, 3),
-                clusteringIdentifier: "airports",
-                animates: false,
-              });
-
-              marker.data = airport;
-              marker.addEventListener("select", () => {
-                onAirportClick?.(airport);
-              });
-
-              return marker;
-            })();
-
-        currentAnnotations.set(airport.id, annotation);
-        return annotation;
-      });
-
-      map.addAnnotations(newAnnotations);
-    }
-  }, [
-    airportsToRender,
-    dotAirportIdSet,
-    isMapReady,
-    onAirportClick,
-    shouldRenderDots,
-  ]);
-  useEffect(() => {
-    if (!isMapReady || !mapInstanceRef.current) return;
-
-    const mapkit = mapKitLoader.getMapKit();
-    if (!mapkit) return;
-
-    const map = mapInstanceRef.current;
-    const allAnnotations = Array.from(annotationsMapRef.current.values());
-
-    if (routeOverlaysRef.current.length > 0) {
-      for (const overlay of routeOverlaysRef.current) {
-        try {
-          map.removeOverlay(overlay);
-        } catch {
-          // ignore overlay removal errors
-        }
-      }
-      routeOverlaysRef.current = [];
-    }
-
-    if (showAllAirports) {
-      for (const annotation of allAnnotations) {
-        if ("color" in annotation) {
-          annotation.color = "#2563eb";
-        }
-        if ("glyphText" in annotation) {
-          (annotation as { glyphText?: string }).glyphText = "";
-        }
-        if ("calloutEnabled" in annotation) {
-          (annotation as { calloutEnabled?: boolean }).calloutEnabled = false;
-        }
-      }
-
-      map.selectedAnnotation = null;
+    if (!isReady || !mapRef.current) {
       return;
     }
 
-    for (const annotation of allAnnotations) {
-      if ("color" in annotation) {
-        annotation.color = "#3b82f6";
-      }
-      if ("glyphText" in annotation) {
-        (annotation as { glyphText?: string }).glyphText =
-          (annotation.data as AirportData | undefined)?.iata?.substring(0, 3) ??
-          "";
-      }
-      if ("calloutEnabled" in annotation) {
-        (annotation as { calloutEnabled?: boolean }).calloutEnabled = true;
-      }
+    const map = mapRef.current;
+    let mapkit: ReturnType<typeof mapKitLoader.getMapKit>;
+
+    try {
+      mapkit = mapKitLoader.getMapKit();
+    } catch (err) {
+      console.error("MapKit loader is not ready:", err);
+      return;
     }
 
-    const originAnnotation = originAirport
-      ? annotationsMapRef.current.get(originAirport.id)
-      : null;
-    const destinationAnnotation = destinationAirport
-      ? annotationsMapRef.current.get(destinationAirport.id)
-      : null;
+    const markers = markersRef.current;
 
-    if (originAnnotation) {
-      originAnnotation.color = "#ef4444";
-      map.selectedAnnotation = originAnnotation;
-    }
+    const updateMarker = (
+      role: "origin" | "destination",
+      airport: AirportData | null,
+      color: string,
+    ) => {
+      const existing = markers[role];
 
-    if (destinationAnnotation) {
-      destinationAnnotation.color = "#22c55e";
-      map.selectedAnnotation = destinationAnnotation;
-    }
+      if (!airport) {
+        if (existing?.annotation) {
+          try {
+            map.removeAnnotation(existing.annotation);
+          } catch {
+            // ignore removal errors
+          }
+        }
+        delete markers[role];
+        return;
+      }
 
-    if (originAirport && !destinationAirport && originAnnotation) {
+      if (existing?.id === airport.id) {
+        if (existing.annotation && "color" in existing.annotation) {
+          (existing.annotation as { color?: string }).color = color;
+        }
+        return;
+      }
+
+      if (existing?.annotation) {
+        try {
+          map.removeAnnotation(existing.annotation);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+
       const coordinate = new mapkit.Coordinate(
-        originAirport.latitude,
-        originAirport.longitude,
+        airport.latitude,
+        airport.longitude,
       );
 
-      const region = new mapkit.CoordinateRegion(
-        coordinate,
-        new mapkit.CoordinateSpan(0.5, 0.5),
-      );
-
-      map.setRegionAnimated(region, true);
-    }
-
-    if (destinationAirport && !originAirport && destinationAnnotation) {
-      const coordinate = new mapkit.Coordinate(
-        destinationAirport.latitude,
-        destinationAirport.longitude,
-      );
-
-      const region = new mapkit.CoordinateRegion(
-        coordinate,
-        new mapkit.CoordinateSpan(0.5, 0.5),
-      );
-
-      map.setRegionAnimated(region, true);
-    }
-
-    if (originAirport && destinationAirport) {
-      const pathSegments = computeGreatCirclePath(
-        originAirport,
-        destinationAirport,
-      );
-
-      const overlays = pathSegments.map((segment) => {
-        const coordinates = segment.map(
-          ([latitude, longitude]) => new mapkit.Coordinate(latitude, longitude),
-        );
-
-        return new mapkit.PolylineOverlay(coordinates, {
-          lineJoin: "round",
-          lineCap: "round",
-          lineWidth: 6,
-          strokeColor: "#2563eb",
-          opacity: 0.85,
-        });
+      const annotation = new mapkit.MarkerAnnotation(coordinate, {
+        title: airport.name,
+        subtitle: `${airport.iata} • ${airport.city}, ${airport.country}`,
+        color,
+        glyphText: airport.iata.slice(0, 3),
+        animates: false,
       });
 
-      const addedOverlays: unknown[] = [];
+      annotation.data = airport;
 
-      for (const overlay of overlays) {
-        try {
-          map.addOverlay(overlay);
-          addedOverlays.push(overlay);
-        } catch {
-          // ignore overlay errors
-        }
+      annotation.addEventListener("select", () => {
+        onAirportClick?.(airport);
+      });
+
+      map.addAnnotations([annotation]);
+      markers[role] = { id: airport.id, annotation };
+    };
+
+    updateMarker("origin", originAirport ?? null, "#ef4444");
+    updateMarker("destination", destinationAirport ?? null, "#22c55e");
+
+    if (routeOverlayRef.current) {
+      try {
+        map.removeOverlay(routeOverlayRef.current as never);
+      } catch {
+        // ignore overlay removal errors
+      } finally {
+        routeOverlayRef.current = null;
       }
+    }
 
-      routeOverlaysRef.current = addedOverlays;
+    const activeAnnotations = [
+      markers.origin?.annotation ?? null,
+      markers.destination?.annotation ?? null,
+    ].filter(Boolean) as unknown[];
 
-      const items = [
-        ...(originAnnotation ? [originAnnotation] : []),
-        ...(destinationAnnotation ? [destinationAnnotation] : []),
-        ...addedOverlays,
-      ];
+    if (originAirport && destinationAirport) {
+      const overlay = new mapkit.PolylineOverlay(
+        [
+          new mapkit.Coordinate(
+            originAirport.latitude,
+            originAirport.longitude,
+          ),
+          new mapkit.Coordinate(
+            destinationAirport.latitude,
+            destinationAirport.longitude,
+          ),
+        ],
+        {
+          lineCap: "round",
+          lineJoin: "round",
+          lineWidth: 5,
+          strokeColor: "#2563eb",
+          opacity: 0.85,
+        },
+      );
 
       try {
-        map.showItems(items, {
-          animate: true,
-          padding: new mapkit.Padding(80, 80, 80, 80),
-        });
+        map.addOverlay(overlay);
+        routeOverlayRef.current = overlay;
       } catch {
-        // ignore fitting errors
+        routeOverlayRef.current = null;
       }
 
-      if (
-        map.camera &&
-        typeof map.camera === "object" &&
-        "pitch" in map.camera
-      ) {
-        try {
-          (map.camera as { pitch: number }).pitch = 55;
-        } catch {
-          // ignore pitch adjustments
+      const items = [...activeAnnotations, overlay];
+
+      try {
+        map.showItems(items as never, {
+          animate: true,
+          padding: new mapkit.Padding(
+            ROUTE_PADDING,
+            ROUTE_PADDING,
+            ROUTE_PADDING,
+            ROUTE_PADDING,
+          ),
+        });
+      } catch {
+        // ignore fit errors
+      }
+
+      if (markers.destination?.annotation) {
+        map.selectedAnnotation = markers.destination.annotation;
+      } else if (markers.origin?.annotation) {
+        map.selectedAnnotation = markers.origin.annotation;
+      } else {
+        map.selectedAnnotation = null;
+      }
+    } else if (activeAnnotations.length === 1) {
+      try {
+        map.showItems(activeAnnotations as never, {
+          animate: true,
+          padding: new mapkit.Padding(
+            SINGLE_MARKER_PADDING,
+            SINGLE_MARKER_PADDING,
+            SINGLE_MARKER_PADDING,
+            SINGLE_MARKER_PADDING,
+          ),
+        });
+      } catch {
+        const airport = originAirport ?? destinationAirport;
+        if (airport) {
+          try {
+            const region = new mapkit.CoordinateRegion(
+              new mapkit.Coordinate(airport.latitude, airport.longitude),
+              new mapkit.CoordinateSpan(8, 8),
+            );
+            map.setRegionAnimated(region, true);
+          } catch {
+            // ignore region errors
+          }
         }
       }
-    } else {
+
       map.selectedAnnotation =
-        originAnnotation ?? destinationAnnotation ?? null;
+        markers.origin?.annotation ?? markers.destination?.annotation ?? null;
+    } else {
+      try {
+        const worldRegion = new mapkit.CoordinateRegion(
+          new mapkit.Coordinate(WORLD_CENTER.latitude, WORLD_CENTER.longitude),
+          new mapkit.CoordinateSpan(
+            WORLD_SPAN.latitudeDelta,
+            WORLD_SPAN.longitudeDelta,
+          ),
+        );
+        map.setRegionAnimated(worldRegion, false);
+      } catch {
+        // ignore region reset errors
+      }
+      map.selectedAnnotation = null;
     }
-  }, [
-    computeGreatCirclePath,
-    destinationAirport,
-    isMapReady,
-    originAirport,
-    showAllAirports,
-  ]);
+  }, [destinationAirport, originAirport, onAirportClick, isReady]);
 
   if (error) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-muted/20 rounded-lg">
-        <div className="text-center p-6">
-          <p className="text-sm font-medium text-destructive mb-1">
+      <div className="flex h-full w-full items-center justify-center rounded-lg bg-muted/20">
+        <div className="p-6 text-center">
+          <p className="text-sm font-semibold text-destructive">
             Failed to load map
           </p>
-          <p className="text-xs text-muted-foreground">{error}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative w-full h-full">
-      <div ref={mapRef} className="w-full h-full rounded-lg overflow-hidden" />
-      {!isMapReady && (
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+      {!isReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="text-center">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent mb-2" />
-            <p className="text-sm font-medium">Loading map...</p>
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent" />
+            <p className="mt-2 text-sm font-medium">Loading map...</p>
           </div>
         </div>
       )}

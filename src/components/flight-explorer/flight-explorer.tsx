@@ -60,6 +60,10 @@ export function FlightExplorer({
     [search],
   );
 
+  const hasSelectedRoute = Boolean(
+    mapState.originAirport && mapState.destinationAirport,
+  );
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <RouteSearchPanel search={search} header={header} />
@@ -85,23 +89,27 @@ export function FlightExplorer({
             />
           ) : (
             <div className="container mx-auto flex h-full w-full flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8 lg:pb-10">
-              <div className="grid h-full gap-6 lg:grid-cols-[minmax(320px,420px)_1fr] xl:grid-cols-[minmax(360px,440px)_1fr]">
-                <PopularRoutesBoard
-                  selectedRouteId={selectedPopularRoute?.id ?? null}
-                  onSelectRoute={(route) =>
-                    handleSelectPopularRoute(
-                      route.origin.iata,
-                      route.destination.iata,
-                    )
-                  }
-                  onClearSelection={search.clearRoute}
-                />
-
-                <div className="relative min-h-[360px] overflow-hidden rounded-3xl border border-border/40 bg-card/40 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.55)] backdrop-blur-xl">
-                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.08),_transparent_70%)]" />
-                  <AirportMapView state={mapState} />
+              {!hasSelectedRoute ? (
+                <div className="flex h-full w-full">
+                  <PopularRoutesBoard
+                    selectedRouteId={selectedPopularRoute?.id ?? null}
+                    onSelectRoute={(route) =>
+                      handleSelectPopularRoute(
+                        route.origin.iata,
+                        route.destination.iata,
+                      )
+                    }
+                    onClearSelection={search.clearRoute}
+                  />
                 </div>
-              </div>
+              ) : (
+                <div className="flex h-full w-full">
+                  <div className="relative flex h-full w-full min-h-[360px] overflow-hidden rounded-3xl border border-border/40 bg-card/40 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.55)] backdrop-blur-xl">
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.08),_transparent_70%)]" />
+                    <AirportMapView state={mapState} />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
