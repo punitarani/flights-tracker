@@ -79,6 +79,12 @@ export function AirportMap({
         return;
       }
 
+      const StyleCtor = (
+        mapkit as unknown as {
+          Style: new (options: Record<string, unknown>) => unknown;
+        }
+      ).Style;
+
       const styleConfig = {
         lineCap: "round",
         lineJoin: "round",
@@ -97,7 +103,7 @@ export function AirportMap({
         styleConfig.opacity = 0.9;
       }
 
-      (entry.overlay as { style?: unknown }).style = styleConfig;
+      (entry.overlay as { style?: unknown }).style = new StyleCtor(styleConfig);
     },
     [],
   );
@@ -560,14 +566,8 @@ export function AirportMap({
       try {
         map.addOverlay(overlayWithMeta as never);
       } catch {
-        overlayWithMeta.removeEventListener?.(
-          "mouseenter",
-          handleMouseEnter,
-        );
-        overlayWithMeta.removeEventListener?.(
-          "mouseleave",
-          handleMouseLeave,
-        );
+        overlayWithMeta.removeEventListener?.("mouseenter", handleMouseEnter);
+        overlayWithMeta.removeEventListener?.("mouseleave", handleMouseLeave);
         overlayWithMeta.removeEventListener?.("select", handleSelect);
         return;
       }
@@ -575,14 +575,8 @@ export function AirportMap({
       overlays.set(route.id, {
         overlay: overlayWithMeta,
         cleanup: () => {
-          overlayWithMeta.removeEventListener?.(
-            "mouseenter",
-            handleMouseEnter,
-          );
-          overlayWithMeta.removeEventListener?.(
-            "mouseleave",
-            handleMouseLeave,
-          );
+          overlayWithMeta.removeEventListener?.("mouseenter", handleMouseEnter);
+          overlayWithMeta.removeEventListener?.("mouseleave", handleMouseLeave);
           overlayWithMeta.removeEventListener?.("select", handleSelect);
         },
       });
