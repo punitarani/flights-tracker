@@ -3,6 +3,31 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { env } from "@/env";
 
+const PUBLIC_ROUTES = new Set(["/", "/login", "/auth", "/error", "/search"]);
+
+function isSecureRoute(pathname: string): boolean {
+  if (!pathname) {
+    return true;
+  }
+
+  const withoutFragment = pathname.split("#")[0] ?? pathname;
+  const withoutQuery = withoutFragment.split("?")[0] ?? withoutFragment;
+
+  const normalized = withoutQuery.endsWith("/")
+    ? withoutQuery.slice(0, -1) || "/"
+    : withoutQuery;
+
+  if (PUBLIC_ROUTES.has(normalized)) {
+    return false;
+  }
+
+  return (
+    !normalized.startsWith("/api/") &&
+    !normalized.startsWith("/auth/") &&
+    !normalized.startsWith("/error/")
+  );
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -41,15 +66,8 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Public routes that don't require authentication
-  const publicRoutes = ["/", "/login", "/auth", "/error", "/search"];
-  const isPublicRoute =
-    publicRoutes.includes(request.nextUrl.pathname) ||
-    request.nextUrl.pathname.startsWith("/api/") ||
-    request.nextUrl.pathname.startsWith("/auth/") ||
-    request.nextUrl.pathname.startsWith("/error/");
-
-  if (!user && !isPublicRoute) {
+  const pathname = request.nextUrl.pathname;
+  if (!user && isSecureRoute(pathname)) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone();
     url.pathname = "/login";
