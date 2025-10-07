@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays, addYears, format, parseISO, startOfDay } from "date-fns";
-import { CalendarIcon, Loader2, LogIn, X } from "lucide-react";
+import { CalendarIcon, Loader2, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
@@ -452,187 +452,151 @@ export function FlightPricePanel({
               {isSearching ? (
                 <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
               ) : null}
-              <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-                <SheetTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="default"
-                    size="sm"
-                    className="gap-2 font-semibold"
-                    disabled={!canOpenCreate}
+              {userEmail ? (
+                <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+                  <SheetTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      className="gap-2 font-semibold"
+                      disabled={!canOpenCreate}
+                    >
+                      + Create Alert
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent
+                    side={isMobile ? "bottom" : "right"}
+                    className={sheetClassName}
                   >
-                    + Create Alert
-                  </Button>
-                </SheetTrigger>
-                <SheetContent
-                  side={isMobile ? "bottom" : "right"}
-                  className={sheetClassName}
-                >
-                  <SheetHeader className="flex-row items-center justify-between gap-2 px-4 pt-6">
-                    <SheetTitle className="text-base font-semibold">
-                      Create alert
-                    </SheetTitle>
-                    <SheetClose asChild>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 rounded-full"
-                      >
-                        <X className="h-4 w-4" aria-hidden="true" />
-                        <span className="sr-only">Close</span>
-                      </Button>
-                    </SheetClose>
-                  </SheetHeader>
-                  <div className="flex flex-1 flex-col gap-4 overflow-auto px-4">
-                    {userEmail ? (
-                      <>
-                        <div className="space-y-2">
-                          <div className="rounded-md border bg-background p-3 text-sm">
-                            {originAirport && destinationAirport ? (
-                              <div className="space-y-3">
-                                <div>
-                                  <p className="font-medium">
-                                    {originAirport.name} ({originAirport.iata})
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {[originAirport.city, originAirport.country]
-                                      .filter(Boolean)
-                                      .join(", ")}
-                                  </p>
-                                </div>
-                                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                  to
-                                </div>
-                                <div>
-                                  <p className="font-medium">
-                                    {destinationAirport.name} (
-                                    {destinationAirport.iata})
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {[
-                                      destinationAirport.city,
-                                      destinationAirport.country,
-                                    ]
-                                      .filter(Boolean)
-                                      .join(", ")}
-                                  </p>
-                                </div>
+                    <SheetHeader className="flex-row items-center justify-between gap-2 px-4 pt-6">
+                      <SheetTitle className="text-base font-semibold">
+                        Create alert
+                      </SheetTitle>
+                      <SheetClose asChild>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 rounded-full"
+                        >
+                          <X className="h-4 w-4" aria-hidden="true" />
+                          <span className="sr-only">Close</span>
+                        </Button>
+                      </SheetClose>
+                    </SheetHeader>
+                    <div className="flex flex-1 flex-col gap-4 overflow-auto px-4">
+                      <div className="space-y-2">
+                        <div className="rounded-md border bg-background p-3 text-sm">
+                          {originAirport && destinationAirport ? (
+                            <div className="space-y-3">
+                              <div>
+                                <p className="font-medium">
+                                  {originAirport.name} ({originAirport.iata})
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {[originAirport.city, originAirport.country]
+                                    .filter(Boolean)
+                                    .join(", ")}
+                                </p>
                               </div>
-                            ) : (
-                              <p className="text-sm text-muted-foreground">
-                                Select an origin and destination to continue.
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-semibold">
-                            Travel dates
-                          </h4>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="w-full justify-start gap-2 text-left font-medium"
-                              >
-                                <CalendarIcon
-                                  className="h-4 w-4 shrink-0"
-                                  aria-hidden="true"
-                                />
-                                <span className="truncate text-sm">
-                                  {travelDateState.label}
-                                </span>
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent
-                              align="start"
-                              className="w-auto p-0"
-                            >
-                              <Calendar
-                                mode="range"
-                                numberOfMonths={isMobile ? 1 : 2}
-                                defaultMonth={travelDateState.start}
-                                selected={alertDateRange}
-                                onSelect={handleAlertDateRangeSelect}
-                                fromDate={minSelectableDate}
-                                toDate={maxSelectableDate}
-                                disabled={(date) => {
-                                  const current = startOfDay(date);
-                                  return (
-                                    current < minSelectableDate ||
-                                    current > maxSelectableDate
-                                  );
-                                }}
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                          <p className="text-xs text-muted-foreground">
-                            Choose any range between {minMaxDescription} for
-                            your alert window.
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-semibold">
-                            Additional filters
-                          </h4>
-                          {filterSummary.length > 0 ? (
-                            <ul className="space-y-2 text-sm">
-                              {filterSummary.map((item) => (
-                                <li
-                                  key={item.label}
-                                  className="flex items-start justify-between gap-3"
-                                >
-                                  <span className="text-muted-foreground">
-                                    {item.label}
-                                  </span>
-                                  <span className="text-right font-medium">
-                                    {item.value}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
+                              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                to
+                              </div>
+                              <div>
+                                <p className="font-medium">
+                                  {destinationAirport.name} (
+                                  {destinationAirport.iata})
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {[
+                                    destinationAirport.city,
+                                    destinationAirport.country,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(", ")}
+                                </p>
+                              </div>
+                            </div>
                           ) : (
                             <p className="text-sm text-muted-foreground">
-                              No additional filters selected.
+                              Select an origin and destination to continue.
                             </p>
                           )}
                         </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-1 flex-col items-center justify-center gap-6 py-8">
-                        <div className="text-center space-y-4">
-                          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                            <LogIn className="h-6 w-6 text-primary" />
-                          </div>
-                          <div className="space-y-2">
-                            <h3 className="text-lg font-semibold">
-                              Login Required
-                            </h3>
-                            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                              To create price alerts and receive notifications
-                              about fare changes, you'll need to sign in to your
-                              account.
-                            </p>
-                          </div>
-                        </div>
-                        <Button asChild className="gap-2">
-                          <Link
-                            href="/login"
-                            onClick={() => setIsSheetOpen(false)}
-                          >
-                            <LogIn className="h-4 w-4" />
-                            Sign in to create alerts
-                          </Link>
-                        </Button>
                       </div>
-                    )}
-                  </div>
-                  {userEmail && (
+
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold">Travel dates</h4>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full justify-start gap-2 text-left font-medium"
+                            >
+                              <CalendarIcon
+                                className="h-4 w-4 shrink-0"
+                                aria-hidden="true"
+                              />
+                              <span className="truncate text-sm">
+                                {travelDateState.label}
+                              </span>
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent align="start" className="w-auto p-0">
+                            <Calendar
+                              mode="range"
+                              numberOfMonths={isMobile ? 1 : 2}
+                              defaultMonth={travelDateState.start}
+                              selected={alertDateRange}
+                              onSelect={handleAlertDateRangeSelect}
+                              fromDate={minSelectableDate}
+                              toDate={maxSelectableDate}
+                              disabled={(date) => {
+                                const current = startOfDay(date);
+                                return (
+                                  current < minSelectableDate ||
+                                  current > maxSelectableDate
+                                );
+                              }}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <p className="text-xs text-muted-foreground">
+                          Choose any range between {minMaxDescription} for your
+                          alert window.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold">
+                          Additional filters
+                        </h4>
+                        {filterSummary.length > 0 ? (
+                          <ul className="space-y-2 text-sm">
+                            {filterSummary.map((item) => (
+                              <li
+                                key={item.label}
+                                className="flex items-start justify-between gap-3"
+                              >
+                                <span className="text-muted-foreground">
+                                  {item.label}
+                                </span>
+                                <span className="text-right font-medium">
+                                  {item.value}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            No additional filters selected.
+                          </p>
+                        )}
+                      </div>
+                    </div>
                     <SheetFooter className="px-4 pb-4">
                       <div className="rounded-md border bg-muted/40 p-3 text-sm leading-relaxed">
                         <p>
@@ -658,9 +622,22 @@ export function FlightPricePanel({
                         )}
                       </Button>
                     </SheetFooter>
-                  )}
-                </SheetContent>
-              </Sheet>
+                  </SheetContent>
+                </Sheet>
+              ) : (
+                <Button
+                  asChild
+                  variant="default"
+                  size="sm"
+                  className="gap-2 font-semibold"
+                >
+                  <Link
+                    href={`/login?redirectTo=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname + window.location.search : "/search")}`}
+                  >
+                    + Create Alert
+                  </Link>
+                </Button>
+              )}
             </div>
           </div>
 
