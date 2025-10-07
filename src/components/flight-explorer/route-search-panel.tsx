@@ -30,13 +30,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     routeChangedSinceSearch,
   } = search;
 
-  const {
-    displayMessage,
-    isInitialLoading,
-    isLoadingNearby,
-    totalAirports,
-    onShowAllAirports,
-  } = header;
+  const { displayMessage, isInitialLoading, isLoadingNearby } = header;
 
   const showOriginSummary = Boolean(origin.selectedAirport && !origin.isActive);
   const showDestinationSummary = Boolean(
@@ -196,41 +190,25 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
         </div>
 
         <div className="flex items-center justify-between text-sm min-h-[20px]">
-          <div className="flex items-center gap-2">
-            <p className="text-muted-foreground flex items-center gap-2">
-              {(isInitialLoading || isLoadingNearby) && (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              )}
-              {displayMessage}
-            </p>
-            {shouldShowSearchAction && (
-              <Button
+          <p className="text-muted-foreground flex items-center gap-2">
+            {(isInitialLoading || isLoadingNearby) && (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            )}
+            {displayMessage}
+          </p>
+          {shouldShowSearchAction && (
+            <Badge asChild variant="secondary" className="cursor-pointer">
+              <button
                 type="button"
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 shrink-0 opacity-60 hover:opacity-100 transition-opacity"
                 onClick={onReset}
-                aria-label="Reset search"
+                className="flex items-center gap-1"
+                aria-label="Clear search"
               >
                 <X className="h-3 w-3" aria-hidden="true" />
-                <span className="sr-only">Reset</span>
-              </Button>
-            )}
-          </div>
-          <Badge
-            asChild
-            variant="secondary"
-            className="hidden sm:flex cursor-pointer"
-          >
-            <button
-              type="button"
-              onClick={onShowAllAirports}
-              className="flex items-center gap-1"
-              aria-label="Show all airports worldwide"
-            >
-              Support {totalAirports.toLocaleString()} Total Airports
-            </button>
-          </Badge>
+                Clear
+              </button>
+            </Badge>
+          )}
         </div>
       </div>
     </div>
