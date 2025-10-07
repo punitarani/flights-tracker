@@ -9,7 +9,7 @@ const BATCH_SIZE = 10;
 
 type QueueRow = {
   msg_id: number;
-  msg: { userId?: string } | null;
+  message: { userId?: string } | null;
 };
 
 export async function POST(request: Request) {
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     const skipped: string[] = [];
 
     for (const row of messages) {
-      const message = row.msg ?? {};
+      const message = row.message ?? {};
       const userId = typeof message.userId === "string" ? message.userId : null;
 
       if (!userId) {
