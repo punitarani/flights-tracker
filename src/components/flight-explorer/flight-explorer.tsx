@@ -8,7 +8,7 @@ import { AirportMapView } from "./airport-map-view";
 import { FlightPricePanel } from "./flight-price-panel";
 import { RouteSearchPanel } from "./route-search-panel";
 
-type FlightExplorerProps = {
+export type FlightExplorerProps = {
   airports: AirportData[];
   totalAirports: number;
   isLoadingAirports: boolean;
