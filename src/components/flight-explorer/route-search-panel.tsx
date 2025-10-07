@@ -157,17 +157,6 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
               <div className="flex gap-2">
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-12 w-12 shrink-0"
-                  onClick={onReset}
-                  aria-label="Reset search"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">Reset</span>
-                </Button>
-                <Button
-                  type="button"
                   className={cn(
                     "h-12 flex-1 justify-center gap-2",
                     "sm:flex-none sm:w-auto sm:px-4",
@@ -207,12 +196,27 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
         </div>
 
         <div className="flex items-center justify-between text-sm min-h-[20px]">
-          <p className="text-muted-foreground flex items-center gap-2">
-            {(isInitialLoading || isLoadingNearby) && (
-              <Loader2 className="h-3 w-3 animate-spin" />
+          <div className="flex items-center gap-2">
+            <p className="text-muted-foreground flex items-center gap-2">
+              {(isInitialLoading || isLoadingNearby) && (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              )}
+              {displayMessage}
+            </p>
+            {shouldShowSearchAction && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+                onClick={onReset}
+                aria-label="Reset search"
+              >
+                <X className="h-3 w-3" aria-hidden="true" />
+                <span className="sr-only">Reset</span>
+              </Button>
             )}
-            {displayMessage}
-          </p>
+          </div>
           <Badge
             asChild
             variant="secondary"
