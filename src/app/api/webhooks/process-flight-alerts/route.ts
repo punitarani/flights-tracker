@@ -21,37 +21,33 @@ export async function POST(request: Request) {
 
   try {
     const supabase = createServiceClient();
-    const { data: rows, error: readError } = await supabase
-      .schema("pgmq_public")
-      .rpc("read", {
-        queue_name: QUEUE_NAME,
-        sleep_seconds: VISIBILITY_TIMEOUT_SECONDS,
-        n: BATCH_SIZE,
-      });
-
-    if (readError) {
-      throw readError;
-    }
-
-    const messages = Array.isArray(rows) ? (rows as QueueRow[]) : [];
-
-    if (messages.length === 0) {
-      return Response.json({ processed: [], skipped: [] });
-    }
-
     const processed: string[] = [];
     const skipped: string[] = [];
 
-    for (const row of messages) {
+    for (let i = 0; i < BATCH_SIZE; i += 1) {
+      const { data, error: popError } = await supabase
+        .schema("pgmq_public")
+        .rpc("pop", {
+          queue_name: QUEUE_NAME,
+        });
+
+      if (popError) {
+        throw popError;
+      }
+
+      const row = Array.isArray(data)
+        ? ((data as QueueRow[])[0] ?? null)
+        : ((data as QueueRow | null | undefined) ?? null);
+
+      if (!row) {
+        break;
+      }
+
       const message = row.message ?? {};
       const userId = typeof message.userId === "string" ? message.userId : null;
 
       if (!userId) {
         console.error("Invalid queue payload", message);
-        await supabase.schema("pgmq_public").rpc("delete", {
-          queue_name: QUEUE_NAME,
-          msg_id: row.msg_id,
-        });
         continue;
       }
 
@@ -60,28 +56,43 @@ export async function POST(request: Request) {
 
         if (!locked) {
           skipped.push(userId);
-          await supabase.schema("pgmq_public").rpc("set_vt", {
-            queue_name: QUEUE_NAME,
-            msg_id: row.msg_id,
-            vt: 0,
-          });
+          const { error: requeueError } = await supabase
+            .schema("pgmq_public")
+            .rpc("send", {
+              queue_name: QUEUE_NAME,
+              message: { userId },
+            });
+
+          if (requeueError) {
+            console.error(
+              "Failed to requeue user after lock contention",
+              userId,
+              requeueError,
+            );
+          }
+
           continue;
         }
 
         console.log("Processing alerts for user", userId);
-
-        await supabase.schema("pgmq_public").rpc("delete", {
-          queue_name: QUEUE_NAME,
-          msg_id: row.msg_id,
-        });
         processed.push(userId);
       } catch (error) {
         console.error("Failed processing user", userId, error);
-        await supabase.schema("pgmq_public").rpc("set_vt", {
-          queue_name: QUEUE_NAME,
-          msg_id: row.msg_id,
-          vt: VISIBILITY_TIMEOUT_SECONDS,
-        });
+        const { error: requeueError } = await supabase
+          .schema("pgmq_public")
+          .rpc("send", {
+            queue_name: QUEUE_NAME,
+            message: { userId },
+            sleep_seconds: VISIBILITY_TIMEOUT_SECONDS,
+          });
+
+        if (requeueError) {
+          console.error(
+            "Failed to requeue user after processing error",
+            userId,
+            requeueError,
+          );
+        }
       }
     }
 
