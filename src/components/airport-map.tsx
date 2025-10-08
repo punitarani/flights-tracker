@@ -284,11 +284,95 @@ export function AirportMap({
     new Map<string, { overlays: unknown[]; cleanup?: () => void }>(),
   );
   const hoveredRouteIdRef = useRef<string | null>(null);
+  const programmaticRegionChangeRef = useRef(false);
+  const programmaticRegionTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const userViewportOverrideRef = useRef(false);
+  const previousOriginIdRef = useRef<string | null>(null);
+  const previousDestinationIdRef = useRef<string | null>(null);
+  const previousActiveRouteIdRef = useRef<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   void _airports;
   void _showAllAirports;
+
+  const clearProgrammaticRegionTimeout = useCallback(() => {
+    if (programmaticRegionTimeoutRef.current) {
+      clearTimeout(programmaticRegionTimeoutRef.current);
+      programmaticRegionTimeoutRef.current = null;
+    }
+  }, []);
+
+  const beginProgrammaticRegionChange = useCallback(() => {
+    programmaticRegionChangeRef.current = true;
+    clearProgrammaticRegionTimeout();
+    programmaticRegionTimeoutRef.current = setTimeout(() => {
+      programmaticRegionChangeRef.current = false;
+      programmaticRegionTimeoutRef.current = null;
+    }, 750);
+  }, [clearProgrammaticRegionTimeout]);
+
+  const setUserViewportOverride = useCallback((value: boolean) => {
+    userViewportOverrideRef.current = value;
+  }, []);
+
+  const markUserViewportOverride = useCallback(() => {
+    if (!programmaticRegionChangeRef.current) {
+      userViewportOverrideRef.current = true;
+    }
+  }, []);
+
+  const resetViewportToDefault = useCallback(
+    (options: { animate: boolean; lockUserViewport: boolean }) => {
+      if (!mapRef.current) {
+        return;
+      }
+
+      let mapkit: ReturnType<typeof mapKitLoader.getMapKit>;
+
+      try {
+        mapkit = mapKitLoader.getMapKit();
+      } catch {
+        return;
+      }
+
+      const { animate, lockUserViewport } = options;
+
+      beginProgrammaticRegionChange();
+
+      try {
+        const usRegion = new mapkit.CoordinateRegion(
+          new mapkit.Coordinate(US_CENTER.latitude, US_CENTER.longitude),
+          new mapkit.CoordinateSpan(
+            US_SPAN.latitudeDelta,
+            US_SPAN.longitudeDelta,
+          ),
+        );
+        mapRef.current.setRegionAnimated(usRegion, animate);
+      } catch {
+        try {
+          const worldRegion = new mapkit.CoordinateRegion(
+            new mapkit.Coordinate(
+              WORLD_CENTER.latitude,
+              WORLD_CENTER.longitude,
+            ),
+            new mapkit.CoordinateSpan(
+              WORLD_SPAN.latitudeDelta,
+              WORLD_SPAN.longitudeDelta,
+            ),
+          );
+          mapRef.current.setRegionAnimated(worldRegion, animate);
+        } catch {
+          // ignore region reset errors
+        }
+      }
+
+      setUserViewportOverride(lockUserViewport);
+    },
+    [beginProgrammaticRegionChange, setUserViewportOverride],
+  );
 
   const applyRouteStyle = useCallback(
     (routeId: string, mode: "default" | "hover" | "active") => {
@@ -313,19 +397,19 @@ export function AirportMap({
       const styleConfig = {
         lineCap: "round",
         lineJoin: "round",
-        lineWidth: 2.5,
-        strokeColor: "#0f172a",
-        opacity: 0.35,
+        lineWidth: 2.75,
+        strokeColor: "#1f2937",
+        opacity: 0.4,
       } satisfies Record<string, unknown>;
 
       if (mode === "hover") {
-        styleConfig.lineWidth = 4;
-        styleConfig.strokeColor = "#1d4ed8";
-        styleConfig.opacity = 0.65;
+        styleConfig.lineWidth = 4.25;
+        styleConfig.strokeColor = "#2563eb";
+        styleConfig.opacity = 0.7;
       } else if (mode === "active") {
-        styleConfig.lineWidth = 5.5;
+        styleConfig.lineWidth = 5.75;
         styleConfig.strokeColor = "#1d4ed8";
-        styleConfig.opacity = 0.9;
+        styleConfig.opacity = 0.92;
       }
 
       for (const overlay of entry.overlays) {
@@ -467,8 +551,80 @@ export function AirportMap({
 
       routeOverlayRef.current = null;
       routeOverlaysRef.current.clear();
+      clearProgrammaticRegionTimeout();
+      programmaticRegionChangeRef.current = false;
     };
-  }, [onMapReady]);
+  }, [clearProgrammaticRegionTimeout, onMapReady]);
+
+  useEffect(() => {
+    if (!isReady || !mapRef.current) {
+      return;
+    }
+
+    const map = mapRef.current;
+
+    const handleRegionChangeStart = () => {
+      markUserViewportOverride();
+    };
+
+    const handleRegionChangeEnd = () => {
+      clearProgrammaticRegionTimeout();
+      programmaticRegionChangeRef.current = false;
+    };
+
+    const handleScrollEnd = () => {
+      markUserViewportOverride();
+    };
+
+    const handleSingleTap = (event: unknown) => {
+      const tapEvent = event as
+        | { overlay?: unknown; annotation?: unknown }
+        | undefined
+        | null;
+
+      if (tapEvent?.overlay || tapEvent?.annotation) {
+        return;
+      }
+
+      updateHoveredRoute(null);
+      resetViewportToDefault({ animate: true, lockUserViewport: true });
+
+      try {
+        map.selectedAnnotation = null;
+      } catch {
+        // ignore selection reset errors
+      }
+    };
+
+    map.addEventListener(
+      "region-change-start",
+      handleRegionChangeStart as never,
+    );
+    map.addEventListener("region-change-end", handleRegionChangeEnd as never);
+    map.addEventListener("scroll-end", handleScrollEnd as never);
+    map.addEventListener("zoom-end", handleScrollEnd as never);
+    map.addEventListener("single-tap", handleSingleTap as never);
+
+    return () => {
+      map.removeEventListener(
+        "region-change-start",
+        handleRegionChangeStart as never,
+      );
+      map.removeEventListener(
+        "region-change-end",
+        handleRegionChangeEnd as never,
+      );
+      map.removeEventListener("scroll-end", handleScrollEnd as never);
+      map.removeEventListener("zoom-end", handleScrollEnd as never);
+      map.removeEventListener("single-tap", handleSingleTap as never);
+    };
+  }, [
+    clearProgrammaticRegionTimeout,
+    isReady,
+    markUserViewportOverride,
+    resetViewportToDefault,
+    updateHoveredRoute,
+  ]);
 
   useEffect(() => {
     if (!isReady || !mapRef.current) {
@@ -486,6 +642,24 @@ export function AirportMap({
     }
 
     const markers = markersRef.current;
+
+    const currentOriginId = originAirport?.id ?? null;
+    if (previousOriginIdRef.current !== currentOriginId) {
+      previousOriginIdRef.current = currentOriginId;
+      setUserViewportOverride(false);
+    }
+
+    const currentDestinationId = destinationAirport?.id ?? null;
+    if (previousDestinationIdRef.current !== currentDestinationId) {
+      previousDestinationIdRef.current = currentDestinationId;
+      setUserViewportOverride(false);
+    }
+
+    const currentActiveRouteId = activeRouteId ?? null;
+    if (previousActiveRouteIdRef.current !== currentActiveRouteId) {
+      previousActiveRouteIdRef.current = currentActiveRouteId;
+      setUserViewportOverride(false);
+    }
 
     const updateMarker = (
       role: "origin" | "destination",
@@ -592,9 +766,9 @@ export function AirportMap({
         const overlay = new mapkit.PolylineOverlay(coordinates, {
           lineCap: "round",
           lineJoin: "round",
-          lineWidth: 5,
-          strokeColor: "#2563eb",
-          opacity: 0.85,
+          lineWidth: 5.25,
+          strokeColor: "#1d4ed8",
+          opacity: 0.9,
         });
 
         try {
@@ -626,23 +800,52 @@ export function AirportMap({
     const overlaysForSelection =
       activePopularRouteEntry?.overlays ?? routeOverlayRef.current ?? [];
 
-    if (originAirport && destinationAirport) {
-      const items = overlaysForSelection.length
-        ? [...activeAnnotations, ...overlaysForSelection]
-        : activeAnnotations;
+    const focusOnAirport = (airport: AirportData, animate: boolean) => {
+      beginProgrammaticRegionChange();
+      try {
+        const region = new mapkit.CoordinateRegion(
+          new mapkit.Coordinate(airport.latitude, airport.longitude),
+          new mapkit.CoordinateSpan(8, 8),
+        );
+        map.setRegionAnimated(region, animate);
+      } catch {
+        // ignore region errors
+      }
+    };
 
+    const showItemsWithPadding = (items: unknown[], padding: number) => {
+      if (!items.length) {
+        return;
+      }
+
+      beginProgrammaticRegionChange();
       try {
         map.showItems(items as never, {
           animate: true,
-          padding: new mapkit.Padding(
-            ROUTE_PADDING,
-            ROUTE_PADDING,
-            ROUTE_PADDING,
-            ROUTE_PADDING,
-          ),
+          padding: new mapkit.Padding(padding, padding, padding, padding),
         });
       } catch {
-        // ignore fit errors
+        const fallbackAirport = originAirport ?? destinationAirport;
+        if (fallbackAirport) {
+          focusOnAirport(fallbackAirport, true);
+        } else {
+          resetViewportToDefault({ animate: true, lockUserViewport: false });
+        }
+      }
+    };
+
+    const hasBothAirports = Boolean(originAirport && destinationAirport);
+    const hasSingleAnnotation = activeAnnotations.length === 1;
+
+    if (hasBothAirports) {
+      if (!userViewportOverrideRef.current) {
+        const items = overlaysForSelection.length
+          ? [...activeAnnotations, ...overlaysForSelection]
+          : activeAnnotations;
+
+        if (items.length) {
+          showItemsWithPadding(items, ROUTE_PADDING);
+        }
       }
 
       if (markers.destination?.annotation) {
@@ -652,60 +855,16 @@ export function AirportMap({
       } else {
         map.selectedAnnotation = null;
       }
-    } else if (activeAnnotations.length === 1) {
-      try {
-        map.showItems(activeAnnotations as never, {
-          animate: true,
-          padding: new mapkit.Padding(
-            SINGLE_MARKER_PADDING,
-            SINGLE_MARKER_PADDING,
-            SINGLE_MARKER_PADDING,
-            SINGLE_MARKER_PADDING,
-          ),
-        });
-      } catch {
-        const airport = originAirport ?? destinationAirport;
-        if (airport) {
-          try {
-            const region = new mapkit.CoordinateRegion(
-              new mapkit.Coordinate(airport.latitude, airport.longitude),
-              new mapkit.CoordinateSpan(8, 8),
-            );
-            map.setRegionAnimated(region, true);
-          } catch {
-            // ignore region errors
-          }
-        }
+    } else if (hasSingleAnnotation) {
+      if (!userViewportOverrideRef.current) {
+        showItemsWithPadding(activeAnnotations, SINGLE_MARKER_PADDING);
       }
 
       map.selectedAnnotation =
         markers.origin?.annotation ?? markers.destination?.annotation ?? null;
     } else {
-      try {
-        const usRegion = new mapkit.CoordinateRegion(
-          new mapkit.Coordinate(US_CENTER.latitude, US_CENTER.longitude),
-          new mapkit.CoordinateSpan(
-            US_SPAN.latitudeDelta,
-            US_SPAN.longitudeDelta,
-          ),
-        );
-        map.setRegionAnimated(usRegion, false);
-      } catch {
-        try {
-          const worldRegion = new mapkit.CoordinateRegion(
-            new mapkit.Coordinate(
-              WORLD_CENTER.latitude,
-              WORLD_CENTER.longitude,
-            ),
-            new mapkit.CoordinateSpan(
-              WORLD_SPAN.latitudeDelta,
-              WORLD_SPAN.longitudeDelta,
-            ),
-          );
-          map.setRegionAnimated(worldRegion, false);
-        } catch {
-          // ignore region reset errors
-        }
+      if (!userViewportOverrideRef.current) {
+        resetViewportToDefault({ animate: false, lockUserViewport: false });
       }
       map.selectedAnnotation = null;
     }
@@ -716,6 +875,9 @@ export function AirportMap({
     isReady,
     activeRouteId,
     applyRouteStyle,
+    beginProgrammaticRegionChange,
+    resetViewportToDefault,
+    setUserViewportOverride,
   ]);
 
   useEffect(() => {
@@ -816,9 +978,9 @@ export function AirportMap({
         const overlay = new mapkit.PolylineOverlay(coordinates, {
           lineCap: "round",
           lineJoin: "round",
-          lineWidth: 2.5,
-          strokeColor: "#0f172a",
-          opacity: 0.35,
+          lineWidth: 2.75,
+          strokeColor: "#1f2937",
+          opacity: 0.4,
         }) as unknown;
 
         const overlayWithMeta = overlay as {
