@@ -116,6 +116,18 @@ export function FlightExplorer({
 
   const infoRoute = hoveredRoute ?? selectedPopularRoute ?? null;
 
+  const infoRouteMessage = useMemo(() => {
+    if (hoveredRoute) {
+      return "Click this route to load it into the search fields.";
+    }
+
+    if (selectedPopularRoute) {
+      return "This route is already loaded into the search fields.";
+    }
+
+    return "Click a route line to load it into the search fields.";
+  }, [hoveredRoute, selectedPopularRoute]);
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <RouteSearchPanel search={search} header={header} />
@@ -194,11 +206,7 @@ export function FlightExplorer({
                               ) : null}
                             </div>
                             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                              <p>
-                                {hoveredRoute
-                                  ? "Click this route to load it into the search fields."
-                                  : "Click another route line to explore a different connection."}
-                              </p>
+                              <p>{infoRouteMessage}</p>
                               {selectedPopularRoute ? (
                                 <Button
                                   type="button"
