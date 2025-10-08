@@ -119,7 +119,10 @@ export async function generateMetadata({
   if (dateTo) query.set("dateTo", format(dateTo, "yyyy-MM-dd"));
   if (windowDays) query.set("searchWindowDays", windowDays.toString());
 
-  const imagePath = `/search/opengraph-image${
+  const ogImagePath = `/search/opengraph-image${
+    query.toString() ? `?${query.toString()}` : ""
+  }`;
+  const twitterImagePath = `/search/twitter-image${
     query.toString() ? `?${query.toString()}` : ""
   }`;
 
@@ -137,7 +140,7 @@ export async function generateMetadata({
       url: "/search",
       images: [
         {
-          url: imagePath,
+          url: ogImagePath,
           width: 1200,
           height: 630,
           alt: routeLabel
@@ -152,7 +155,7 @@ export async function generateMetadata({
       description,
       images: [
         {
-          url: imagePath,
+          url: twitterImagePath,
           width: 1200,
           height: 630,
           alt: routeLabel

@@ -8,8 +8,8 @@ export default function DefaultOpenGraphImage() {
   return new ImageResponse(
     <OgCard
       badge="Graypane"
-      title="Stay ahead of airfare changes"
-      subtitle="Monitor fare trends, explore airports worldwide, and set price alerts in one streamlined dashboard."
+      title="Flight Search & Alerts"
+      subtitle="Monitor flight prices, explore fare history, and stay ahead with personalized alerts."
       footer="Real-time flight intelligence"
     />,
     {

@@ -52,13 +52,12 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@graypane",
     title: "Flight Search & Alerts",
     description:
       "Track fare trends and manage flight alerts with the GrayPane dashboard on graypane.com.",
     images: [
       {
-        url: "/opengraph-image",
+        url: "/twitter-image",
         width: 1200,
         height: 630,
         alt: "GrayPane flight pricing dashboard",
