@@ -241,7 +241,6 @@ class MapKitLoader {
       script.dataset.mapkitLoader = "true";
       script.dataset.callback = "initMapKit";
       script.dataset.libraries = REQUIRED_LIBRARIES.join(",");
-      script.dataset.token = env.NEXT_PUBLIC_MAPKIT_TOKEN;
 
       script.addEventListener(
         "error",
