@@ -397,19 +397,19 @@ export function AirportMap({
       const styleConfig = {
         lineCap: "round",
         lineJoin: "round",
-        lineWidth: 2.75,
-        strokeColor: "#1f2937",
-        opacity: 0.4,
+        lineWidth: 2.1,
+        strokeColor: "#0f172a",
+        opacity: 0.32,
       } satisfies Record<string, unknown>;
 
       if (mode === "hover") {
-        styleConfig.lineWidth = 4.25;
-        styleConfig.strokeColor = "#2563eb";
-        styleConfig.opacity = 0.7;
-      } else if (mode === "active") {
-        styleConfig.lineWidth = 5.75;
+        styleConfig.lineWidth = 3.5;
         styleConfig.strokeColor = "#1d4ed8";
-        styleConfig.opacity = 0.92;
+        styleConfig.opacity = 0.78;
+      } else if (mode === "active") {
+        styleConfig.lineWidth = 4.8;
+        styleConfig.strokeColor = "#1e3a8a";
+        styleConfig.opacity = 0.94;
       }
 
       for (const overlay of entry.overlays) {
@@ -766,8 +766,8 @@ export function AirportMap({
         const overlay = new mapkit.PolylineOverlay(coordinates, {
           lineCap: "round",
           lineJoin: "round",
-          lineWidth: 5.25,
-          strokeColor: "#1d4ed8",
+          lineWidth: 4.6,
+          strokeColor: "#1e3a8a",
           opacity: 0.9,
         });
 
@@ -978,9 +978,9 @@ export function AirportMap({
         const overlay = new mapkit.PolylineOverlay(coordinates, {
           lineCap: "round",
           lineJoin: "round",
-          lineWidth: 2.75,
-          strokeColor: "#1f2937",
-          opacity: 0.4,
+          lineWidth: 2.1,
+          strokeColor: "#0f172a",
+          opacity: 0.32,
         }) as unknown;
 
         const overlayWithMeta = overlay as {
