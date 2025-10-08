@@ -90,6 +90,7 @@ interface MapKitFeatureVisibility {
 interface MapKit {
   init(options: { authorizationCallback: MapKitAuthorizationCallback }): void;
   importLibrary?: (name: MapKitLibrary) => Promise<void>;
+  loadedLibraries?: MapKitLibrary[];
   Map: MapKitMapConstructor;
   Annotation: MapKitAnnotationConstructor;
   Coordinate: MapKitConstructor<[number, number], MapKitCoordinate>;
@@ -104,10 +105,12 @@ interface MapKit {
 declare global {
   interface Window {
     mapkit?: MapKit;
+    initMapKit?: () => void;
   }
 }
 
-const MAPKIT_SCRIPT_URL = "https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js";
+const MAPKIT_SCRIPT_URL =
+  "https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.core.js";
 const REQUIRED_LIBRARIES: MapKitLibrary[] = ["map", "annotations"];
 const SCRIPT_SELECTOR = "script[data-mapkit-loader='true']";
 
@@ -199,6 +202,15 @@ class MapKitLoader {
 
   private ensureScriptLoaded(): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Check if MapKit is already loaded
+      if (
+        window.mapkit?.loadedLibraries &&
+        window.mapkit.loadedLibraries.length > 0
+      ) {
+        resolve();
+        return;
+      }
+
       let script = document.querySelector<HTMLScriptElement>(SCRIPT_SELECTOR);
 
       if (script) {
@@ -216,23 +228,26 @@ class MapKitLoader {
         return;
       }
 
+      // Setup the global callback first
+      window.initMapKit = () => {
+        resolve();
+        delete window.initMapKit;
+      };
+
       script = document.createElement("script");
       script.src = MAPKIT_SCRIPT_URL;
       script.crossOrigin = "anonymous";
+      script.async = true;
       script.dataset.mapkitLoader = "true";
-
-      script.addEventListener(
-        "load",
-        () => {
-          script?.setAttribute("data-mapkit-loaded", "true");
-          resolve();
-        },
-        { once: true },
-      );
+      script.dataset.callback = "initMapKit";
+      script.dataset.libraries = REQUIRED_LIBRARIES.join(",");
 
       script.addEventListener(
         "error",
-        () => reject(new Error("Failed to load MapKit JS")),
+        () => {
+          delete window.initMapKit;
+          reject(new Error("Failed to load MapKit JS"));
+        },
         { once: true },
       );
 

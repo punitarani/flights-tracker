@@ -13,6 +13,8 @@ declare namespace mapkit {
     language?: string;
   }
 
+  const loadedLibraries: string[];
+
   // biome-ignore lint/suspicious/noShadowRestrictedNames: MapKit uses Map as class name
   class Map {
     constructor(element: HTMLElement | string, options?: MapConstructorOptions);
