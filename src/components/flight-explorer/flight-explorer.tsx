@@ -121,9 +121,6 @@ export function FlightExplorer({
       <RouteSearchPanel search={search} header={header} />
 
       <div className="relative flex-1 overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_55%)]" />
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,_rgba(15,23,42,0.08),_transparent_40%,_rgba(15,23,42,0.12)_92%)]" />
-
         <div className="relative flex h-full flex-col">
           {header.isInitialLoading ? (
             <div className="flex flex-1 items-center justify-center bg-muted/20">
@@ -143,7 +140,6 @@ export function FlightExplorer({
             <div className="container mx-auto flex h-full w-full flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8 lg:pb-10">
               <div className="flex h-full w-full">
                 <div className="relative flex h-full w-full min-h-[360px] overflow-hidden rounded-3xl border border-border/40 bg-card/40 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.55)] backdrop-blur-xl">
-                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.08),_transparent_70%)]" />
                   <AirportMapView
                     state={mapState}
                     popularRoutes={popularRoutesWithAirports}
@@ -160,22 +156,22 @@ export function FlightExplorer({
                       </div>
                     </div>
                   ) : (
-                    <div className="pointer-events-none absolute left-4 top-4 max-w-md sm:left-6 sm:top-6 lg:left-8 lg:top-8">
-                      <div className="pointer-events-auto rounded-3xl border border-border/40 bg-background/90 px-5 py-4 shadow-xl backdrop-blur">
+                    <div className="pointer-events-none absolute inset-x-4 top-4 sm:left-6 sm:right-auto sm:top-6 sm:w-auto sm:max-w-sm sm:inset-x-auto lg:left-8 lg:top-8">
+                      <div className="pointer-events-auto w-full rounded-[1.35rem] border border-border/35 bg-background/92 px-4 py-3.5 shadow-[0_18px_60px_-36px_rgba(15,23,42,0.55)] backdrop-blur">
                         {infoRoute ? (
                           <>
-                            <div className="flex flex-wrap items-start justify-between gap-4">
-                              <div className="space-y-2">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="space-y-1.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/90">
                                   {hoveredRoute
                                     ? "Route preview"
                                     : "Selected route"}
                                 </p>
-                                <p className="text-2xl font-semibold tracking-tight text-foreground">
+                                <p className="text-xl font-semibold tracking-tight text-foreground">
                                   {infoRoute.origin.iata} →{" "}
                                   {infoRoute.destination.iata}
                                 </p>
-                                <p className="text-sm text-muted-foreground">
+                                <p className="text-xs text-muted-foreground">
                                   {infoRoute.origin.city},{" "}
                                   {infoRoute.origin.country}
                                   {" / "}
@@ -185,10 +181,10 @@ export function FlightExplorer({
                               </div>
                               {infoRoute.distanceMiles ? (
                                 <div className="text-right">
-                                  <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+                                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/90">
                                     Distance
                                   </p>
-                                  <p className="mt-1 text-base font-semibold text-foreground">
+                                  <p className="mt-0.5 text-sm font-semibold text-foreground">
                                     {distanceFormatter.format(
                                       infoRoute.distanceMiles,
                                     )}{" "}
@@ -197,7 +193,7 @@ export function FlightExplorer({
                                 </div>
                               ) : null}
                             </div>
-                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
                               <p>
                                 {hoveredRoute
                                   ? "Click this route to load it into the search fields."
@@ -218,10 +214,10 @@ export function FlightExplorer({
                           </>
                         ) : (
                           <>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/90">
                               Popular routes map
                             </p>
-                            <p className="mt-2 text-sm text-muted-foreground">
+                            <p className="mt-1 text-xs text-muted-foreground">
                               Hover any route to preview airport details. Click
                               to load it into the search fields.
                             </p>
