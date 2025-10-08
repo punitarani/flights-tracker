@@ -39,6 +39,7 @@ const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 const toDegrees = (radians: number) => (radians * 180) / Math.PI;
 
 type Vector3 = [number, number, number];
+type LatLng = { latitude: number; longitude: number };
 
 const coordinateToVector = (latitude: number, longitude: number): Vector3 => {
   const latRad = toRadians(latitude);
@@ -71,19 +72,18 @@ const interpolateGreatCircle = (
   return [x / length, y / length, z / length];
 };
 
-const vectorToCoordinate = (
-  mapkit: ReturnType<typeof mapKitLoader.getMapKit>,
-  vector: Vector3,
-) => {
+const vectorToLatLng = (vector: Vector3): LatLng => {
   const [x, y, z] = vector;
   const longitude = Math.atan2(y, x);
   const latitude = Math.atan2(z, Math.sqrt(x * x + y * y));
 
-  return new mapkit.Coordinate(toDegrees(latitude), toDegrees(longitude));
+  return {
+    latitude: toDegrees(latitude),
+    longitude: toDegrees(longitude),
+  };
 };
 
 const createGreatCirclePath = (
-  mapkit: ReturnType<typeof mapKitLoader.getMapKit>,
   origin: AirportData,
   destination: AirportData,
 ) => {
@@ -107,8 +107,8 @@ const createGreatCirclePath = (
 
   if (!Number.isFinite(omega) || omega < GREAT_CIRCLE_EPSILON) {
     return [
-      new mapkit.Coordinate(origin.latitude, origin.longitude),
-      new mapkit.Coordinate(destination.latitude, destination.longitude),
+      { latitude: origin.latitude, longitude: origin.longitude },
+      { latitude: destination.latitude, longitude: destination.longitude },
     ];
   }
 
@@ -122,7 +122,7 @@ const createGreatCirclePath = (
     ),
   );
 
-  const coordinates: InstanceType<typeof mapkit.Coordinate>[] = [];
+  const coordinates: LatLng[] = [];
 
   for (let index = 0; index <= segmentCount; index += 1) {
     const t = index / segmentCount;
@@ -133,10 +133,126 @@ const createGreatCirclePath = (
       omega,
       sinOmega,
     );
-    coordinates.push(vectorToCoordinate(mapkit, point));
+    coordinates.push(vectorToLatLng(point));
   }
 
   return coordinates;
+};
+
+const normalizeLongitude = (longitude: number) => {
+  const normalized = ((((longitude + 180) % 360) + 360) % 360) - 180;
+  return normalized === -180 ? 180 : normalized;
+};
+
+const chooseClosestLongitude = (candidates: number[], reference: number) => {
+  let choice = candidates[0];
+  let minDiff = Math.abs(candidates[0] - reference);
+
+  for (let index = 1; index < candidates.length; index += 1) {
+    const diff = Math.abs(candidates[index] - reference);
+    if (diff < minDiff) {
+      choice = candidates[index];
+      minDiff = diff;
+    }
+  }
+
+  return choice;
+};
+
+const splitPathByAntimeridian = (points: LatLng[]): LatLng[][] => {
+  if (points.length === 0) {
+    return [];
+  }
+
+  const segments: LatLng[][] = [];
+  let currentSegment: LatLng[] = [
+    {
+      latitude: points[0].latitude,
+      longitude: normalizeLongitude(points[0].longitude),
+    },
+  ];
+
+  let previousPoint = points[0];
+  let previousUnwrappedLongitude = normalizeLongitude(points[0].longitude);
+
+  for (let index = 1; index < points.length; index += 1) {
+    const point = points[index];
+    const normalizedLongitude = normalizeLongitude(point.longitude);
+    const candidates = [
+      normalizedLongitude,
+      normalizedLongitude + 360,
+      normalizedLongitude - 360,
+    ];
+    let adjustedLongitude = chooseClosestLongitude(
+      candidates,
+      previousUnwrappedLongitude,
+    );
+
+    if (adjustedLongitude > 180 || adjustedLongitude < -180) {
+      const boundary = adjustedLongitude > 0 ? 180 : -180;
+      const denominator = adjustedLongitude - previousUnwrappedLongitude;
+
+      if (Math.abs(denominator) > Number.EPSILON) {
+        const rawT = (boundary - previousUnwrappedLongitude) / denominator;
+        const clampedT = Math.min(Math.max(rawT, 0), 1);
+        const latitudeAtBoundary =
+          previousPoint.latitude +
+          (point.latitude - previousPoint.latitude) * clampedT;
+
+        currentSegment.push({
+          latitude: latitudeAtBoundary,
+          longitude: boundary,
+        });
+
+        segments.push(currentSegment);
+
+        currentSegment = [
+          {
+            latitude: latitudeAtBoundary,
+            longitude: boundary === 180 ? -180 : 180,
+          },
+        ];
+      } else {
+        segments.push(currentSegment);
+        currentSegment = [];
+      }
+
+      adjustedLongitude =
+        adjustedLongitude > 0
+          ? adjustedLongitude - 360
+          : adjustedLongitude + 360;
+    }
+
+    currentSegment.push({
+      latitude: point.latitude,
+      longitude: normalizeLongitude(adjustedLongitude),
+    });
+
+    previousUnwrappedLongitude = adjustedLongitude;
+    previousPoint = point;
+  }
+
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment);
+  }
+
+  return segments;
+};
+
+const buildGreatCircleSegments = (
+  mapkit: ReturnType<typeof mapKitLoader.getMapKit>,
+  origin: AirportData,
+  destination: AirportData,
+) => {
+  const points = createGreatCirclePath(origin, destination);
+  const segments = splitPathByAntimeridian(points);
+
+  return segments.map((segment) =>
+    segment.map(
+      (coordinate) =>
+        new mapkit.Coordinate(coordinate.latitude, coordinate.longitude),
+    ),
+  );
 };
 
 type AirportMarkerEntry = {
@@ -163,9 +279,9 @@ export function AirportMap({
     origin?: AirportMarkerEntry;
     destination?: AirportMarkerEntry;
   }>({});
-  const routeOverlayRef = useRef<unknown | null>(null);
+  const routeOverlayRef = useRef<unknown[] | null>(null);
   const routeOverlaysRef = useRef(
-    new Map<string, { overlay: unknown; cleanup?: () => void }>(),
+    new Map<string, { overlays: unknown[]; cleanup?: () => void }>(),
   );
   const hoveredRouteIdRef = useRef<string | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -212,7 +328,9 @@ export function AirportMap({
         styleConfig.opacity = 0.9;
       }
 
-      (entry.overlay as { style?: unknown }).style = new StyleCtor(styleConfig);
+      for (const overlay of entry.overlays) {
+        (overlay as { style?: unknown }).style = new StyleCtor(styleConfig);
+      }
     },
     [],
   );
@@ -312,14 +430,22 @@ export function AirportMap({
       if (map) {
         try {
           if (routeOverlayRef.current) {
-            map.removeOverlay(routeOverlayRef.current as never);
+            for (const overlay of routeOverlayRef.current) {
+              try {
+                map.removeOverlay(overlay as never);
+              } catch {
+                // ignore overlay cleanup errors
+              }
+            }
           }
           for (const entry of overlayEntries) {
             entry.cleanup?.();
-            try {
-              map.removeOverlay(entry.overlay as never);
-            } catch {
-              // ignore overlay cleanup errors
+            for (const overlay of entry.overlays) {
+              try {
+                map.removeOverlay(overlay as never);
+              } catch {
+                // ignore overlay cleanup errors
+              }
             }
           }
           if (origin?.annotation) {
@@ -422,13 +548,14 @@ export function AirportMap({
     updateMarker("destination", destinationAirport ?? null, "#22c55e");
 
     if (routeOverlayRef.current) {
-      try {
-        map.removeOverlay(routeOverlayRef.current as never);
-      } catch {
-        // ignore overlay removal errors
-      } finally {
-        routeOverlayRef.current = null;
+      for (const overlay of routeOverlayRef.current) {
+        try {
+          map.removeOverlay(overlay as never);
+        } catch {
+          // ignore overlay removal errors
+        }
       }
+      routeOverlayRef.current = null;
     }
 
     const activeAnnotations = [
@@ -449,34 +576,59 @@ export function AirportMap({
     );
 
     if (shouldRenderDedicatedOverlay && originAirport && destinationAirport) {
-      const coordinates = createGreatCirclePath(
+      const segments = buildGreatCircleSegments(
         mapkit,
         originAirport,
         destinationAirport,
       );
 
-      const overlay = new mapkit.PolylineOverlay(coordinates, {
-        lineCap: "round",
-        lineJoin: "round",
-        lineWidth: 5,
-        strokeColor: "#2563eb",
-        opacity: 0.85,
-      });
+      const overlaysForRoute: unknown[] = [];
 
-      try {
-        map.addOverlay(overlay);
-        routeOverlayRef.current = overlay;
-      } catch {
-        routeOverlayRef.current = null;
+      for (const coordinates of segments) {
+        if (coordinates.length < 2) {
+          continue;
+        }
+
+        const overlay = new mapkit.PolylineOverlay(coordinates, {
+          lineCap: "round",
+          lineJoin: "round",
+          lineWidth: 5,
+          strokeColor: "#2563eb",
+          opacity: 0.85,
+        });
+
+        try {
+          map.addOverlay(overlay);
+          overlaysForRoute.push(overlay);
+        } catch {
+          try {
+            map.removeOverlay(overlay as never);
+          } catch {
+            // ignore overlay cleanup errors
+          }
+          for (const added of overlaysForRoute) {
+            try {
+              map.removeOverlay(added as never);
+            } catch {
+              // ignore overlay cleanup errors
+            }
+          }
+          overlaysForRoute.length = 0;
+          break;
+        }
       }
+
+      routeOverlayRef.current = overlaysForRoute.length
+        ? overlaysForRoute
+        : null;
     }
 
-    const overlayForSelection =
-      activePopularRouteEntry?.overlay ?? routeOverlayRef.current;
+    const overlaysForSelection =
+      activePopularRouteEntry?.overlays ?? routeOverlayRef.current ?? [];
 
     if (originAirport && destinationAirport) {
-      const items = overlayForSelection
-        ? [...activeAnnotations, overlayForSelection]
+      const items = overlaysForSelection.length
+        ? [...activeAnnotations, ...overlaysForSelection]
         : activeAnnotations;
 
       try {
@@ -588,10 +740,12 @@ export function AirportMap({
     for (const [id, entry] of overlays) {
       if (!nextIds.has(id)) {
         entry.cleanup?.();
-        try {
-          map.removeOverlay(entry.overlay as never);
-        } catch {
-          // ignore removal errors
+        for (const overlay of entry.overlays) {
+          try {
+            map.removeOverlay(overlay as never);
+          } catch {
+            // ignore removal errors
+          }
         }
         overlays.delete(id);
       }
@@ -620,41 +774,15 @@ export function AirportMap({
     nextRoutes.forEach((route) => {
       const existing = overlays.get(route.id);
       if (existing) {
-        (existing.overlay as { data?: unknown }).data = {
-          type: "popularRoute",
-          route,
-        };
+        for (const overlay of existing.overlays) {
+          (overlay as { data?: unknown }).data = {
+            type: "popularRoute",
+            route,
+          };
+        }
         applyRouteStyle(route.id, getOverlayStyleMode(route.id));
         return;
       }
-
-      const coordinates = createGreatCirclePath(
-        mapkit,
-        route.origin,
-        route.destination,
-      );
-
-      const overlay = new mapkit.PolylineOverlay(coordinates, {
-        lineCap: "round",
-        lineJoin: "round",
-        lineWidth: 2.5,
-        strokeColor: "#0f172a",
-        opacity: 0.35,
-      }) as unknown;
-
-      const overlayWithMeta = overlay as {
-        data?: unknown;
-        addEventListener?: (
-          type: string,
-          listener: (...args: unknown[]) => void,
-        ) => void;
-        removeEventListener?: (
-          type: string,
-          listener: (...args: unknown[]) => void,
-        ) => void;
-      };
-
-      overlayWithMeta.data = { type: "popularRoute", route };
 
       const handleMouseEnter = () => {
         updateHoveredRoute(route);
@@ -671,25 +799,86 @@ export function AirportMap({
         onRouteSelect?.(route);
       };
 
-      overlayWithMeta.addEventListener?.("mouseenter", handleMouseEnter);
-      overlayWithMeta.addEventListener?.("mouseleave", handleMouseLeave);
-      overlayWithMeta.addEventListener?.("select", handleSelect);
+      const segments = buildGreatCircleSegments(
+        mapkit,
+        route.origin,
+        route.destination,
+      );
 
-      try {
-        map.addOverlay(overlayWithMeta as never);
-      } catch {
-        overlayWithMeta.removeEventListener?.("mouseenter", handleMouseEnter);
-        overlayWithMeta.removeEventListener?.("mouseleave", handleMouseLeave);
-        overlayWithMeta.removeEventListener?.("select", handleSelect);
+      const overlaysForRoute: unknown[] = [];
+      const cleanupCallbacks: Array<() => void> = [];
+
+      for (const coordinates of segments) {
+        if (coordinates.length < 2) {
+          continue;
+        }
+
+        const overlay = new mapkit.PolylineOverlay(coordinates, {
+          lineCap: "round",
+          lineJoin: "round",
+          lineWidth: 2.5,
+          strokeColor: "#0f172a",
+          opacity: 0.35,
+        }) as unknown;
+
+        const overlayWithMeta = overlay as {
+          data?: unknown;
+          addEventListener?: (
+            type: string,
+            listener: (...args: unknown[]) => void,
+          ) => void;
+          removeEventListener?: (
+            type: string,
+            listener: (...args: unknown[]) => void,
+          ) => void;
+        };
+
+        overlayWithMeta.data = { type: "popularRoute", route };
+
+        overlayWithMeta.addEventListener?.("mouseenter", handleMouseEnter);
+        overlayWithMeta.addEventListener?.("mouseleave", handleMouseLeave);
+        overlayWithMeta.addEventListener?.("select", handleSelect);
+
+        const cleanupOverlay = () => {
+          overlayWithMeta.removeEventListener?.("mouseenter", handleMouseEnter);
+          overlayWithMeta.removeEventListener?.("mouseleave", handleMouseLeave);
+          overlayWithMeta.removeEventListener?.("select", handleSelect);
+        };
+
+        try {
+          map.addOverlay(overlayWithMeta as never);
+          overlaysForRoute.push(overlayWithMeta);
+          cleanupCallbacks.push(cleanupOverlay);
+        } catch {
+          cleanupOverlay();
+          try {
+            map.removeOverlay(overlayWithMeta as never);
+          } catch {
+            // ignore overlay cleanup errors
+          }
+          for (const added of overlaysForRoute) {
+            try {
+              map.removeOverlay(added as never);
+            } catch {
+              // ignore overlay cleanup errors
+            }
+          }
+          overlaysForRoute.length = 0;
+          cleanupCallbacks.length = 0;
+          break;
+        }
+      }
+
+      if (!overlaysForRoute.length) {
         return;
       }
 
       overlays.set(route.id, {
-        overlay: overlayWithMeta,
+        overlays: overlaysForRoute,
         cleanup: () => {
-          overlayWithMeta.removeEventListener?.("mouseenter", handleMouseEnter);
-          overlayWithMeta.removeEventListener?.("mouseleave", handleMouseLeave);
-          overlayWithMeta.removeEventListener?.("select", handleSelect);
+          for (const cleanup of cleanupCallbacks) {
+            cleanup();
+          }
         },
       });
 
