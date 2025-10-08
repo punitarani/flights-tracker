@@ -1,9 +1,6 @@
 import type { Alert } from "@/db/schema";
-import type {
-  FlightFiltersInput,
-  SeatClass,
-  Stops,
-} from "@/server/schemas/flight-filters";
+import { Currency, MaxStops, SeatType, TripType } from "@/lib/fli/models";
+import type { FlightFiltersInput } from "@/server/schemas/flight-filters";
 import {
   type FlightOption,
   parseFlightFiltersInput,
@@ -31,29 +28,79 @@ function convertAlertFiltersToFlightFilters(
 ): FlightFiltersInput {
   const { route, filters } = alertFilters;
 
-  const input: FlightFiltersInput = {
-    origin: route.from,
-    destination: route.to,
-    departureDate: filters?.dateFrom || "",
-    returnDate: filters?.dateTo || undefined,
-    tripType: filters?.dateTo ? "round-trip" : "one-way",
+  // Determine trip type
+  const tripType =
+    filters?.dateTo && filters.dateTo !== filters.dateFrom
+      ? TripType.ROUND_TRIP
+      : TripType.ONE_WAY;
+
+  // Build segments
+  const segments = [
+    {
+      origin: route.from,
+      destination: route.to,
+      departureDate: filters?.dateFrom,
+      departureTimeRange: filters?.departureTimeRange,
+      arrivalTimeRange: filters?.arrivalTimeRange,
+    },
+  ];
+
+  // Add return segment for round trips
+  if (tripType === TripType.ROUND_TRIP && filters?.dateTo) {
+    segments.push({
+      origin: route.to,
+      destination: route.from,
+      departureDate: filters.dateTo,
+      departureTimeRange: undefined,
+      arrivalTimeRange: undefined,
+    });
+  }
+
+  // Map alert Stops to MaxStops enum
+  const stopsMap: Record<string, MaxStops> = {
+    ANY: MaxStops.ANY,
+    NONSTOP: MaxStops.NON_STOP,
+    ONE_STOP: MaxStops.ONE_STOP_OR_FEWER,
+    TWO_STOPS: MaxStops.TWO_OR_FEWER_STOPS,
   };
+  const stops = filters?.stops
+    ? (stopsMap[filters.stops] ?? MaxStops.ANY)
+    : MaxStops.ANY;
 
-  // Add optional filters
-  if (filters?.stops) {
-    input.stops = filters.stops.toLowerCase() as Lowercase<Stops>;
-  }
+  // Map alert SeatClass to SeatType enum
+  const seatTypeMap: Record<string, SeatType> = {
+    ECONOMY: SeatType.ECONOMY,
+    PREMIUM_ECONOMY: SeatType.PREMIUM_ECONOMY,
+    BUSINESS: SeatType.BUSINESS,
+    FIRST: SeatType.FIRST,
+  };
+  const seatType = filters?.class
+    ? (seatTypeMap[filters.class] ?? SeatType.ECONOMY)
+    : SeatType.ECONOMY;
 
-  if (filters?.class) {
-    input.seatClass = filters.class.toLowerCase() as Lowercase<SeatClass>;
-  }
+  const input: FlightFiltersInput = {
+    tripType,
+    segments,
+    dateRange: {
+      from: filters?.dateFrom || new Date().toISOString().split("T")[0],
+      to:
+        filters?.dateTo ||
+        filters?.dateFrom ||
+        new Date().toISOString().split("T")[0],
+    },
+    seatType,
+    stops,
+  };
 
   if (filters?.airlines && filters.airlines.length > 0) {
     input.airlines = filters.airlines;
   }
 
   if (filters?.price) {
-    input.maxPrice = filters.price;
+    input.priceLimit = {
+      amount: filters.price,
+      currency: Currency.USD,
+    };
   }
 
   return input;
