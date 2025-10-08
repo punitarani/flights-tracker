@@ -2,7 +2,7 @@
 
 import { env } from "@/env";
 
-type MapKitLibrary = "map" | "annotations";
+type MapKitLibrary = "map" | "annotations" | "overlays";
 
 type MapKitAuthorizationCallback = (done: (token: string) => void) => void;
 
@@ -111,7 +111,7 @@ declare global {
 
 const MAPKIT_SCRIPT_URL =
   "https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.core.js";
-const REQUIRED_LIBRARIES: MapKitLibrary[] = ["map", "annotations"];
+const REQUIRED_LIBRARIES: MapKitLibrary[] = ["map", "annotations", "overlays"];
 const SCRIPT_SELECTOR = "script[data-mapkit-loader='true']";
 
 class MapKitLoader {
@@ -278,8 +278,9 @@ class MapKitLoader {
       const check = () => {
         const hasMap = typeof mapkit.Map === "function";
         const hasAnnotations = typeof mapkit.MarkerAnnotation === "function";
+        const hasOverlays = typeof mapkit.PolylineOverlay === "function";
 
-        if (hasMap && hasAnnotations) {
+        if (hasMap && hasAnnotations && hasOverlays) {
           this.librariesLoaded = true;
           resolve();
           return;
