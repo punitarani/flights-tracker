@@ -440,6 +440,8 @@ export type FlightExplorerSearchState = {
   isSearching: boolean;
   onSearch: () => void;
   onReset: () => void;
+  selectRoute: (originIata: string, destinationIata: string) => void;
+  clearRoute: () => void;
   routeChangedSinceSearch: boolean;
 };
 
@@ -687,7 +689,7 @@ export function useFlightExplorer({
 }: UseFlightExplorerOptions): UseFlightExplorerResult {
   const router = useRouter();
   const pathname = usePathname();
-  const [nearbyAirports, setNearbyAirports] = useState<AirportData[]>([]);
+  const [_nearbyAirports, setNearbyAirports] = useState<AirportData[]>([]);
   const [originQuery, setOriginQuery] = useState("");
   const [destinationQuery, setDestinationQuery] = useState("");
   const [originAirport, setOriginAirport] = useState<AirportData | null>(null);
@@ -706,7 +708,7 @@ export function useFlightExplorer({
     origin: AirportData;
     destination: AirportData;
   } | null>(null);
-  const [showAllAirports, setShowAllAirports] = useState(true);
+  const [showAllAirports, setShowAllAirports] = useState(false);
   const [flightPrices, setFlightPrices] = useState<FlightPricePoint[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [filters, setFilters] = useState<FiltersState>(() =>
@@ -757,8 +759,8 @@ export function useFlightExplorer({
     [setQueryState],
   );
 
-  const setShowAllAirportsPersisted = useCallback((value: boolean) => {
-    setShowAllAirports(value);
+  const setShowAllAirportsPersisted = useCallback((_: boolean = false) => {
+    setShowAllAirports(false);
   }, []);
 
   const viewModeRef = useRef<ViewMode>("browse");
@@ -809,26 +811,15 @@ export function useFlightExplorer({
   }, [clearSelectedDateAndOptions, filters.dateRange, selectedDate]);
 
   const displayedAirports = useMemo(() => {
-    if (showAllAirports) {
-      return airports;
-    }
-
-    if (originAirport && destinationAirport) {
-      return [originAirport, destinationAirport];
-    }
-
+    const selected: AirportData[] = [];
     if (originAirport) {
-      return [originAirport];
+      selected.push(originAirport);
     }
-
-    return nearbyAirports;
-  }, [
-    airports,
-    destinationAirport,
-    originAirport,
-    nearbyAirports,
-    showAllAirports,
-  ]);
+    if (destinationAirport && destinationAirport.id !== originAirport?.id) {
+      selected.push(destinationAirport);
+    }
+    return selected;
+  }, [destinationAirport, originAirport]);
 
   useEffect(() => {
     viewModeRef.current = viewMode;
@@ -1508,6 +1499,47 @@ export function useFlightExplorer({
     [formatAirportValue, originAirport, setShowAllAirportsPersisted],
   );
 
+  const handleSelectRouteByCodes = useCallback(
+    (originIata: string, destinationIata: string) => {
+      const originCode = originIata?.trim().toUpperCase();
+      const destinationCode = destinationIata?.trim().toUpperCase();
+
+      if (!originCode || !destinationCode || originCode === destinationCode) {
+        return;
+      }
+
+      const originCandidate =
+        airports.find((airport) => airport.iata.toUpperCase() === originCode) ??
+        null;
+      const destinationCandidate =
+        airports.find(
+          (airport) => airport.iata.toUpperCase() === destinationCode,
+        ) ?? null;
+
+      if (!originCandidate || !destinationCandidate) {
+        return;
+      }
+
+      if (originCandidate.id === destinationCandidate.id) {
+        return;
+      }
+
+      setShowAllAirportsPersisted(false);
+      handleOriginSelect(originCandidate);
+      handleDestinationSelect(destinationCandidate);
+    },
+    [
+      airports,
+      handleDestinationSelect,
+      handleOriginSelect,
+      setShowAllAirportsPersisted,
+    ],
+  );
+
+  const handleClearRouteSelection = useCallback(() => {
+    handleOriginSelect(null);
+  }, [handleOriginSelect]);
+
   const handleMapReady = useCallback(
     // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
     (map: any) => {
@@ -1835,24 +1867,12 @@ export function useFlightExplorer({
   const displayMessage = useMemo(() => {
     if (isInitialLoading) return "Loading airports...";
 
-    if (showAllAirports) {
-      return `Showing all ${totalAirports.toLocaleString()} airports worldwide`;
-    }
-
-    if (isLoadingNearby && viewMode === "browse") {
-      return "Loading nearby airports...";
-    }
-
     if (originAirport && destinationAirport) {
-      return `Route: ${originAirport.iata} → ${destinationAirport.iata}`;
+      return `Popular route: ${originAirport.iata} → ${destinationAirport.iata}`;
     }
 
     if (originAirport) {
-      return `Origin: ${originAirport.name} (${originAirport.iata})`;
-    }
-
-    if (viewMode === "browse") {
-      return `Showing ${nearbyAirports.length} airports within 100 miles`;
+      return `Origin selected: ${originAirport.name} (${originAirport.iata})`;
     }
 
     if (activeField === "destination") {
@@ -1861,18 +1881,13 @@ export function useFlightExplorer({
         : "Choose a destination airport";
     }
 
-    return "Find an origin airport";
+    return "Explore curated routes across the globe";
   }, [
     activeField,
     destinationAirport,
     destinationQuery,
     isInitialLoading,
-    isLoadingNearby,
-    nearbyAirports.length,
     originAirport,
-    showAllAirports,
-    totalAirports,
-    viewMode,
   ]);
 
   const normalizedOriginQuery = originQuery.trim();
@@ -2471,6 +2486,8 @@ export function useFlightExplorer({
       isSearching,
       onSearch: handleSearchClick,
       onReset: handleResetSearch,
+      selectRoute: handleSelectRouteByCodes,
+      clearRoute: handleClearRouteSelection,
       routeChangedSinceSearch,
     },
     header: {
