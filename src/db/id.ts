@@ -4,6 +4,8 @@ const tablePrefix = {
   airport: "apt",
   alert: "alt",
   airline: "aln",
+  notification: "ntf",
+  alertNotification: "ant",
 } as const;
 
 type TableName = keyof typeof tablePrefix;

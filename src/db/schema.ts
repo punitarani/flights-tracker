@@ -51,6 +51,39 @@ export const alert = pgTable("alert", {
   createdAt: timestamp("created_at", { mode: "string" }).notNull(),
 });
 
+export const notification = pgTable("notification", {
+  id: text("id")
+    .primaryKey()
+    .notNull()
+    .$defaultFn(() => generateId("notification")),
+  userId: uuid("user_id").notNull(),
+  type: text("type").notNull().$type<"daily" | "price-drop">(),
+  sentAt: timestamp("sent_at", { mode: "string" }).notNull(),
+  recipient: text("recipient").notNull(),
+  subject: text("subject").notNull(),
+  status: text("status").notNull().$type<"sent" | "failed">(),
+  errorMessage: text("error_message"),
+});
+
+export const alertNotification = pgTable("alert_notification", {
+  id: text("id")
+    .primaryKey()
+    .notNull()
+    .$defaultFn(() => generateId("alertNotification")),
+  notificationId: text("notification_id")
+    .notNull()
+    .references(() => notification.id),
+  alertId: text("alert_id")
+    .notNull()
+    .references(() => alert.id),
+  flightDataSnapshot: jsonb("flight_data_snapshot").$type<
+    import("@/server/services/flights").FlightOption[]
+  >(),
+  generatedAt: timestamp("generated_at", { mode: "string" }).notNull(),
+});
+
 export type Airport = typeof airport.$inferSelect;
 export type Airline = typeof airline.$inferSelect;
 export type Alert = typeof alert.$inferSelect;
+export type Notification = typeof notification.$inferSelect;
+export type AlertNotification = typeof alertNotification.$inferSelect;
