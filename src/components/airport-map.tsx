@@ -25,10 +25,119 @@ export type AirportMapPopularRoute = {
   distanceMiles?: number;
 };
 
+const US_CENTER = { latitude: 39.8283, longitude: -98.5795 };
+const US_SPAN = { latitudeDelta: 38, longitudeDelta: 70 };
 const WORLD_CENTER = { latitude: 20, longitude: 0 };
 const WORLD_SPAN = { latitudeDelta: 160, longitudeDelta: 360 };
 const ROUTE_PADDING = 64;
 const SINGLE_MARKER_PADDING = 80;
+const GREAT_CIRCLE_MIN_SEGMENTS = 24;
+const GREAT_CIRCLE_MAX_SEGMENTS = 160;
+const GREAT_CIRCLE_EPSILON = 1e-6;
+
+const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+const toDegrees = (radians: number) => (radians * 180) / Math.PI;
+
+type Vector3 = [number, number, number];
+
+const coordinateToVector = (latitude: number, longitude: number): Vector3 => {
+  const latRad = toRadians(latitude);
+  const lonRad = toRadians(longitude);
+  const cosLat = Math.cos(latRad);
+
+  return [
+    cosLat * Math.cos(lonRad),
+    cosLat * Math.sin(lonRad),
+    Math.sin(latRad),
+  ];
+};
+
+const interpolateGreatCircle = (
+  start: Vector3,
+  end: Vector3,
+  t: number,
+  omega: number,
+  sinOmega: number,
+): Vector3 => {
+  const factorA = Math.sin((1 - t) * omega) / sinOmega;
+  const factorB = Math.sin(t * omega) / sinOmega;
+
+  const x = factorA * start[0] + factorB * end[0];
+  const y = factorA * start[1] + factorB * end[1];
+  const z = factorA * start[2] + factorB * end[2];
+
+  const length = Math.sqrt(x * x + y * y + z * z) || 1;
+
+  return [x / length, y / length, z / length];
+};
+
+const vectorToCoordinate = (
+  mapkit: ReturnType<typeof mapKitLoader.getMapKit>,
+  vector: Vector3,
+) => {
+  const [x, y, z] = vector;
+  const longitude = Math.atan2(y, x);
+  const latitude = Math.atan2(z, Math.sqrt(x * x + y * y));
+
+  return new mapkit.Coordinate(toDegrees(latitude), toDegrees(longitude));
+};
+
+const createGreatCirclePath = (
+  mapkit: ReturnType<typeof mapKitLoader.getMapKit>,
+  origin: AirportData,
+  destination: AirportData,
+) => {
+  const startVector = coordinateToVector(origin.latitude, origin.longitude);
+  const endVector = coordinateToVector(
+    destination.latitude,
+    destination.longitude,
+  );
+
+  const dot = Math.max(
+    -1,
+    Math.min(
+      1,
+      startVector[0] * endVector[0] +
+        startVector[1] * endVector[1] +
+        startVector[2] * endVector[2],
+    ),
+  );
+
+  const omega = Math.acos(dot);
+
+  if (!Number.isFinite(omega) || omega < GREAT_CIRCLE_EPSILON) {
+    return [
+      new mapkit.Coordinate(origin.latitude, origin.longitude),
+      new mapkit.Coordinate(destination.latitude, destination.longitude),
+    ];
+  }
+
+  const sinOmega = Math.sin(omega) || GREAT_CIRCLE_EPSILON;
+  const normalizedArc = omega / Math.PI;
+  const segmentCount = Math.max(
+    GREAT_CIRCLE_MIN_SEGMENTS,
+    Math.min(
+      GREAT_CIRCLE_MAX_SEGMENTS,
+      Math.ceil(normalizedArc * GREAT_CIRCLE_MAX_SEGMENTS),
+    ),
+  );
+
+  const coordinates: InstanceType<typeof mapkit.Coordinate>[] = [];
+
+  for (let index = 0; index <= segmentCount; index += 1) {
+    const t = index / segmentCount;
+    const point = interpolateGreatCircle(
+      startVector,
+      endVector,
+      t,
+      omega,
+      sinOmega,
+    );
+    coordinates.push(vectorToCoordinate(mapkit, point));
+  }
+
+  return coordinates;
+};
 
 type AirportMarkerEntry = {
   id: string;
@@ -156,13 +265,10 @@ export function AirportMap({
 
         const map = new mapkit.Map(containerRef.current, {
           region: new mapkit.CoordinateRegion(
-            new mapkit.Coordinate(
-              WORLD_CENTER.latitude,
-              WORLD_CENTER.longitude,
-            ),
+            new mapkit.Coordinate(US_CENTER.latitude, US_CENTER.longitude),
             new mapkit.CoordinateSpan(
-              WORLD_SPAN.latitudeDelta,
-              WORLD_SPAN.longitudeDelta,
+              US_SPAN.latitudeDelta,
+              US_SPAN.longitudeDelta,
             ),
           ),
           showsMapTypeControl: false,
@@ -343,25 +449,19 @@ export function AirportMap({
     );
 
     if (shouldRenderDedicatedOverlay && originAirport && destinationAirport) {
-      const overlay = new mapkit.PolylineOverlay(
-        [
-          new mapkit.Coordinate(
-            originAirport.latitude,
-            originAirport.longitude,
-          ),
-          new mapkit.Coordinate(
-            destinationAirport.latitude,
-            destinationAirport.longitude,
-          ),
-        ],
-        {
-          lineCap: "round",
-          lineJoin: "round",
-          lineWidth: 5,
-          strokeColor: "#2563eb",
-          opacity: 0.85,
-        },
+      const coordinates = createGreatCirclePath(
+        mapkit,
+        originAirport,
+        destinationAirport,
       );
+
+      const overlay = new mapkit.PolylineOverlay(coordinates, {
+        lineCap: "round",
+        lineJoin: "round",
+        lineWidth: 5,
+        strokeColor: "#2563eb",
+        opacity: 0.85,
+      });
 
       try {
         map.addOverlay(overlay);
@@ -430,16 +530,30 @@ export function AirportMap({
         markers.origin?.annotation ?? markers.destination?.annotation ?? null;
     } else {
       try {
-        const worldRegion = new mapkit.CoordinateRegion(
-          new mapkit.Coordinate(WORLD_CENTER.latitude, WORLD_CENTER.longitude),
+        const usRegion = new mapkit.CoordinateRegion(
+          new mapkit.Coordinate(US_CENTER.latitude, US_CENTER.longitude),
           new mapkit.CoordinateSpan(
-            WORLD_SPAN.latitudeDelta,
-            WORLD_SPAN.longitudeDelta,
+            US_SPAN.latitudeDelta,
+            US_SPAN.longitudeDelta,
           ),
         );
-        map.setRegionAnimated(worldRegion, false);
+        map.setRegionAnimated(usRegion, false);
       } catch {
-        // ignore region reset errors
+        try {
+          const worldRegion = new mapkit.CoordinateRegion(
+            new mapkit.Coordinate(
+              WORLD_CENTER.latitude,
+              WORLD_CENTER.longitude,
+            ),
+            new mapkit.CoordinateSpan(
+              WORLD_SPAN.latitudeDelta,
+              WORLD_SPAN.longitudeDelta,
+            ),
+          );
+          map.setRegionAnimated(worldRegion, false);
+        } catch {
+          // ignore region reset errors
+        }
       }
       map.selectedAnnotation = null;
     }
@@ -514,13 +628,11 @@ export function AirportMap({
         return;
       }
 
-      const coordinates = [
-        new mapkit.Coordinate(route.origin.latitude, route.origin.longitude),
-        new mapkit.Coordinate(
-          route.destination.latitude,
-          route.destination.longitude,
-        ),
-      ];
+      const coordinates = createGreatCirclePath(
+        mapkit,
+        route.origin,
+        route.destination,
+      );
 
       const overlay = new mapkit.PolylineOverlay(coordinates, {
         lineCap: "round",
