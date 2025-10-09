@@ -35,7 +35,10 @@ const replaysOnErrorSampleRate = parseSampleRate(
   1,
 );
 
-const integrations = [Sentry.browserTracingIntegration()];
+const integrations = [
+  Sentry.browserTracingIntegration(),
+  Sentry.consoleLoggingIntegration({ levels: ["log", "warn", "error"] }),
+];
 
 if (replaysSessionSampleRate > 0 || replaysOnErrorSampleRate > 0) {
   integrations.push(
@@ -67,4 +70,5 @@ Sentry.init({
   tracePropagationTargets,
   replaysSessionSampleRate,
   replaysOnErrorSampleRate,
+  enableLogs: true,
 });

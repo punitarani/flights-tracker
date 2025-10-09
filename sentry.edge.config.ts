@@ -17,6 +17,10 @@ const parseSampleRate = (value: string | undefined, fallback: number) => {
 
 const runtimeEnv = process.env.NODE_ENV ?? "development";
 
+const integrations = [
+  Sentry.consoleLoggingIntegration({ levels: ["log", "warn", "error"] }),
+];
+
 Sentry.init({
   dsn,
   enabled: Boolean(dsn),
@@ -25,4 +29,6 @@ Sentry.init({
     process.env.SENTRY_TRACES_SAMPLE_RATE,
     runtimeEnv === "production" ? 0.2 : 1,
   ),
+  integrations,
+  enableLogs: true,
 });

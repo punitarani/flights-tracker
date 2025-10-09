@@ -19,6 +19,10 @@ const nodeEnv = process.env.NODE_ENV ?? "development";
 
 const defaultTraceSampleRate = nodeEnv === "production" ? 0.2 : 1;
 
+const integrations = [
+  Sentry.consoleLoggingIntegration({ levels: ["log", "warn", "error"] }),
+];
+
 Sentry.init({
   dsn,
   enabled: Boolean(dsn),
@@ -31,6 +35,8 @@ Sentry.init({
     process.env.SENTRY_PROFILES_SAMPLE_RATE,
     nodeEnv === "production" ? 0 : 1,
   ),
+  integrations,
   sendDefaultPii: true,
   debug: nodeEnv === "development",
+  enableLogs: true,
 });

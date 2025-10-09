@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { createServerClient } from "@supabase/ssr";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
@@ -44,6 +45,10 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   if (!user && isSecureRoute(pathname)) {
+    Sentry.logger.warn(
+      Sentry.logger.fmt`Redirecting unauthenticated request from ${pathname}`,
+      { pathname },
+    );
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone();
     url.pathname = "/login";

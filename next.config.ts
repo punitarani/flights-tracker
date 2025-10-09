@@ -17,14 +17,4 @@ if (process.env.SENTRY_PROJECT) {
   sentryWebpackPluginOptions.project = process.env.SENTRY_PROJECT;
 }
 
-const sentryBuildOptions: Parameters<typeof withSentryConfig>[2] = {
-  widenClientFileUpload: true,
-  hideSourceMaps: true,
-  disableLogger: true,
-};
-
-export default withSentryConfig(
-  nextConfig,
-  sentryWebpackPluginOptions,
-  sentryBuildOptions,
-);
+export default withSentryConfig(nextConfig, sentryWebpackPluginOptions);
