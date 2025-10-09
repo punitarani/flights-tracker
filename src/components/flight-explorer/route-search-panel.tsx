@@ -44,6 +44,13 @@ export function RouteSearchPanel({
     destination.selectedAirport && !destination.isActive,
   );
 
+  const routeSummary =
+    origin.selectedAirport && destination.selectedAirport
+      ? `${origin.selectedAirport.iata} → ${destination.selectedAirport.iata}`
+      : origin.selectedAirport
+        ? origin.selectedAirport.iata
+        : "Select route";
+
   const renderSummaryButton = (
     label: "origin" | "destination",
     onClick: () => void,
@@ -101,18 +108,53 @@ export function RouteSearchPanel({
           isCollapsed ? "md:p-2 md:space-y-0 md:shadow" : "",
         )}
       >
+        {isCollapsed && shouldShowSearchAction ? (
+          <div className="hidden md:flex items-center gap-2">
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-2 text-sm font-medium shadow-sm backdrop-blur transition-all duration-200 hover:bg-background/90"
+              onClick={onExpand}
+            >
+              <span className="text-base" role="img" aria-hidden="true">
+                ✈️
+              </span>
+              <span>{routeSummary}</span>
+            </button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              onClick={onReset}
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              className="h-10 gap-2 px-4"
+              disabled={isSearchDisabled}
+              onClick={onSearch}
+            >
+              {isSearching ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Search className="h-4 w-4" aria-hidden="true" />
+              )}
+              <span className="text-sm font-semibold">
+                {isSearching ? "Searching..." : "Search Flights"}
+              </span>
+            </Button>
+          </div>
+        ) : null}
+
         <div
           className={cn(
             "flex flex-col gap-3 sm:flex-row sm:items-stretch",
-            isCollapsed ? "md:items-center" : "",
+            isCollapsed && shouldShowSearchAction ? "md:hidden" : "",
           )}
         >
-          <div
-            className={cn(
-              "flex flex-col gap-3 sm:flex-row sm:flex-1 sm:items-stretch",
-              isCollapsed ? "md:flex-none md:gap-2" : "",
-            )}
-          >
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-1 sm:items-stretch">
             <div
               className={cn(
                 "transition-all duration-200 ease-in-out",
@@ -193,32 +235,14 @@ export function RouteSearchPanel({
           </div>
 
           {shouldShowSearchAction ? (
-            <div
-              className={cn(
-                "flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:items-center sm:justify-end",
-                isCollapsed ? "md:ml-auto" : "",
-              )}
-            >
+            <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:items-center sm:justify-end">
               <div className="flex gap-2">
-                {isCollapsed ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="hidden h-10 w-10 md:inline-flex"
-                    onClick={onReset}
-                    aria-label="Clear search"
-                  >
-                    <X className="h-4 w-4" aria-hidden="true" />
-                  </Button>
-                ) : null}
                 <Button
                   type="button"
                   className={cn(
                     "h-12 flex-1 justify-center gap-2",
                     "sm:flex-none sm:w-auto sm:px-4",
                     isEditing ? "sm:w-12 sm:px-0 sm:gap-0" : "",
-                    isCollapsed ? "md:h-10" : "",
                   )}
                   disabled={isSearchDisabled}
                   onClick={onSearch}
@@ -241,7 +265,7 @@ export function RouteSearchPanel({
                   </span>
                 </Button>
               </div>
-              {routeChangedSinceSearch && !isSearching && !isCollapsed ? (
+              {routeChangedSinceSearch && !isSearching ? (
                 <Badge
                   variant="secondary"
                   className="self-start px-2 py-1 text-[10px] uppercase sm:self-auto"
@@ -253,12 +277,7 @@ export function RouteSearchPanel({
           ) : null}
         </div>
 
-        <div
-          className={cn(
-            "flex items-center justify-between text-sm min-h-[20px]",
-            isCollapsed ? "md:hidden" : "",
-          )}
-        >
+        <div className="flex items-center justify-between text-sm min-h-[20px]">
           <p className="text-muted-foreground flex items-center gap-2">
             {(isInitialLoading || isLoadingNearby) && (
               <Loader2 className="h-3 w-3 animate-spin" />
