@@ -105,46 +105,48 @@ export function RouteSearchPanel({
       <div
         className={cn(
           "space-y-3 rounded-2xl border border-border/40 bg-card/70 p-4 shadow-sm backdrop-blur-md transition-all duration-300",
-          isCollapsed ? "md:p-2 md:space-y-0 md:shadow" : "",
+          isCollapsed ? "md:px-3 md:py-2 md:space-y-0 md:shadow" : "",
         )}
       >
         {isCollapsed && shouldShowSearchAction ? (
-          <div className="hidden md:flex items-center gap-2">
+          <div className="hidden md:flex items-center justify-between gap-4">
             <button
               type="button"
-              className="flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-2 text-sm font-medium shadow-sm backdrop-blur transition-all duration-200 hover:bg-background/90"
+              className="flex items-center rounded-full border border-border/60 bg-background/95 px-4 py-2 text-sm font-medium shadow-sm backdrop-blur transition-all duration-200 hover:bg-background"
               onClick={onExpand}
             >
-              <span className="text-base" role="img" aria-hidden="true">
-                ✈️
-              </span>
               <span>{routeSummary}</span>
             </button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 shrink-0"
-              onClick={onReset}
-              aria-label="Clear search"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </Button>
-            <Button
-              type="button"
-              className="h-10 gap-2 px-4"
-              disabled={isSearchDisabled}
-              onClick={onSearch}
-            >
-              {isSearching ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Search className="h-4 w-4" aria-hidden="true" />
-              )}
-              <span className="text-sm font-semibold">
-                {isSearching ? "Searching..." : "Search Flights"}
-              </span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+                onClick={onReset}
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </Button>
+              <Button
+                type="button"
+                className="h-10 gap-2 px-4"
+                disabled={isSearchDisabled}
+                onClick={onSearch}
+              >
+                {isSearching ? (
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Search className="h-4 w-4" aria-hidden="true" />
+                )}
+                <span className="text-sm font-semibold">
+                  {isSearching ? "Searching..." : "Search Flights"}
+                </span>
+              </Button>
+            </div>
           </div>
         ) : null}
 
@@ -277,7 +279,12 @@ export function RouteSearchPanel({
           ) : null}
         </div>
 
-        <div className="flex items-center justify-between text-sm min-h-[20px]">
+        <div
+          className={cn(
+            "flex items-center justify-between text-sm min-h-[20px]",
+            isCollapsed ? "md:hidden" : "",
+          )}
+        >
           <p className="text-muted-foreground flex items-center gap-2">
             {(isInitialLoading || isLoadingNearby) && (
               <Loader2 className="h-3 w-3 animate-spin" />

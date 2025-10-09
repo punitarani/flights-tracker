@@ -152,9 +152,10 @@ export function FlightExplorer({
               return;
             }
 
-            const next =
-              entry.boundingClientRect.top <= COLLAPSE_SCROLL_OFFSET ||
-              !entry.isIntersecting;
+            const isAboveThreshold =
+              entry.boundingClientRect.top > COLLAPSE_SCROLL_OFFSET;
+            const isIntersecting = entry.isIntersecting;
+            const next = !(isAboveThreshold && isIntersecting);
 
             setIsHeaderCollapsed((previous) =>
               previous === next ? previous : next,
