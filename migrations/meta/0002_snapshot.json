@@ -192,12 +192,8 @@
           "name": "alert_notification_notification_id_notification_id_fk",
           "tableFrom": "alert_notification",
           "tableTo": "notification",
-          "columnsFrom": [
-            "notification_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["notification_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -205,12 +201,8 @@
           "name": "alert_notification_alert_id_alert_id_fk",
           "tableFrom": "alert_notification",
           "tableTo": "alert",
-          "columnsFrom": [
-            "alert_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["alert_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
