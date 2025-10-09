@@ -75,7 +75,7 @@ export function FlightPricePanel({
   }
 
   return (
-    <div className="h-full w-full overflow-auto bg-muted/10">
+    <div className="w-full min-h-screen bg-muted/10">
       <div className="container mx-auto flex flex-col gap-4 p-4">
         <FlightFiltersPanel
           filters={filters}

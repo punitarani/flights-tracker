@@ -16,7 +16,7 @@ export default function SearchPage() {
   const totalAirports = airportSearchData?.total ?? airports.length;
 
   return (
-    <div className="flex flex-col h-screen w-full bg-background">
+    <div className="flex flex-col min-h-screen w-full bg-background">
       <Suspense fallback={<Header />}>
         <FlightExplorer
           airports={airports}

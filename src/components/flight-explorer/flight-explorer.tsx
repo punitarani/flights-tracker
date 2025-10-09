@@ -247,7 +247,7 @@ export function FlightExplorer({
   }, [hoveredRoute, selectedPopularRoute]);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div className="flex flex-col w-full">
       <Header collapsedState={collapsedState}>
         <RouteSearchPanel
           search={search}
@@ -258,10 +258,10 @@ export function FlightExplorer({
       </Header>
       <div aria-hidden className="h-px" ref={registerSentinel} />
 
-      <div className="relative flex-1 overflow-hidden">
-        <div className="relative flex h-full flex-col">
+      <div className="relative w-full">
+        <div className="relative flex flex-col">
           {header.isInitialLoading ? (
-            <div className="flex flex-1 items-center justify-center bg-muted/20">
+            <div className="flex min-h-screen items-center justify-center bg-muted/20">
               <Card className="flex items-center gap-3 rounded-2xl border border-border/40 bg-card/70 px-6 py-5 shadow-lg backdrop-blur">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 <span className="text-sm font-medium">Loading airports...</span>
@@ -275,9 +275,9 @@ export function FlightExplorer({
               destinationAirport={mapState.destinationAirport}
             />
           ) : (
-            <div className="container mx-auto flex h-full w-full flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8 lg:pb-10">
-              <div className="flex h-full w-full">
-                <div className="relative flex h-full w-full min-h-[360px] overflow-hidden rounded-3xl border border-border/40 bg-card/40 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.55)] backdrop-blur-xl">
+            <div className="container mx-auto flex w-full flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8 lg:pb-10">
+              <div className="flex w-full min-h-[calc(100vh-80px)]">
+                <div className="relative flex w-full overflow-hidden rounded-3xl border border-border/40 bg-card/40 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.55)] backdrop-blur-xl">
                   <AirportMapView
                     state={mapState}
                     popularRoutes={popularRoutesWithAirports}
