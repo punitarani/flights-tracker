@@ -26,6 +26,7 @@ import {
   flightExplorerQueryParsers,
 } from "@/components/flight-explorer/query-state";
 import { MaxStops, SeatType, TripType } from "@/lib/fli/models";
+import { logger } from "@/lib/logger";
 import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
 import { trpc } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
@@ -919,7 +920,11 @@ export function useFlightExplorer({
         }
       } catch (error) {
         if (latestNearbyRequestRef.current === requestId) {
-          console.error("Failed to fetch nearby airports:", error);
+          logger.error("Failed to fetch nearby airports", {
+            lat,
+            lon,
+            error,
+          });
         }
       } finally {
         if (latestNearbyRequestRef.current === requestId) {
@@ -2410,7 +2415,7 @@ export function useFlightExplorer({
         );
         mapInstanceRef.current.setRegionAnimated(globalRegion, true);
       } catch (error) {
-        console.error("Failed to zoom out for all airports:", error);
+        logger.error("Failed to zoom out for all airports", { error });
       }
     }
   }, [

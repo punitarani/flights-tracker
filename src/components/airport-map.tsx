@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { logger } from "@/lib/logger";
 import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
 import type { AirportData } from "@/server/services/airports";
 
@@ -492,7 +493,7 @@ export function AirportMap({
         setError(null);
         onMapReady?.(map);
       } catch (err) {
-        console.error("Failed to initialize MapKit:", err);
+        logger.error("Failed to initialize MapKit", { error: err });
         if (isMounted) {
           setError(err instanceof Error ? err.message : "Failed to load map");
         }
@@ -637,7 +638,10 @@ export function AirportMap({
     try {
       mapkit = mapKitLoader.getMapKit();
     } catch (err) {
-      console.error("MapKit loader is not ready:", err);
+      logger.error("MapKit loader is not ready", {
+        context: "marker-initialization",
+        error: err,
+      });
       return;
     }
 
@@ -891,7 +895,10 @@ export function AirportMap({
     try {
       mapkit = mapKitLoader.getMapKit();
     } catch (err) {
-      console.error("MapKit loader is not ready:", err);
+      logger.error("MapKit loader is not ready", {
+        context: "route-rendering",
+        error: err,
+      });
       return;
     }
 

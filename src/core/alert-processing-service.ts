@@ -45,9 +45,10 @@ async function filterUnprocessedAlerts(alerts: Alert[]): Promise<Alert[]> {
   const results = await Promise.all(checkPromises);
   const unprocessed = results.filter((r) => !r.processed).map((r) => r.alert);
 
-  console.log(
-    `Filtered ${alerts.length} alerts to ${unprocessed.length} unprocessed alerts`,
-  );
+  logger.info("Filtered alerts to unprocessed subset", {
+    originalCount: alerts.length,
+    unprocessedCount: unprocessed.length,
+  });
 
   return unprocessed;
 }
@@ -77,7 +78,9 @@ async function filterAndUpdateExpiredAlerts(alerts: Alert[]): Promise<Alert[]> {
 
   // Update expired alerts to completed status
   if (expiredAlerts.length > 0) {
-    console.log(`Marking ${expiredAlerts.length} expired alerts as completed`);
+    logger.info("Marking expired alerts as completed", {
+      expiredCount: expiredAlerts.length,
+    });
     await Promise.all(
       expiredAlerts.map((alert) =>
         updateAlert(alert.id, { status: "completed" }),
@@ -184,13 +187,13 @@ async function getUserEmail(userId: string): Promise<string | null> {
     const { data, error } = await supabase.auth.admin.getUserById(userId);
 
     if (error) {
-      console.error(`Failed to get user email for ${userId}:`, error);
+      logger.error("Failed to get user email", { userId, error });
       return null;
     }
 
     return data.user.email ?? null;
   } catch (error) {
-    console.error(`Error getting user email for ${userId}:`, error);
+    logger.error("Error getting user email", { userId, error });
     return null;
   }
 }
@@ -233,11 +236,13 @@ async function recordNotificationSent(
       flightDataMap,
     );
 
-    console.log(
-      `Recorded ${status} notification for user ${userId} with ${alertsWithFlights.length} alerts`,
-    );
+    logger.info("Recorded notification with alerts", {
+      userId,
+      status,
+      alertsCount: alertsWithFlights.length,
+    });
   } catch (error) {
-    console.error(`Failed to record notification for user ${userId}:`, error);
+    logger.error("Failed to record notification", { userId, error });
   }
 }
 
@@ -249,13 +254,13 @@ async function recordNotificationSent(
 export async function processDailyAlertsForUser(
   userId: string,
 ): Promise<boolean> {
-  console.log(`Starting alert processing for user ${userId}`);
+  logger.info("Starting alert processing for user", { userId });
 
   try {
     // 1. Get user email
     const userEmail = await getUserEmail(userId);
     if (!userEmail) {
-      console.error(`No email found for user ${userId}`);
+      logger.warn("No email found for user", { userId });
       return false;
     }
 
@@ -265,10 +270,13 @@ export async function processDailyAlertsForUser(
       (alert) => alert.type === AlertType.DAILY,
     );
 
-    console.log(`Found ${dailyAlerts.length} daily alerts for user ${userId}`);
+    logger.info("Found daily alerts for user", {
+      userId,
+      alertsCount: dailyAlerts.length,
+    });
 
     if (dailyAlerts.length === 0) {
-      console.log(`No daily alerts to process for user ${userId}`);
+      logger.info("No daily alerts to process", { userId });
       return true;
     }
 
@@ -276,7 +284,7 @@ export async function processDailyAlertsForUser(
     const nonExpiredAlerts = await filterAndUpdateExpiredAlerts(dailyAlerts);
 
     if (nonExpiredAlerts.length === 0) {
-      console.log(`All alerts were expired for user ${userId}`);
+      logger.info("All alerts expired for user", { userId });
       return true;
     }
 
@@ -284,12 +292,15 @@ export async function processDailyAlertsForUser(
     const alertsToProcess = await filterUnprocessedAlerts(nonExpiredAlerts);
 
     if (alertsToProcess.length === 0) {
-      console.log(`No new alerts to process for user ${userId}`);
+      logger.info("No new alerts to process", { userId });
       return true;
     }
 
     // 5. Fetch flight data for alerts
-    console.log(`Fetching flight data for ${alertsToProcess.length} alerts`);
+    logger.info("Fetching flight data for alerts", {
+      userId,
+      alertsCount: alertsToProcess.length,
+    });
     const alertsWithFlights = await fetchFlightDataForAlerts(
       alertsToProcess,
       MAX_FLIGHTS_PER_ALERT,
@@ -297,9 +308,7 @@ export async function processDailyAlertsForUser(
 
     // 6. If no valid alerts with flights, skip sending email but record the attempt
     if (alertsWithFlights.length === 0) {
-      console.log(
-        `No matching flights found for user ${userId}, skipping email`,
-      );
+      logger.info("No matching flights found", { userId });
 
       // Record failed notification for deduplication
       await recordNotificationSent(
@@ -331,9 +340,11 @@ export async function processDailyAlertsForUser(
     };
 
     // 8. Send email
-    console.log(
-      `Sending email to ${userEmail} with ${alertsWithFlights.length} alerts`,
-    );
+    logger.info("Sending daily alert email", {
+      userId,
+      userEmail,
+      alertsCount: alertsWithFlights.length,
+    });
 
     try {
       const _result = await sendNotificationEmail(notificationRequest);
@@ -347,12 +358,14 @@ export async function processDailyAlertsForUser(
         "sent",
       );
 
-      console.log(
-        `Successfully processed alerts for user ${userId}, email sent`,
-      );
+      logger.info("Successfully processed alerts for user", { userId });
       return true;
     } catch (emailError) {
-      console.error(`Failed to send email to ${userEmail}:`, emailError);
+      logger.error("Failed to send notification email", {
+        userId,
+        userEmail,
+        error: emailError,
+      });
 
       // Record failed notification
       await recordNotificationSent(
@@ -367,7 +380,7 @@ export async function processDailyAlertsForUser(
       return false;
     }
   } catch (error) {
-    console.error(`Error processing alerts for user ${userId}:`, error);
+    logger.error("Error processing alerts for user", { userId, error });
     return false;
   }
 }

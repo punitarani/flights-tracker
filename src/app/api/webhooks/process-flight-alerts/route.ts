@@ -1,6 +1,7 @@
 import { processDailyAlertsForUser } from "@/core/alert-processing-service";
 import { acquireUserLock } from "@/core/alerts-db";
 import { env } from "@/env";
+import { logger } from "@/lib/logger";
 import { createServiceClient } from "@/lib/supabase/service";
 
 const SIGNATURE_HEADER = "x-signature";
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
       const userId = typeof message.userId === "string" ? message.userId : null;
 
       if (!userId) {
-        console.error("Invalid queue payload", message);
+        logger.warn("Invalid queue payload", { payload: message });
         continue;
       }
 
@@ -65,17 +66,16 @@ export async function POST(request: Request) {
             });
 
           if (requeueError) {
-            console.error(
-              "Failed to requeue user after lock contention",
+            logger.error("Failed to requeue user after lock contention", {
               userId,
-              requeueError,
-            );
+              error: requeueError,
+            });
           }
 
           continue;
         }
 
-        console.log("Processing alerts for user", userId);
+        logger.info("Processing alerts for user", { userId });
 
         // Process daily alerts for this user
         const success = await processDailyAlertsForUser(userId);
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
           throw new Error("Alert processing failed");
         }
       } catch (error) {
-        console.error("Failed processing user", userId, error);
+        logger.error("Failed processing user alerts", { userId, error });
         const { error: requeueError } = await supabase
           .schema("pgmq_public")
           .rpc("send", {
@@ -96,18 +96,17 @@ export async function POST(request: Request) {
           });
 
         if (requeueError) {
-          console.error(
-            "Failed to requeue user after processing error",
+          logger.error("Failed to requeue user after processing error", {
             userId,
-            requeueError,
-          );
+            error: requeueError,
+          });
         }
       }
     }
 
     return Response.json({ processed, skipped });
   } catch (error) {
-    console.error("Failed to process flight alerts", error);
+    logger.error("Failed to process flight alerts", { error });
     return new Response(null, { status: 500 });
   }
 }

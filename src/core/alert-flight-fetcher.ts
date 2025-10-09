@@ -1,5 +1,6 @@
 import type { Alert } from "@/db/schema";
 import { Currency, MaxStops, SeatType, TripType } from "@/lib/fli/models";
+import { logger } from "@/lib/logger";
 import type { FlightFiltersInput } from "@/server/schemas/flight-filters";
 import {
   type FlightOption,
@@ -140,7 +141,10 @@ async function fetchFlightsForAlert(
       flights: matchingFlights,
     };
   } catch (error) {
-    console.error(`Failed to fetch flights for alert ${alert.id}:`, error);
+    logger.error("Failed to fetch flights for alert", {
+      alertId: alert.id,
+      error,
+    });
     return null;
   }
 }
@@ -238,9 +242,10 @@ export async function fetchFlightDataForAlerts(
   // Group alerts by route for potential optimization
   const routeGroups = groupAlertsByRoute(alerts);
 
-  console.log(
-    `Fetching flights for ${alerts.length} alerts across ${routeGroups.size} routes`,
-  );
+  logger.info("Fetching flights for alerts", {
+    alertCount: alerts.length,
+    routeCount: routeGroups.size,
+  });
 
   // Fetch flights for each alert in parallel
   const fetchPromises = alerts.map((alert) =>
@@ -256,9 +261,10 @@ export async function fetchFlightDataForAlerts(
       result !== null && result.flights.length > 0,
   );
 
-  console.log(
-    `Successfully fetched flights for ${successfulResults.length}/${alerts.length} alerts`,
-  );
+  logger.info("Fetched flights for alerts", {
+    alertCount: alerts.length,
+    successfulCount: successfulResults.length,
+  });
 
   return successfulResults;
 }

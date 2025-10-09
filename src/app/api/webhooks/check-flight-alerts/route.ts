@@ -1,5 +1,6 @@
 import { getUserIdsWithActiveDailyAlerts } from "@/core/alerts-db";
 import { env } from "@/env";
+import { logger } from "@/lib/logger";
 import { createServiceClient } from "@/lib/supabase/service";
 
 const SIGNATURE_HEADER = "x-signature";
@@ -31,13 +32,16 @@ export async function POST(request: Request) {
 
         enqueued += 1;
       } catch (error) {
-        console.error("Failed to enqueue user", userId, error);
+        logger.error("Failed to enqueue user for daily alerts", {
+          userId,
+          error,
+        });
       }
     }
 
     return Response.json({ totalUsers: userIds.length, enqueued });
   } catch (error) {
-    console.error("Failed to enqueue daily alerts", error);
+    logger.error("Failed to enqueue daily alerts", { error });
     return new Response(null, { status: 500 });
   }
 }
