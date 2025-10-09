@@ -281,34 +281,37 @@ export function FlightFiltersPanel({
     };
   }, [price.canRefetch, price.onRefetch]);
 
+  const buttonContent = (
+    <>
+      {price.isSearching ? (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      ) : (
+        <RefreshCcw className="h-4 w-4" aria-hidden="true" />
+      )}
+      <span className="text-sm font-semibold">
+        {price.isSearching ? "Refetching" : "Refetch"}
+      </span>
+    </>
+  );
+
   return (
-    <Card className="space-y-4 border bg-card/80 p-4 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-1">
-          <h3 className="text-sm font-semibold">Refine results</h3>
-          <p className="text-xs text-muted-foreground">
-            Filter the window, cabin, stops, times, and airline filters below.
-          </p>
-        </div>
-        <div className="flex justify-end md:self-start">
-          <Button
-            type="button"
-            variant="default"
-            className="h-9 gap-2"
-            onClick={price.onRefetch}
-            disabled={!price.canRefetch}
-          >
-            {price.isSearching ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <RefreshCcw className="h-4 w-4" aria-hidden="true" />
-            )}
-            <span className="text-sm font-semibold">
-              {price.isSearching ? "Refetching" : "Refetch"}
-            </span>
-          </Button>
-        </div>
+    <Card className="space-y-4 border bg-card/80 p-4 shadow-sm md:relative">
+      <div className="space-y-1 md:pr-32">
+        <h3 className="text-sm font-semibold">Refine results</h3>
+        <p className="text-xs text-muted-foreground">
+          Filter the window, cabin, stops, times, and airline filters below.
+        </p>
       </div>
+
+      <Button
+        type="button"
+        variant="default"
+        className="hidden gap-2 md:absolute md:right-4 md:top-4 md:flex"
+        onClick={price.onRefetch}
+        disabled={!price.canRefetch}
+      >
+        {buttonContent}
+      </Button>
 
       {/* Row 1: Stops and Cabin */}
       <div className="grid gap-4 md:grid-cols-2">
@@ -591,6 +594,16 @@ export function FlightFiltersPanel({
           </Command>
         </div>
       </section>
+
+      <Button
+        type="button"
+        variant="default"
+        className="w-full gap-2 md:hidden"
+        onClick={price.onRefetch}
+        disabled={!price.canRefetch}
+      >
+        {buttonContent}
+      </Button>
     </Card>
   );
 }

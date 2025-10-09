@@ -304,14 +304,7 @@ export function Header({ collapsedState, children }: HeaderProps) {
                       <span className="sr-only">Open profile menu</span>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent
-                    align="end"
-                    className="space-y-2 p-3"
-                    style={{
-                      width: "var(--radix-popover-trigger-width)",
-                      minWidth: "var(--radix-popover-trigger-width)",
-                    }}
-                  >
+                  <PopoverContent align="end" className="space-y-2 p-3 w-56">
                     <div className="space-y-1 md:hidden">
                       {NAV_ITEMS.map((item) => {
                         if (item.href === "/alerts") {
@@ -413,14 +406,7 @@ export function Header({ collapsedState, children }: HeaderProps) {
                       </span>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent
-                    align="end"
-                    className="space-y-2 p-3"
-                    style={{
-                      width: "var(--radix-popover-trigger-width)",
-                      minWidth: "var(--radix-popover-trigger-width)",
-                    }}
-                  >
+                  <PopoverContent align="end" className="space-y-2 p-3 w-48">
                     <Button
                       asChild
                       variant="ghost"
