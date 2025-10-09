@@ -27,7 +27,7 @@ export function CreateAlertButton({
   disabled = false,
 }: CreateAlertButtonProps) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const { userEmail, isAuthenticated } = useAuthState(isSheetOpen);
+  const { userEmail, isAuthenticated } = useAuthState(true);
 
   const canOpenCreate =
     Boolean(originAirport && destinationAirport) && !disabled;
