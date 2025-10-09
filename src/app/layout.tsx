@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -63,6 +64,9 @@ export const metadata: Metadata = {
         alt: "GrayPane flight pricing dashboard",
       },
     ],
+  },
+  other: {
+    ...Sentry.getTraceData(),
   },
 };
 
