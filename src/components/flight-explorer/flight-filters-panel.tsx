@@ -302,17 +302,19 @@ export function FlightFiltersPanel({
           <Button
             type="button"
             variant="ghost"
-            className="h-9 w-full gap-2 rounded-md border border-transparent px-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground transition hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:w-auto"
+            size="sm"
+            className={cn("w-full md:w-auto")}
             onClick={handleResetAllFilters}
             disabled={isDisabled || !canClearFilters}
           >
             <X className="h-4 w-4" aria-hidden="true" />
-            <span>Clear all filters</span>
+            <span>Clear filters</span>
           </Button>
           <Button
             type="button"
             variant="default"
-            className="h-9 w-full gap-2 md:w-auto"
+            size="sm"
+            className={cn("w-full md:w-auto")}
             onClick={price.onRefetch}
             disabled={!price.canRefetch}
           >
