@@ -262,7 +262,6 @@ export function FlightExplorer({
           search={search}
           header={header}
           isCollapsed={isHeaderCollapsed}
-          onExpand={handleExpandHeader}
         />
       </Header>
       <div aria-hidden className="h-px" ref={registerSentinel} />

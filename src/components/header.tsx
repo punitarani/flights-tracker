@@ -144,17 +144,10 @@ export function Header({ collapsedState, children }: HeaderProps) {
           isCollapsed ? "py-2.5" : "py-4",
         )}
       >
-        <div className="hidden items-center justify-between gap-3 md:flex">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-3">
-              <span
-                className={cn(
-                  "text-2xl transition-transform duration-300",
-                  isCollapsed ? "scale-90" : "scale-100",
-                )}
-                role="img"
-                aria-label="flight"
-              >
+        <div className="hidden items-center justify-between gap-4 md:flex">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-2.5">
+              <span className="text-2xl" role="img" aria-label="flight">
                 ✈️
               </span>
               <span className="text-2xl font-bold tracking-tight">
