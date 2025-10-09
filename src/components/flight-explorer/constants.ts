@@ -11,8 +11,8 @@ export const USD_FORMATTER = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
-export const SEARCH_WINDOW_OPTIONS = [30, 60, 90, 120, 150, 180] as const;
-export const DEFAULT_SEARCH_WINDOW_DAYS = 30;
+export const SEARCH_WINDOW_OPTIONS = [30, 60, 90, 120, 150] as const;
+export const DEFAULT_SEARCH_WINDOW_DAYS = 90;
 
 export const MAX_SEARCH_DAYS =
   SEARCH_WINDOW_OPTIONS[SEARCH_WINDOW_OPTIONS.length - 1];
