@@ -1,164 +1,125 @@
-/**
- * HTTP client implementation with rate limiting and retry functionality.
- *
- * This module provides a robust HTTP client that handles:
- * - Rate limiting (10 requests per second)
- * - Automatic retries with exponential backoff
- * - Session management
- * - Error handling
- */
+import { retry, sleep } from "radash";
 
-/**
- * Rate limiter class to ensure we don't exceed the rate limit
- */
+type RateLimiterOptions = {
+  callsPerSecond: number;
+  maxConcurrent?: number;
+};
+
 class RateLimiter {
-  private queue: Array<() => void> = [];
-  private lastCallTime = 0;
   private readonly interval: number;
+  private readonly maxConcurrent: number;
+  private readonly queue: Array<() => void> = [];
+  private lastCallTime = 0;
+  private activeCount = 0;
 
-  constructor(callsPerSecond: number) {
-    this.interval = 1000 / callsPerSecond;
+  constructor({ callsPerSecond, maxConcurrent = 1 }: RateLimiterOptions) {
+    this.interval = callsPerSecond > 0 ? 1000 / callsPerSecond : 0;
+    this.maxConcurrent = Math.max(1, maxConcurrent ?? 1);
   }
 
   async execute<T>(fn: () => Promise<T>): Promise<T> {
     return new Promise((resolve, reject) => {
-      const execute = async () => {
+      const run = async () => {
+        this.activeCount += 1;
         try {
-          const now = Date.now();
-          const timeSinceLastCall = now - this.lastCallTime;
-
-          if (timeSinceLastCall < this.interval) {
-            await new Promise((r) =>
-              setTimeout(r, this.interval - timeSinceLastCall),
-            );
+          const elapsed = Date.now() - this.lastCallTime;
+          const waitTime = Math.max(0, this.interval - elapsed);
+          if (waitTime > 0) {
+            await sleep(waitTime);
           }
-
           this.lastCallTime = Date.now();
           const result = await fn();
           resolve(result);
-
-          // Process next item in queue if any
-          if (this.queue.length > 0) {
-            const next = this.queue.shift();
-            if (next) next();
-          }
         } catch (error) {
           reject(error);
+        } finally {
+          this.activeCount = Math.max(0, this.activeCount - 1);
+          const next = this.queue.shift();
+          if (next) {
+            next();
+          }
         }
       };
 
-      if (Date.now() - this.lastCallTime >= this.interval) {
-        execute();
+      if (this.activeCount < this.maxConcurrent) {
+        void run();
       } else {
-        this.queue.push(execute);
+        this.queue.push(run);
       }
     });
   }
 }
 
-/**
- * Retry logic with exponential backoff
- */
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxAttempts = 3,
-  baseDelay = 1000,
-): Promise<T> {
-  let lastError: Error | null = null;
+type RequestOptions = RequestInit & { signal?: AbortSignal | null };
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error as Error;
-      if (attempt < maxAttempts - 1) {
-        const delay = baseDelay * 2 ** attempt;
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-  }
+type RetryOptions = {
+  times: number;
+  backoff: (attempt: number) => number;
+};
 
-  throw new Error(
-    `Request failed after ${maxAttempts} attempts: ${lastError?.message}`,
-  );
-}
-
-/**
- * HTTP client with built-in rate limiting, retry and session management.
- */
 export class Client {
-  private static readonly DEFAULT_HEADERS = {
+  private static readonly DEFAULT_HEADERS = Object.freeze({
     "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
     "user-agent":
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  });
+
+  private static readonly RETRY: RetryOptions = {
+    times: 3,
+    backoff: (attempt) => 250 * 2 ** (attempt - 1) + Math.random() * 125,
   };
 
-  private rateLimiter = new RateLimiter(10); // 10 requests per second
+  private readonly defaultHeaders = new Headers(Client.DEFAULT_HEADERS);
+  private readonly rateLimiter = new RateLimiter({ callsPerSecond: 10 });
 
-  /**
-   * Make a rate-limited GET request with automatic retries.
-   *
-   * @param url - Target URL for the request
-   * @param options - Additional fetch options
-   * @returns Response from the server
-   * @throws Error if request fails after all retries
-   */
-  async get(url: string, options?: RequestInit): Promise<Response> {
+  async get(url: string, options?: RequestOptions): Promise<Response> {
+    return this.request("GET", url, options);
+  }
+
+  async post(url: string, options?: RequestOptions): Promise<Response> {
+    return this.request("POST", url, options);
+  }
+
+  private async request(
+    method: "GET" | "POST",
+    url: string,
+    options?: RequestOptions,
+  ): Promise<Response> {
+    const requestInit: RequestOptions = {
+      ...options,
+      method,
+      headers: this.mergeHeaders(options?.headers ?? null),
+    };
+
     return this.rateLimiter.execute(() =>
-      withRetry(async () => {
+      retry(Client.RETRY, async () => {
         try {
-          const response = await fetch(url, {
-            ...options,
-            method: "GET",
-            headers: {
-              ...Client.DEFAULT_HEADERS,
-              ...options?.headers,
-            },
-          });
-
+          const response = await fetch(url, requestInit);
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
-
           return response;
         } catch (error) {
-          throw new Error(`GET request failed: ${(error as Error).message}`);
+          throw new Error(
+            `${method} request failed: ${(error as Error).message}`,
+          );
         }
       }),
     );
   }
 
-  /**
-   * Make a rate-limited POST request with automatic retries.
-   *
-   * @param url - Target URL for the request
-   * @param options - Additional fetch options
-   * @returns Response from the server
-   * @throws Error if request fails after all retries
-   */
-  async post(url: string, options?: RequestInit): Promise<Response> {
-    return this.rateLimiter.execute(() =>
-      withRetry(async () => {
-        try {
-          const response = await fetch(url, {
-            ...options,
-            method: "POST",
-            headers: {
-              ...Client.DEFAULT_HEADERS,
-              ...options?.headers,
-            },
-          });
+  private mergeHeaders(input: HeadersInit | null): Headers {
+    if (!input) {
+      return <Headers>new Headers(this.defaultHeaders);
+    }
 
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
+    const headers = new Headers(this.defaultHeaders);
+    const extra = new Headers(input);
+    extra.forEach((value, key) => {
+      headers.set(key, value);
+    });
 
-          return response;
-        } catch (error) {
-          throw new Error(`POST request failed: ${(error as Error).message}`);
-        }
-      }),
-    );
+    return <Headers>headers;
   }
 }
 

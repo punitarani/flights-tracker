@@ -6,6 +6,7 @@
  * It is intended to be used for finding the cheapest dates to fly, not the cheapest flights.
  */
 
+import { parallel } from "radash";
 import { z } from "zod";
 import { TripType } from "../models/google-flights/base";
 import {
@@ -60,47 +61,26 @@ export class SearchDates {
       return this.searchChunk(filters);
     }
 
-    // Split into chunks of MAX_DAYS_PER_SEARCH
-    const allResults: DatePrice[] = [];
-    let currentFrom = new Date(fromDate);
+    const chunks = this.buildChunks(fromDate, toDate);
 
-    while (currentFrom <= toDate) {
-      const currentTo = new Date(
-        Math.min(
-          currentFrom.getTime() +
-            SearchDates.MAX_DAYS_PER_SEARCH * 24 * 60 * 60 * 1000 -
-            1,
-          toDate.getTime(),
-        ),
-      );
+    const chunkResults = await parallel(
+      Math.min(4, chunks.length),
+      chunks,
+      async ({ from, to, index }) => {
+        const chunkFilters = this.buildChunkFilters(filters, {
+          from,
+          to,
+          index,
+        });
+        return this.searchChunk(chunkFilters);
+      },
+    );
 
-      // Update the travel date for the flight segments
-      if (currentFrom.getTime() > fromDate.getTime()) {
-        for (const segment of filters.flightSegments) {
-          const segmentDate = new Date(segment.travelDate);
-          segmentDate.setDate(
-            segmentDate.getDate() + SearchDates.MAX_DAYS_PER_SEARCH,
-          );
-          segment.travelDate = segmentDate.toISOString().split("T")[0];
-        }
-      }
+    const flattened = chunkResults
+      .filter((entry): entry is DatePrice[] => Array.isArray(entry))
+      .flat();
 
-      // Create new filters for this chunk
-      const chunkFilters: DateSearchFilters = {
-        ...filters,
-        fromDate: currentFrom.toISOString().split("T")[0],
-        toDate: currentTo.toISOString().split("T")[0],
-      };
-
-      const chunkResults = await this.searchChunk(chunkFilters);
-      if (chunkResults) {
-        allResults.push(...chunkResults);
-      }
-
-      currentFrom = new Date(currentTo.getTime() + 24 * 60 * 60 * 1000);
-    }
-
-    return allResults.length > 0 ? allResults : null;
+    return flattened.length > 0 ? flattened : null;
   }
 
   /**
@@ -122,7 +102,7 @@ export class SearchDates {
       });
 
       const text = await response.text();
-      const parsed = JSON.parse(text.replace(/^\)\]\}'/, ""))[0][2];
+      const parsed = JSON.parse(text.replace(/^\)]}'/, ""))[0][2];
 
       if (!parsed) {
         return null;
@@ -151,7 +131,7 @@ export class SearchDates {
   /**
    * Parse date data from the API response.
    *
-   * @param item - Raw date data from the API response
+   * @param entry - data
    * @param tripType - Trip type (one-way or round-trip)
    * @returns Tuple of Date objects
    */
@@ -184,7 +164,7 @@ export class SearchDates {
       return null;
     }
 
-    const departureDate = new Date(entry[0]);
+    const departureDate = new Date(entry[0] as string);
     if (Number.isNaN(departureDate.getTime())) {
       return null;
     }
@@ -197,7 +177,7 @@ export class SearchDates {
       return null;
     }
 
-    const returnDate = new Date(entry[1]);
+    const returnDate = new Date(entry[1] as string);
     if (Number.isNaN(returnDate.getTime())) {
       return null;
     }
@@ -239,5 +219,78 @@ export class SearchDates {
     }
 
     return parsedPrice;
+  }
+
+  private buildChunkFilters(
+    filters: DateSearchFilters,
+    chunk: { from: Date; to: Date; index: number },
+  ): DateSearchFilters {
+    const adjustedSegments = filters.flightSegments.map((segment) => ({
+      ...segment,
+      travelDate: this.shiftDate(
+        segment.travelDate,
+        chunk.index * SearchDates.MAX_DAYS_PER_SEARCH,
+      ),
+    }));
+
+    return {
+      ...filters,
+      flightSegments: adjustedSegments,
+      fromDate: this.formatDate(chunk.from),
+      toDate: this.formatDate(chunk.to),
+    };
+  }
+
+  private buildChunks(
+    from: Date,
+    to: Date,
+  ): Array<{
+    from: Date;
+    to: Date;
+    index: number;
+  }> {
+    const chunks: Array<{ from: Date; to: Date; index: number }> = [];
+    const dayMs = 24 * 60 * 60 * 1000;
+    let index = 0;
+    for (
+      let current = new Date(from.getTime());
+      current <= to;
+      current = new Date(
+        current.getTime() + dayMs * SearchDates.MAX_DAYS_PER_SEARCH,
+      )
+    ) {
+      const chunkEnd = new Date(
+        Math.min(
+          current.getTime() + dayMs * SearchDates.MAX_DAYS_PER_SEARCH - dayMs,
+          to.getTime(),
+        ),
+      );
+
+      chunks.push({
+        from: new Date(current.getTime()),
+        to: chunkEnd,
+        index,
+      });
+      index += 1;
+    }
+    return chunks;
+  }
+
+  private shiftDate(date: string, offsetDays: number): string {
+    if (offsetDays === 0) {
+      return date;
+    }
+
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) {
+      return date;
+    }
+
+    parsed.setDate(parsed.getDate() + offsetDays);
+    return this.formatDate(parsed);
+  }
+
+  private formatDate(date: Date): string {
+    return date.toISOString().split("T")[0] ?? "";
   }
 }

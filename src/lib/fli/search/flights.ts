@@ -5,6 +5,8 @@
  * with Google Flights' API to find available flights and their details.
  */
 
+import { parallel } from "radash";
+
 import { Airline } from "../models/airline";
 import { Airport } from "../models/airport";
 import { type FlightResult, TripType } from "../models/google-flights/base";
@@ -108,25 +110,14 @@ export class SearchFlights {
     }
 
     const [outboundSegment, returnSegment] = filters.flightSegments;
-
-    const outboundDepartures = new Set(
-      outboundSegment.departureAirport.map((airport) => airport[0] as Airport),
-    );
-    const outboundArrivals = new Set(
-      outboundSegment.arrivalAirport.map((airport) => airport[0] as Airport),
-    );
-    const returnDepartures = new Set(
-      returnSegment.departureAirport.map((airport) => airport[0] as Airport),
-    );
-    const returnArrivals = new Set(
-      returnSegment.arrivalAirport.map((airport) => airport[0] as Airport),
-    );
+    const outboundSets = this.extractSegmentAirports(outboundSegment);
+    const returnSets = this.extractSegmentAirports(returnSegment);
 
     const outboundFlights = flights.filter((flight) =>
-      this.matchesSegment(flight, outboundDepartures, outboundArrivals),
+      this.matchesSegment(flight, outboundSets),
     );
     const returnFlights = flights.filter((flight) =>
-      this.matchesSegment(flight, returnDepartures, returnArrivals),
+      this.matchesSegment(flight, returnSets),
     );
 
     if (!outboundFlights.length || !returnFlights.length) {
@@ -149,8 +140,7 @@ export class SearchFlights {
 
   private matchesSegment(
     flight: FlightResult,
-    departureAirports: Set<Airport>,
-    arrivalAirports: Set<Airport>,
+    airports: SegmentAirports,
   ): boolean {
     if (!flight.legs.length) {
       return false;
@@ -160,8 +150,8 @@ export class SearchFlights {
     const lastLeg = flight.legs[flight.legs.length - 1];
 
     return (
-      departureAirports.has(firstLeg.departureAirport) &&
-      arrivalAirports.has(lastLeg.arrivalAirport)
+      airports.departures.has(firstLeg.departureAirport) &&
+      airports.arrivals.has(lastLeg.arrivalAirport)
     );
   }
 
@@ -173,31 +163,33 @@ export class SearchFlights {
     const flightPairs: Array<[FlightResult, FlightResult]> = [];
     const outboundCandidates = flights.slice(0, Math.min(topN, 3));
 
-    const returnSearches = outboundCandidates.map(async (selectedFlight) => {
-      const selectedFlightFilters: FlightSearchFilters = {
-        ...filters,
-        flightSegments: filters.flightSegments.map((segment, idx) => {
-          if (idx === 0) {
-            return {
-              ...segment,
-              selectedFlight,
-            };
-          }
-          return { ...segment };
-        }),
-      };
+    if (!outboundCandidates.length) {
+      return flightPairs;
+    }
 
-      const results = await this.search(selectedFlightFilters, topN);
-      return { selectedFlight, results };
-    });
-
-    const resolvedReturnFlights = await Promise.all(returnSearches);
-
-    for (const { selectedFlight, results } of resolvedReturnFlights) {
-      if (Array.isArray(results)) {
-        for (const returnFlight of results as FlightResult[]) {
-          flightPairs.push([selectedFlight, returnFlight]);
+    const resolved = await parallel(
+      Math.min(3, outboundCandidates.length),
+      outboundCandidates,
+      async (selectedFlight) => {
+        try {
+          const followUpFilters = this.buildFollowUpFilters(
+            filters,
+            selectedFlight,
+          );
+          const results = await this.search(followUpFilters, topN);
+          return {
+            selectedFlight,
+            results: this.normalizeFlightResults(results),
+          };
+        } catch {
+          return { selectedFlight, results: [] };
         }
+      },
+    );
+
+    for (const { selectedFlight, results } of resolved) {
+      for (const returnFlight of results) {
+        flightPairs.push([selectedFlight, returnFlight]);
       }
     }
 
@@ -280,4 +272,51 @@ export class SearchFlights {
   private parseAirport(airportCode: string): Airport {
     return Airport[airportCode as keyof typeof Airport];
   }
+
+  private extractSegmentAirports(
+    segment: FlightSearchFilters["flightSegments"][number],
+  ): SegmentAirports {
+    return {
+      departures: new Set(
+        segment.departureAirport.map((airport) => airport[0] as Airport),
+      ),
+      arrivals: new Set(
+        segment.arrivalAirport.map((airport) => airport[0] as Airport),
+      ),
+    };
+  }
+
+  private buildFollowUpFilters(
+    filters: FlightSearchFilters,
+    selectedFlight: FlightResult,
+  ): FlightSearchFilters {
+    return {
+      ...filters,
+      flightSegments: filters.flightSegments.map((segment, idx) =>
+        idx === 0
+          ? {
+              ...segment,
+              selectedFlight,
+            }
+          : { ...segment },
+      ),
+    };
+  }
+
+  private normalizeFlightResults(
+    results: Array<FlightResult | [FlightResult, FlightResult]> | null,
+  ): FlightResult[] {
+    if (!Array.isArray(results)) {
+      return [];
+    }
+
+    return results.filter(
+      (flight): flight is FlightResult => !Array.isArray(flight),
+    );
+  }
 }
+
+type SegmentAirports = {
+  departures: Set<Airport>;
+  arrivals: Set<Airport>;
+};
