@@ -1,9 +1,8 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { AirportMapPopularRoute } from "@/components/airport-map";
-import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { POPULAR_ROUTES } from "@/data/popular-routes";
@@ -12,8 +11,6 @@ import type { AirportData } from "@/server/services/airports";
 import { AirportMapView } from "./airport-map-view";
 import { FlightPricePanel } from "./flight-price-panel";
 import { RouteSearchPanel } from "./route-search-panel";
-
-const COLLAPSE_SCROLL_OFFSET = 160;
 
 export type FlightExplorerProps = {
   airports: AirportData[];
@@ -81,7 +78,6 @@ export function FlightExplorer({
 
   const [hoveredRoute, setHoveredRoute] =
     useState<AirportMapPopularRoute | null>(null);
-  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
 
   const selectedPopularRoute = useMemo(() => {
     if (!mapState.originAirport || !mapState.destinationAirport) {
@@ -118,77 +114,6 @@ export function FlightExplorer({
     [selectRoute],
   );
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    let ticking = false;
-
-    const update = () => {
-      const offset = window.scrollY;
-      setIsHeaderCollapsed((previous) => {
-        const next = offset > COLLAPSE_SCROLL_OFFSET;
-        return previous === next ? previous : next;
-      });
-      ticking = false;
-    };
-
-    update();
-
-    const handleScroll = () => {
-      if (!ticking) {
-        ticking = true;
-        window.requestAnimationFrame(update);
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
-
-  const handleExpandHeader = useCallback(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    setIsHeaderCollapsed(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
-
-  const originAirport = mapState.originAirport;
-  const destinationAirport = mapState.destinationAirport;
-
-  const collapsedState = useMemo(() => {
-    const originLabel = originAirport
-      ? [originAirport.city, originAirport.country]
-          .filter(Boolean)
-          .join(", ") || originAirport.name
-      : null;
-    const destinationLabel = destinationAirport
-      ? [destinationAirport.city, destinationAirport.country]
-          .filter(Boolean)
-          .join(", ") || destinationAirport.name
-      : null;
-
-    return {
-      isCollapsed: isHeaderCollapsed,
-      originCode: originAirport?.iata ?? null,
-      originLabel,
-      destinationCode: destinationAirport?.iata ?? null,
-      destinationLabel,
-      onExpand: handleExpandHeader,
-    } as const;
-  }, [
-    destinationAirport,
-    handleExpandHeader,
-    isHeaderCollapsed,
-    originAirport,
-  ]);
-
   const infoRoute = hoveredRoute ?? selectedPopularRoute ?? null;
 
   const infoRouteMessage = useMemo(() => {
@@ -205,14 +130,7 @@ export function FlightExplorer({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <Header collapsedState={collapsedState}>
-        <RouteSearchPanel
-          search={search}
-          header={header}
-          isCollapsed={isHeaderCollapsed}
-          onExpand={handleExpandHeader}
-        />
-      </Header>
+      <RouteSearchPanel search={search} header={header} />
 
       <div className="relative flex-1 overflow-hidden">
         <div className="relative flex h-full flex-col">
