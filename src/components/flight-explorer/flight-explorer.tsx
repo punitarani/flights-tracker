@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AirportMapPopularRoute } from "@/components/airport-map";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
@@ -82,6 +82,7 @@ export function FlightExplorer({
   const [hoveredRoute, setHoveredRoute] =
     useState<AirportMapPopularRoute | null>(null);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  const collapseSentinelRef = useRef<HTMLDivElement | null>(null);
 
   const selectedPopularRoute = useMemo(() => {
     if (!mapState.originAirport || !mapState.destinationAirport) {
@@ -119,34 +120,27 @@ export function FlightExplorer({
   );
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    const sentinel = collapseSentinelRef.current;
+
+    if (!sentinel || typeof window === "undefined") {
       return;
     }
 
-    let ticking = false;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsHeaderCollapsed(!entry.isIntersecting);
+      },
+      {
+        root: null,
+        rootMargin: `-${COLLAPSE_SCROLL_OFFSET}px 0px 0px 0px`,
+        threshold: 0,
+      },
+    );
 
-    const update = () => {
-      const offset = window.scrollY;
-      setIsHeaderCollapsed((previous) => {
-        const next = offset > COLLAPSE_SCROLL_OFFSET;
-        return previous === next ? previous : next;
-      });
-      ticking = false;
-    };
-
-    update();
-
-    const handleScroll = () => {
-      if (!ticking) {
-        ticking = true;
-        window.requestAnimationFrame(update);
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    observer.observe(sentinel);
 
     return () => {
-      window.removeEventListener("scroll", handleScroll);
+      observer.disconnect();
     };
   }, []);
 
@@ -213,6 +207,7 @@ export function FlightExplorer({
           onExpand={handleExpandHeader}
         />
       </Header>
+      <div aria-hidden className="h-px" ref={collapseSentinelRef} />
 
       <div className="relative flex-1 overflow-hidden">
         <div className="relative flex h-full flex-col">
