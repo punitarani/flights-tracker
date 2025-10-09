@@ -1,10 +1,9 @@
 "use client";
 
-import { useQueryStates } from "nuqs";
 import { Suspense } from "react";
 import { FlightExplorer } from "@/components/flight-explorer";
-import { flightExplorerQueryParsers } from "@/components/flight-explorer/query-state";
 import { Header } from "@/components/header";
+import { HeaderWithRoute } from "@/components/header-with-route";
 import { trpc } from "@/lib/trpc/react";
 
 /**
@@ -17,19 +16,11 @@ export default function SearchPage() {
   const airports = airportSearchData?.airports ?? [];
   const totalAirports = airportSearchData?.total ?? airports.length;
 
-  // Get route data from query params for header
-  const [queryState] = useQueryStates(flightExplorerQueryParsers);
-  const route =
-    queryState.origin && queryState.destination
-      ? {
-          origin: queryState.origin,
-          destination: queryState.destination,
-        }
-      : undefined;
-
   return (
     <div className="flex flex-col h-screen w-full bg-background">
-      <Header route={route} />
+      <Suspense fallback={<Header />}>
+        <HeaderWithRoute />
+      </Suspense>
       <Suspense fallback={null}>
         <FlightExplorer
           airports={airports}
