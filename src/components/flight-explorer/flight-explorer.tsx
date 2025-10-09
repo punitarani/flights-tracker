@@ -83,6 +83,7 @@ export function FlightExplorer({
     useState<AirportMapPopularRoute | null>(null);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
   const collapseSentinelRef = useRef<HTMLDivElement | null>(null);
+  const collapseObserverRef = useRef<IntersectionObserver | null>(null);
 
   const selectedPopularRoute = useMemo(() => {
     if (!mapState.originAirport || !mapState.destinationAirport) {
@@ -119,30 +120,78 @@ export function FlightExplorer({
     [selectRoute],
   );
 
-  useEffect(() => {
+  const evaluateCollapse = useCallback(() => {
     const sentinel = collapseSentinelRef.current;
-
-    if (!sentinel || typeof window === "undefined") {
+    if (!sentinel) {
       return;
     }
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsHeaderCollapsed(!entry.isIntersecting);
-      },
-      {
-        root: null,
-        rootMargin: `-${COLLAPSE_SCROLL_OFFSET}px 0px 0px 0px`,
-        threshold: 0,
-      },
-    );
+    const next = sentinel.getBoundingClientRect().top <= COLLAPSE_SCROLL_OFFSET;
+    setIsHeaderCollapsed((previous) => (previous === next ? previous : next));
+  }, []);
 
-    observer.observe(sentinel);
+  const registerSentinel = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (collapseObserverRef.current) {
+        collapseObserverRef.current.disconnect();
+        collapseObserverRef.current = null;
+      }
+
+      collapseSentinelRef.current = node;
+
+      if (!node || typeof window === "undefined") {
+        return;
+      }
+
+      evaluateCollapse();
+
+      if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver(
+          ([entry]) => {
+            if (!entry) {
+              return;
+            }
+
+            const next =
+              entry.boundingClientRect.top <= COLLAPSE_SCROLL_OFFSET ||
+              !entry.isIntersecting;
+
+            setIsHeaderCollapsed((previous) =>
+              previous === next ? previous : next,
+            );
+          },
+          {
+            root: null,
+            threshold: 0,
+          },
+        );
+
+        observer.observe(node);
+        collapseObserverRef.current = observer;
+      }
+    },
+    [evaluateCollapse],
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleScroll = () => {
+      evaluateCollapse();
+    };
+
+    handleScroll();
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
 
     return () => {
-      observer.disconnect();
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
     };
-  }, []);
+  }, [evaluateCollapse]);
 
   const handleExpandHeader = useCallback(() => {
     if (typeof window === "undefined") {
@@ -207,7 +256,7 @@ export function FlightExplorer({
           onExpand={handleExpandHeader}
         />
       </Header>
-      <div aria-hidden className="h-px" ref={collapseSentinelRef} />
+      <div aria-hidden className="h-px" ref={registerSentinel} />
 
       <div className="relative flex-1 overflow-hidden">
         <div className="relative flex h-full flex-col">
