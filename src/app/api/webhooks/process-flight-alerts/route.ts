@@ -1,3 +1,4 @@
+import { processDailyAlertsForUser } from "@/core/alert-processing-service";
 import { acquireUserLock } from "@/core/alerts-db";
 import { env } from "@/env";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -77,9 +78,6 @@ export async function POST(request: Request) {
         console.log("Processing alerts for user", userId);
 
         // Process daily alerts for this user
-        const { processDailyAlertsForUser } = await import(
-          "@/core/alert-processing-service"
-        );
         const success = await processDailyAlertsForUser(userId);
 
         if (success) {
