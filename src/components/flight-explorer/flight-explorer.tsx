@@ -225,12 +225,20 @@ export function FlightExplorer({
       destinationCode: destinationAirport?.iata ?? null,
       destinationLabel,
       onExpand: handleExpandHeader,
+      onReset: search.onReset,
+      onSearch: search.onSearch,
+      isSearching: search.isSearching,
+      isSearchDisabled: search.isSearchDisabled,
     } as const;
   }, [
     destinationAirport,
     handleExpandHeader,
     isHeaderCollapsed,
     originAirport,
+    search.onReset,
+    search.onSearch,
+    search.isSearching,
+    search.isSearchDisabled,
   ]);
 
   const infoRoute = hoveredRoute ?? selectedPopularRoute ?? null;

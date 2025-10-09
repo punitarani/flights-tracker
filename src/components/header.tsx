@@ -1,6 +1,6 @@
 "use client";
 
-import { LogIn, UserRound } from "lucide-react";
+import { Loader2, LogIn, Search, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -25,6 +25,10 @@ type HeaderCollapsedState = {
   destinationCode?: string | null;
   destinationLabel?: string | null;
   onExpand?: () => void;
+  onReset?: () => void;
+  onSearch?: () => void;
+  isSearching?: boolean;
+  isSearchDisabled?: boolean;
 };
 
 type HeaderProps = {
@@ -141,21 +145,69 @@ export function Header({ collapsedState, children }: HeaderProps) {
         )}
       >
         <div className="hidden items-center justify-between gap-3 md:flex">
-          <Link href="/" className="flex items-center gap-3">
-            <span
-              className={cn(
-                "text-2xl transition-transform duration-300",
-                isCollapsed ? "scale-90" : "scale-100",
-              )}
-              role="img"
-              aria-label="flight"
-            >
-              ✈️
-            </span>
-            <span className="text-2xl font-bold tracking-tight">GrayPane</span>
-          </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3">
+              <span
+                className={cn(
+                  "text-2xl transition-transform duration-300",
+                  isCollapsed ? "scale-90" : "scale-100",
+                )}
+                role="img"
+                aria-label="flight"
+              >
+                ✈️
+              </span>
+              <span className="text-2xl font-bold tracking-tight">
+                GrayPane
+              </span>
+            </Link>
             {renderDesktopNav()}
+          </div>
+          <div className="flex items-center gap-2">
+            {isCollapsed &&
+            collapsedState?.onExpand &&
+            collapsedState?.onReset &&
+            collapsedState?.onSearch ? (
+              <>
+                <button
+                  type="button"
+                  className="flex items-center rounded-lg border border-border/60 bg-background/95 px-3 py-1.5 text-sm font-medium shadow-sm backdrop-blur transition-all duration-200 hover:bg-background"
+                  onClick={collapsedState.onExpand}
+                >
+                  <span>{summaryPrimary ?? "Search flights"}</span>
+                </button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={collapsedState.onReset}
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  className="h-9 gap-2 px-3"
+                  disabled={collapsedState.isSearchDisabled}
+                  onClick={collapsedState.onSearch}
+                >
+                  {collapsedState.isSearching ? (
+                    <Loader2
+                      className="h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Search className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  <span className="text-sm font-semibold">
+                    {collapsedState.isSearching
+                      ? "Searching..."
+                      : "Search Flights"}
+                  </span>
+                </Button>
+              </>
+            ) : null}
             {isAuthenticated ? (
               <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
                 <PopoverTrigger asChild>

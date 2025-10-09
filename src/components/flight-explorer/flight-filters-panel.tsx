@@ -290,7 +290,7 @@ export function FlightFiltersPanel({
             Filter the window, cabin, stops, times, and airline filters below.
           </p>
         </div>
-        <div className="flex items-center justify-end">
+        <div className="flex justify-end md:self-start">
           <Button
             type="button"
             variant="default"
