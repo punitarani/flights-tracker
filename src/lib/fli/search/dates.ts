@@ -67,18 +67,18 @@ export class SearchDates {
       Math.min(4, chunks.length),
       chunks,
       async ({ from, to, index }) => {
-        const chunkFilters = this.buildChunkFilters(filters, {
-          from,
-          to,
-          index,
-        });
-        return this.searchChunk(chunkFilters);
+        try {
+          const res = await this.searchChunk(
+            this.buildChunkFilters(filters, { from, to, index }),
+          );
+          return res ?? [];
+        } catch {
+          return [];
+        }
       },
     );
 
-    const flattened = chunkResults
-      .filter((entry): entry is DatePrice[] => Array.isArray(entry))
-      .flat();
+    const flattened = chunkResults.flat();
 
     return flattened.length > 0 ? flattened : null;
   }
