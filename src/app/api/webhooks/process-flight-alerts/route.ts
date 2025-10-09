@@ -75,7 +75,18 @@ export async function POST(request: Request) {
         }
 
         console.log("Processing alerts for user", userId);
-        processed.push(userId);
+
+        // Process daily alerts for this user
+        const { processDailyAlertsForUser } = await import(
+          "@/core/alert-processing-service"
+        );
+        const success = await processDailyAlertsForUser(userId);
+
+        if (success) {
+          processed.push(userId);
+        } else {
+          throw new Error("Alert processing failed");
+        }
       } catch (error) {
         console.error("Failed processing user", userId, error);
         const { error: requeueError } = await supabase
