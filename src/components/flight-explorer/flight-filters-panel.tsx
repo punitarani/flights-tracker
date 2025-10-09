@@ -190,6 +190,9 @@ export function FlightFiltersPanel({
   const departureLabel = formatTimeRange(departureRange);
   const arrivalLabel = formatTimeRange(arrivalRange);
 
+  const { hasCustomFilters, hasPendingChanges, onReset } = filters;
+  const canClearFilters = hasCustomFilters || hasPendingChanges;
+
   const toggleAirline = (code: string) => {
     const normalized = code.toUpperCase();
     if (filters.airlines.includes(normalized)) {
@@ -248,6 +251,11 @@ export function FlightFiltersPanel({
   const showAirlineList =
     !isDisabled && (isAirlinePickerOpen || airlineSearch.trim().length > 0);
 
+  const handleResetAllFilters = useCallback(() => {
+    onReset();
+    handleAirlineClearSearch();
+  }, [handleAirlineClearSearch, onReset]);
+
   // Auto-refetch with 2-second debounce
   const refetchTimeoutRef = useRef<number | null>(null);
 
@@ -290,11 +298,21 @@ export function FlightFiltersPanel({
             Filter the window, cabin, stops, times, and airline filters below.
           </p>
         </div>
-        <div className="flex items-center justify-end">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-end">
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-9 w-full gap-2 rounded-md border border-transparent px-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground transition hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:w-auto"
+            onClick={handleResetAllFilters}
+            disabled={isDisabled || !canClearFilters}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+            <span>Clear all filters</span>
+          </Button>
           <Button
             type="button"
             variant="default"
-            className="h-9 gap-2"
+            className="h-9 w-full gap-2 md:w-auto"
             onClick={price.onRefetch}
             disabled={!price.canRefetch}
           >
