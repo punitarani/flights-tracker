@@ -137,7 +137,7 @@ export function Header({ collapsedState, children }: HeaderProps) {
       <div
         className={cn(
           "container mx-auto flex flex-col gap-3 px-4 transition-all duration-300",
-          isCollapsed ? "py-2" : "py-4",
+          isCollapsed ? "py-2.5" : "py-4",
         )}
       >
         <div className="hidden items-center justify-between gap-3 md:flex">
@@ -222,7 +222,7 @@ export function Header({ collapsedState, children }: HeaderProps) {
             <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
-                className="flex flex-1 items-center gap-3 rounded-full border border-border/60 bg-background/80 px-3 py-2 text-left shadow-sm backdrop-blur transition-all duration-300"
+                className="flex flex-1 items-center gap-2.5 rounded-full border border-border/60 bg-background/80 px-3 py-2 text-left shadow-sm backdrop-blur transition-all duration-300 hover:bg-background/90"
                 onClick={collapsedState.onExpand}
               >
                 <span className="text-xl" role="img" aria-label="flight">
@@ -414,7 +414,7 @@ export function Header({ collapsedState, children }: HeaderProps) {
           <div
             className={cn(
               "transition-all duration-300",
-              isCollapsed ? "md:pt-1" : "",
+              isCollapsed ? "md:pt-0" : "",
             )}
           >
             {children}
