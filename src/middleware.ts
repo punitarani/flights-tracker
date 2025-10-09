@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { captureRequestError, wrapMiddlewareWithSentry } from "@sentry/nextjs";
 import type { NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
@@ -8,7 +9,12 @@ export const middleware = wrapMiddlewareWithSentry(
   },
 );
 
-export const onRequestError = captureRequestError();
+export const onRequestError = captureRequestError((error, request) => {
+  Sentry.captureException(error, {
+    tags: { "middleware.request.method": request.method },
+    extra: { url: request.url },
+  });
+});
 
 export const config = {
   matcher: [
