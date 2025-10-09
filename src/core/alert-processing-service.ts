@@ -1,4 +1,5 @@
 import type { Alert } from "@/db/schema";
+import { logger } from "@/lib/logger";
 import { sendNotificationEmail } from "@/lib/notifications";
 import type {
   AlertDescriptor,
