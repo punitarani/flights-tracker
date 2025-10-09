@@ -13,9 +13,16 @@ import { cn } from "@/lib/utils";
 type RouteSearchPanelProps = {
   search: FlightExplorerSearchState;
   header: FlightExplorerHeaderState;
+  isCollapsed?: boolean;
+  onExpand?: () => void;
 };
 
-export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
+export function RouteSearchPanel({
+  search,
+  header,
+  isCollapsed = false,
+  onExpand,
+}: RouteSearchPanelProps) {
   const {
     airports,
     origin,
@@ -63,8 +70,20 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
   );
 
   return (
-    <div className="flex-none border-b bg-card/50 backdrop-blur-sm z-10">
-      <div className="container mx-auto p-4 space-y-3">
+    <div
+      className={cn(
+        "overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-in-out",
+        isCollapsed
+          ? "pointer-events-none max-h-0 opacity-0 -translate-y-2 md:pointer-events-auto md:max-h-[640px] md:opacity-100 md:translate-y-0"
+          : "max-h-[720px] opacity-100 translate-y-0",
+      )}
+    >
+      <div
+        className={cn(
+          "space-y-3 rounded-2xl border border-border/40 bg-card/70 p-4 shadow-sm backdrop-blur-md transition-all duration-300",
+          isCollapsed ? "md:p-3 md:shadow" : "",
+        )}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-1 sm:items-stretch">
             <div
@@ -146,7 +165,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
             )}
           </div>
 
-          {shouldShowSearchAction && (
+          {shouldShowSearchAction ? (
             <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:items-center sm:justify-end">
               <div className="flex gap-2">
                 <Button
@@ -186,7 +205,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
                 </Badge>
               ) : null}
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="flex items-center justify-between text-sm min-h-[20px]">
@@ -196,7 +215,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
             )}
             {displayMessage}
           </p>
-          {shouldShowSearchAction && (
+          {shouldShowSearchAction ? (
             <Badge asChild variant="secondary" className="cursor-pointer">
               <button
                 type="button"
@@ -208,7 +227,17 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
                 Clear
               </button>
             </Badge>
-          )}
+          ) : onExpand ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="px-2 text-muted-foreground"
+              onClick={onExpand}
+            >
+              Edit search
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>

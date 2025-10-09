@@ -1,6 +1,5 @@
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
-
 import { Header } from "@/components/header";
 import { getCachedAirports } from "@/lib/airports.server";
 
@@ -15,10 +14,13 @@ export const revalidate = 3600;
 
 function FlightExplorerFallback() {
   return (
-    <div className="flex-1 flex items-center justify-center bg-muted/15">
-      <div className="flex flex-col items-center gap-3 text-muted-foreground">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent" />
-        <p className="text-sm font-medium">Loading flight explorer…</p>
+    <div className="flex h-full flex-col">
+      <Header />
+      <div className="flex flex-1 items-center justify-center bg-muted/15">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent" />
+          <p className="text-sm font-medium">Loading flight explorer…</p>
+        </div>
       </div>
     </div>
   );
@@ -29,7 +31,6 @@ export default async function Home() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-background">
-      <Header />
       <Suspense fallback={<FlightExplorerFallback />}>
         <FlightExplorer
           airports={airports}

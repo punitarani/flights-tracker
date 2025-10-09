@@ -17,8 +17,7 @@ export default function SearchPage() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-background">
-      <Header />
-      <Suspense fallback={null}>
+      <Suspense fallback={<Header />}>
         <FlightExplorer
           airports={airports}
           totalAirports={totalAirports}
