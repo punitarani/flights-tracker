@@ -146,9 +146,10 @@ export function FlightFiltersPanel({
   const [isAirlinePickerOpen, setIsAirlinePickerOpen] = useState(false);
   const [airlineSearch, setAirlineSearch] = useState("");
   const commandInputRef = useRef<HTMLInputElement | null>(null);
+  const isResettingRef = useRef(false);
 
   const handleAirlineFocus = useCallback(() => {
-    if (!isDisabled) {
+    if (!isDisabled && !isResettingRef.current) {
       setIsAirlinePickerOpen(true);
     }
   }, [isDisabled]);
@@ -252,9 +253,17 @@ export function FlightFiltersPanel({
     !isDisabled && (isAirlinePickerOpen || airlineSearch.trim().length > 0);
 
   const handleResetAllFilters = useCallback(() => {
+    // Set flag to prevent focus handler from reopening dropdown
+    isResettingRef.current = true;
+    setIsAirlinePickerOpen(false);
+    commandInputRef.current?.blur();
     onReset();
-    handleAirlineClearSearch();
-  }, [handleAirlineClearSearch, onReset]);
+    setAirlineSearch("");
+    // Clear flag after a short delay to allow all focus events to settle
+    setTimeout(() => {
+      isResettingRef.current = false;
+    }, 100);
+  }, [onReset]);
 
   // Auto-refetch with 2-second debounce
   const refetchTimeoutRef = useRef<number | null>(null);
