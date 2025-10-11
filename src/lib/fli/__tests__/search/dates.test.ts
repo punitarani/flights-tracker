@@ -2,7 +2,7 @@
  * Tests for SearchDates class.
  */
 
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "bun:test";
 import {
   Airport,
   DateSearchFiltersSchema,
