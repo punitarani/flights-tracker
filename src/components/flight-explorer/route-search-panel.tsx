@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2, MapPin, Search, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AirportSearch } from "@/components/airport-search";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,10 @@ type RouteSearchPanelProps = {
   search: FlightExplorerSearchState;
   header: FlightExplorerHeaderState;
 };
+
+const MOBILE_BREAKPOINT = 768;
+const COLLAPSE_SCROLL_OFFSET = 96;
+const SCROLL_DELTA_THRESHOLD = 6;
 
 export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
   const {
@@ -31,6 +36,155 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
   } = search;
 
   const { displayMessage, isInitialLoading, isLoadingNearby } = header;
+
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const collapseStateRef = useRef(false);
+  const lastScrollYRef = useRef(0);
+
+  const updateCollapsedState = useCallback((next: boolean) => {
+    if (collapseStateRef.current === next) {
+      return;
+    }
+    collapseStateRef.current = next;
+    setIsCollapsed(next);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    lastScrollYRef.current = window.scrollY;
+
+    const handleScroll = () => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const isMobile = window.innerWidth < MOBILE_BREAKPOINT;
+      if (!isMobile) {
+        if (collapseStateRef.current) {
+          updateCollapsedState(false);
+        }
+        lastScrollYRef.current = window.scrollY;
+        return;
+      }
+
+      const currentY = window.scrollY;
+      const lastY = lastScrollYRef.current;
+      const delta = currentY - lastY;
+
+      if (currentY < COLLAPSE_SCROLL_OFFSET) {
+        updateCollapsedState(false);
+      } else if (delta > SCROLL_DELTA_THRESHOLD) {
+        updateCollapsedState(true);
+      } else if (delta < -SCROLL_DELTA_THRESHOLD) {
+        updateCollapsedState(false);
+      }
+
+      lastScrollYRef.current = currentY;
+    };
+
+    const handleResize = () => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      if (window.innerWidth >= MOBILE_BREAKPOINT) {
+        updateCollapsedState(false);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [updateCollapsedState]);
+
+  useEffect(() => {
+    if (!origin.selectedAirport || !destination.selectedAirport) {
+      updateCollapsedState(false);
+    }
+  }, [
+    destination.selectedAirport,
+    origin.selectedAirport,
+    updateCollapsedState,
+  ]);
+
+  useEffect(() => {
+    if (isEditing) {
+      updateCollapsedState(false);
+    }
+  }, [isEditing, updateCollapsedState]);
+
+  const collapsedRouteLabel = useMemo(() => {
+    const originAirport = origin.selectedAirport;
+    const destinationAirport = destination.selectedAirport;
+
+    const originCode = originAirport?.iata?.toUpperCase();
+    const destinationCode = destinationAirport?.iata?.toUpperCase();
+
+    if (originCode && destinationCode) {
+      return `${originCode} → ${destinationCode}`;
+    }
+
+    if (originCode) {
+      return `${originCode} • Choose destination`;
+    }
+
+    return "Search flights";
+  }, [destination.selectedAirport, origin.selectedAirport]);
+
+  const collapsedRouteDescription = useMemo(() => {
+    const originAirport = origin.selectedAirport;
+    const destinationAirport = destination.selectedAirport;
+
+    const describe = (airport: typeof originAirport) => {
+      if (!airport) {
+        return "";
+      }
+      const parts = [airport.city, airport.country]
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value && value.length > 0));
+      if (parts.length > 0) {
+        return parts.join(", ");
+      }
+      return airport.name ?? "";
+    };
+
+    if (originAirport && destinationAirport) {
+      const originDescription = describe(originAirport);
+      const destinationDescription = describe(destinationAirport);
+      if (originDescription && destinationDescription) {
+        return `${originDescription} • ${destinationDescription}`;
+      }
+      return originDescription || destinationDescription || displayMessage;
+    }
+
+    if (originAirport) {
+      const description = describe(originAirport);
+      return description || displayMessage;
+    }
+
+    return displayMessage;
+  }, [destination.selectedAirport, origin.selectedAirport, displayMessage]);
+
+  const handleCollapsedInteraction = useCallback(() => {
+    updateCollapsedState(false);
+    if (
+      typeof window !== "undefined" &&
+      window.innerWidth < MOBILE_BREAKPOINT
+    ) {
+      window.requestAnimationFrame(() => {
+        origin.onActivate();
+      });
+      return;
+    }
+    origin.onActivate();
+  }, [origin, updateCollapsedState]);
 
   const showOriginSummary = Boolean(origin.selectedAirport && !origin.isActive);
   const showDestinationSummary = Boolean(
@@ -63,87 +217,133 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
   );
 
   return (
-    <div className="flex-none border-b bg-card/50 backdrop-blur-sm z-10">
-      <div className="container mx-auto p-4 space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-1 sm:items-stretch">
-            <div
-              className={cn(
-                "transition-all duration-200 ease-in-out",
-                showOriginSummary ? "sm:w-60" : "sm:flex-1",
-                origin.isActive
-                  ? "opacity-100"
-                  : origin.selectedAirport
-                    ? "opacity-90"
-                    : "opacity-100",
-              )}
-            >
-              {showOriginSummary && origin.selectedAirport ? (
-                renderSummaryButton(
-                  "origin",
-                  origin.onActivate,
-                  origin.selectedAirport.name,
-                  origin.selectedAirport.iata,
-                  origin.selectedAirport.city,
-                  origin.selectedAirport.country,
-                )
-              ) : (
-                <AirportSearch
-                  airports={airports}
-                  value={origin.value}
-                  onChange={origin.onChange}
-                  onSelect={origin.onSelect}
-                  onFocus={origin.onActivate}
-                  onBlur={origin.onBlur}
-                  placeholder="Search origin airport..."
-                  inputAriaLabel="Search origin airport"
-                  autoFocus
-                  isLoading={isInitialLoading}
-                  className="w-full transition-all duration-200 ease-in-out"
-                />
-              )}
+    <div
+      className={cn(
+        "sticky top-0 z-30 flex-none border-b bg-card/60 backdrop-blur-md transition-shadow duration-300",
+        isCollapsed
+          ? "shadow-[0_16px_32px_-24px_rgba(15,23,42,0.55)]"
+          : "shadow-none",
+      )}
+    >
+      <div className="container mx-auto space-y-3 px-4 py-3 sm:py-4">
+        <div
+          className={cn(
+            "md:hidden overflow-hidden transition-[max-height,opacity,transform] duration-200 ease-out",
+            isCollapsed
+              ? "max-h-24 translate-y-0 opacity-100"
+              : "pointer-events-none max-h-0 -translate-y-2 opacity-0",
+          )}
+        >
+          <button
+            type="button"
+            onClick={handleCollapsedInteraction}
+            className="flex w-full items-center justify-between gap-3 rounded-full border border-border/40 bg-background/95 px-4 py-3 text-left shadow-lg backdrop-blur"
+            aria-expanded={!isCollapsed}
+            aria-label="Expand search panel"
+          >
+            <div className="flex min-w-0 flex-col">
+              <span className="truncate text-sm font-semibold text-foreground">
+                {collapsedRouteLabel}
+              </span>
+              <span className="truncate text-xs text-muted-foreground">
+                {collapsedRouteDescription}
+              </span>
             </div>
+            <Search
+              className="h-4 w-4 shrink-0 text-primary"
+              aria-hidden="true"
+            />
+          </button>
+        </div>
 
-            {showDestinationField && (
+        <div
+          className={cn(
+            "space-y-3 transition-[max-height,opacity,transform] duration-200 ease-in-out",
+            isCollapsed
+              ? "pointer-events-none max-h-0 -translate-y-1 overflow-hidden opacity-0 md:pointer-events-auto md:max-h-none md:translate-y-0 md:opacity-100"
+              : "pointer-events-auto max-h-[1200px] translate-y-0 opacity-100",
+          )}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-1 sm:items-stretch">
               <div
                 className={cn(
                   "transition-all duration-200 ease-in-out",
-                  showDestinationSummary ? "sm:w-60" : "sm:flex-1",
-                  destination.isActive
+                  showOriginSummary ? "sm:w-60" : "sm:flex-1",
+                  origin.isActive
                     ? "opacity-100"
-                    : destination.selectedAirport
+                    : origin.selectedAirport
                       ? "opacity-90"
-                      : "opacity-75",
+                      : "opacity-100",
                 )}
               >
-                {showDestinationSummary && destination.selectedAirport ? (
+                {showOriginSummary && origin.selectedAirport ? (
                   renderSummaryButton(
-                    "destination",
-                    destination.onActivate,
-                    destination.selectedAirport.name,
-                    destination.selectedAirport.iata,
-                    destination.selectedAirport.city,
-                    destination.selectedAirport.country,
+                    "origin",
+                    origin.onActivate,
+                    origin.selectedAirport.name,
+                    origin.selectedAirport.iata,
+                    origin.selectedAirport.city,
+                    origin.selectedAirport.country,
                   )
                 ) : (
                   <AirportSearch
                     airports={airports}
-                    value={destination.value}
-                    onChange={destination.onChange}
-                    onSelect={destination.onSelect}
-                    onFocus={destination.onActivate}
-                    onBlur={destination.onBlur}
-                    placeholder="Add destination airport..."
-                    inputAriaLabel="Search destination airport"
-                    autoFocus={
-                      destination.isActive || !destination.selectedAirport
-                    }
+                    value={origin.value}
+                    onChange={origin.onChange}
+                    onSelect={origin.onSelect}
+                    onFocus={origin.onActivate}
+                    onBlur={origin.onBlur}
+                    placeholder="Search origin airport..."
+                    inputAriaLabel="Search origin airport"
+                    autoFocus
                     isLoading={isInitialLoading}
                     className="w-full transition-all duration-200 ease-in-out"
                   />
                 )}
               </div>
-            )}
+
+              {showDestinationField && (
+                <div
+                  className={cn(
+                    "transition-all duration-200 ease-in-out",
+                    showDestinationSummary ? "sm:w-60" : "sm:flex-1",
+                    destination.isActive
+                      ? "opacity-100"
+                      : destination.selectedAirport
+                        ? "opacity-90"
+                        : "opacity-75",
+                  )}
+                >
+                  {showDestinationSummary && destination.selectedAirport ? (
+                    renderSummaryButton(
+                      "destination",
+                      destination.onActivate,
+                      destination.selectedAirport.name,
+                      destination.selectedAirport.iata,
+                      destination.selectedAirport.city,
+                      destination.selectedAirport.country,
+                    )
+                  ) : (
+                    <AirportSearch
+                      airports={airports}
+                      value={destination.value}
+                      onChange={destination.onChange}
+                      onSelect={destination.onSelect}
+                      onFocus={destination.onActivate}
+                      onBlur={destination.onBlur}
+                      placeholder="Add destination airport..."
+                      inputAriaLabel="Search destination airport"
+                      autoFocus={
+                        destination.isActive || !destination.selectedAirport
+                      }
+                      isLoading={isInitialLoading}
+                      className="w-full transition-all duration-200 ease-in-out"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {shouldShowSearchAction && (
