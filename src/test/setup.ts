@@ -21,6 +21,9 @@ mock.module("@/env", () => ({
     DATABASE_URL: "mock://test-database-url-for-testing",
     WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
 
+    // External Services
+    SEATS_AERO_API_KEY: "test-seats-aero-api-key",
+
     // Use real proxy configuration if available, otherwise disabled
     PROXY_ENABLED: process.env.PROXY_ENABLED === "true",
     PROXY_HOST: process.env.PROXY_HOST,
