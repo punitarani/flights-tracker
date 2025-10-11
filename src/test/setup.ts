@@ -1,9 +1,22 @@
-import { afterEach, vi } from "vitest";
+import { afterEach, mock } from "bun:test";
+import { GlobalWindow } from "happy-dom";
+
+// Set up DOM environment for all tests
+const window = new GlobalWindow();
+const document = window.document;
+global.window = window as unknown as Window & typeof globalThis;
+global.document = document;
+global.navigator = window.navigator;
+global.HTMLElement = window.HTMLElement;
+global.HTMLInputElement = window.HTMLInputElement;
+global.Element = window.Element;
+global.Event = window.Event;
+global.KeyboardEvent = window.KeyboardEvent;
 
 process.env.WEBHOOK_SECRET =
   process.env.WEBHOOK_SECRET ?? "test-webhook-secret";
 
-vi.mock("@/env", () => ({
+mock.module("@/env", () => ({
   env: {
     DATABASE_URL: "mock://test-database-url-for-testing",
     WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
@@ -20,18 +33,18 @@ vi.mock("@/env", () => ({
   },
 }));
 
-vi.mock("@/db/client", () => ({
+mock.module("@/db/client", () => ({
   db: {
-    select: vi.fn(),
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    execute: vi.fn(),
-    transaction: vi.fn(
+    select: mock(),
+    insert: mock(),
+    update: mock(),
+    delete: mock(),
+    execute: mock(),
+    transaction: mock(
       async (
-        callback: (tx: { execute: ReturnType<typeof vi.fn> }) => unknown,
+        callback: (tx: { execute: ReturnType<typeof mock> }) => unknown,
       ) => {
-        const txExecute = vi.fn();
+        const txExecute = mock();
         return await callback({ execute: txExecute });
       },
     ),
@@ -58,17 +71,16 @@ if (typeof globalThis.ResizeObserver === "undefined") {
 }
 
 afterEach(() => {
-  vi.clearAllMocks();
-  vi.resetModules();
+  mock.restore();
 });
 
 Object.assign(globalThis, {
   console: {
     ...console,
-    log: vi.fn(),
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
+    log: mock(),
+    debug: mock(),
+    info: mock(),
+    warn: mock(),
+    error: mock(),
   },
 });

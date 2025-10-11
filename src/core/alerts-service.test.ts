@@ -1,4 +1,5 @@
 import "@/test/setup";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { AlertType } from "@/core/alert-types";
 import * as alertsDb from "@/core/alerts-db";
 import {
@@ -16,18 +17,24 @@ import {
   createMockUserId,
 } from "./mock-data";
 
-vi.mock("@/core/alerts-db", () => ({
-  validateAirportExists: vi.fn(),
-  validateAirlineExists: vi.fn(),
-  createAlert: vi.fn(),
-  getAlertById: vi.fn(),
-  getAlertsByUser: vi.fn(),
+mock.module("@/core/alerts-db", () => ({
+  validateAirportExists: mock(),
+  validateAirlineExists: mock(),
+  createAlert: mock(),
+  getAlertById: mock(),
+  getAlertsByUser: mock(),
 }));
-const mockedAlertsDb = vi.mocked(alertsDb);
+const mockedAlertsDb = alertsDb as {
+  validateAirportExists: ReturnType<typeof mock>;
+  validateAirlineExists: ReturnType<typeof mock>;
+  createAlert: ReturnType<typeof mock>;
+  getAlertById: ReturnType<typeof mock>;
+  getAlertsByUser: ReturnType<typeof mock>;
+};
 
 describe("alerts-service", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.restore();
   });
 
   describe("validateAlertFilters", () => {

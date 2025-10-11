@@ -1,16 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 
 process.env.RESEND_API_KEY = process.env.RESEND_API_KEY ?? "test-api-key";
 process.env.RESEND_FROM_EMAIL = "alerts@example.com";
 
-const sendWithResendMock = vi.hoisted(() =>
-  vi.fn().mockResolvedValue({
+const sendWithResendMock = mock(() =>
+  Promise.resolve({
     data: { id: "email_123" },
     error: null,
   }),
 );
 
-vi.mock("../resend-client", () => ({
+mock.module("../resend-client", () => ({
   sendWithResend: sendWithResendMock,
 }));
 
@@ -59,7 +59,7 @@ const sampleFlight: FlightOptionSummary = {
 };
 
 beforeEach(() => {
-  sendWithResendMock.mockClear();
+  mock.restore();
 });
 
 describe("notification templates", () => {
@@ -110,9 +110,9 @@ describe("sendNotificationEmail", () => {
     });
 
     expect(sendWithResendMock).toHaveBeenCalledTimes(1);
-    const [args] = sendWithResendMock.mock.calls[0] ?? [];
-    expect(args.from).toBe("Flight Alerts <alerts@resend.dev>");
-    expect(args.to).toBe("Test User <test@example.com>");
-    expect(args.html).toContain("Price drop");
+    const args = sendWithResendMock.mock.calls[0]?.[0];
+    expect(args?.from).toBe("Flight Alerts <alerts@resend.dev>");
+    expect(args?.to).toBe("Test User <test@example.com>");
+    expect(args?.html).toContain("Price drop");
   });
 });

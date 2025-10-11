@@ -1,4 +1,5 @@
 import "@/test/setup";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { AlertType } from "@/core/alert-types";
 import {
   createAlert,
@@ -12,19 +13,26 @@ import {
 import { db } from "@/db/client";
 import { createMockAlert, createMockAlertFilters } from "./mock-data";
 
-const mockDb = vi.mocked(db);
+const mockDb = db as {
+  insert: ReturnType<typeof mock>;
+  select: ReturnType<typeof mock>;
+  update: ReturnType<typeof mock>;
+  delete: ReturnType<typeof mock>;
+  execute: ReturnType<typeof mock>;
+  transaction: ReturnType<typeof mock>;
+};
 
 describe("alerts-db", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.restore();
   });
 
   describe("createAlert", () => {
     it("should create a new alert successfully", async () => {
       const mockAlert = createMockAlert();
-      const insertMock = vi.fn().mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([mockAlert]),
+      const insertMock = mock().mockReturnValue({
+        values: mock().mockReturnValue({
+          returning: mock().mockResolvedValue([mockAlert]),
         }),
       });
 
@@ -45,9 +53,9 @@ describe("alerts-db", () => {
 
     it("should create alert without alertEnd", async () => {
       const mockAlert = createMockAlert({ alertEnd: null });
-      const insertMock = vi.fn().mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([mockAlert]),
+      const insertMock = mock().mockReturnValue({
+        values: mock().mockReturnValue({
+          returning: mock().mockResolvedValue([mockAlert]),
         }),
       });
 
@@ -69,10 +77,10 @@ describe("alerts-db", () => {
   describe("getAlertById", () => {
     it("should return alert when found", async () => {
       const mockAlert = createMockAlert();
-      const selectMock = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([mockAlert]),
+      const selectMock = mock().mockReturnValue({
+        from: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            limit: mock().mockResolvedValue([mockAlert]),
           }),
         }),
       });
@@ -86,10 +94,10 @@ describe("alerts-db", () => {
     });
 
     it("should return null when alert not found", async () => {
-      const selectMock = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
+      const selectMock = mock().mockReturnValue({
+        from: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            limit: mock().mockResolvedValue([]),
           }),
         }),
       });
@@ -108,10 +116,10 @@ describe("alerts-db", () => {
         createMockAlert(),
         createMockAlert({ id: "alert_456" }),
       ];
-      const selectMock = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockResolvedValue(mockAlerts),
+      const selectMock = mock().mockReturnValue({
+        from: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            orderBy: mock().mockResolvedValue(mockAlerts),
           }),
         }),
       });
@@ -125,10 +133,10 @@ describe("alerts-db", () => {
 
     it("should return filtered alerts by status", async () => {
       const mockAlerts = [createMockAlert({ status: "active" })];
-      const selectMock = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockResolvedValue(mockAlerts),
+      const selectMock = mock().mockReturnValue({
+        from: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            orderBy: mock().mockResolvedValue(mockAlerts),
           }),
         }),
       });
@@ -144,10 +152,10 @@ describe("alerts-db", () => {
   describe("updateAlert", () => {
     it("should update alert successfully", async () => {
       const mockAlert = createMockAlert({ status: "completed" });
-      const updateMock = vi.fn().mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([mockAlert]),
+      const updateMock = mock().mockReturnValue({
+        set: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            returning: mock().mockResolvedValue([mockAlert]),
           }),
         }),
       });
@@ -161,10 +169,10 @@ describe("alerts-db", () => {
     });
 
     it("should return null when alert not found", async () => {
-      const updateMock = vi.fn().mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([]),
+      const updateMock = mock().mockReturnValue({
+        set: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            returning: mock().mockResolvedValue([]),
           }),
         }),
       });
@@ -179,10 +187,10 @@ describe("alerts-db", () => {
 
   describe("deleteAlert", () => {
     it("should soft delete alert successfully", async () => {
-      const updateMock = vi.fn().mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([createMockAlert()]),
+      const updateMock = mock().mockReturnValue({
+        set: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            returning: mock().mockResolvedValue([createMockAlert()]),
           }),
         }),
       });
@@ -195,10 +203,10 @@ describe("alerts-db", () => {
     });
 
     it("should return false when alert not found", async () => {
-      const updateMock = vi.fn().mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([]),
+      const updateMock = mock().mockReturnValue({
+        set: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            returning: mock().mockResolvedValue([]),
           }),
         }),
       });
@@ -213,10 +221,10 @@ describe("alerts-db", () => {
 
   describe("validateAirportExists", () => {
     it("should return true when airport exists", async () => {
-      const selectMock = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([{ id: "airport_lax" }]),
+      const selectMock = mock().mockReturnValue({
+        from: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            limit: mock().mockResolvedValue([{ id: "airport_lax" }]),
           }),
         }),
       });
@@ -229,10 +237,10 @@ describe("alerts-db", () => {
     });
 
     it("should return false when airport does not exist", async () => {
-      const selectMock = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
+      const selectMock = mock().mockReturnValue({
+        from: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            limit: mock().mockResolvedValue([]),
           }),
         }),
       });
@@ -245,10 +253,10 @@ describe("alerts-db", () => {
     });
 
     it("should handle lowercase airport codes", async () => {
-      const selectMock = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([{ id: "airport_lax" }]),
+      const selectMock = mock().mockReturnValue({
+        from: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            limit: mock().mockResolvedValue([{ id: "airport_lax" }]),
           }),
         }),
       });
@@ -265,10 +273,10 @@ describe("alerts-db", () => {
 
   describe("validateAirlineExists", () => {
     it("should return true when airline exists", async () => {
-      const selectMock = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([{ id: "airline_aa" }]),
+      const selectMock = mock().mockReturnValue({
+        from: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            limit: mock().mockResolvedValue([{ id: "airline_aa" }]),
           }),
         }),
       });
@@ -281,10 +289,10 @@ describe("alerts-db", () => {
     });
 
     it("should return false when airline does not exist", async () => {
-      const selectMock = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
+      const selectMock = mock().mockReturnValue({
+        from: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            limit: mock().mockResolvedValue([]),
           }),
         }),
       });
@@ -297,10 +305,10 @@ describe("alerts-db", () => {
     });
 
     it("should handle lowercase airline codes", async () => {
-      const selectMock = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([{ id: "airline_aa" }]),
+      const selectMock = mock().mockReturnValue({
+        from: mock().mockReturnValue({
+          where: mock().mockReturnValue({
+            limit: mock().mockResolvedValue([{ id: "airline_aa" }]),
           }),
         }),
       });

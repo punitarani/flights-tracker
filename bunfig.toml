@@ -1,0 +1,6 @@
+[test]
+preload = ["./src/test/setup.ts"]
+
+# Enable DOM for all tests
+[test.dom]
+enable = true
