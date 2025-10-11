@@ -1,7 +1,6 @@
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
 
-import { Header } from "@/components/header";
 import { getCachedAirports } from "@/lib/airports.server";
 
 const FlightExplorer = dynamic(
@@ -29,7 +28,6 @@ export default async function Home() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-background">
-      <Header />
       <Suspense fallback={<FlightExplorerFallback />}>
         <FlightExplorer
           airports={airports}

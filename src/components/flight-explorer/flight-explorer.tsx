@@ -3,6 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { AirportMapPopularRoute } from "@/components/airport-map";
+import { Header, type HeaderRoute } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { POPULAR_ROUTES } from "@/data/popular-routes";
@@ -128,8 +129,29 @@ export function FlightExplorer({
     return "Click a route line to load it into the search fields.";
   }, [hoveredRoute, selectedPopularRoute]);
 
+  // Prepare header route info
+  const headerRoute = useMemo<HeaderRoute | undefined>(() => {
+    if (!mapState.originAirport || !mapState.destinationAirport) {
+      return undefined;
+    }
+
+    return {
+      origin: {
+        code: mapState.originAirport.iata,
+        city: mapState.originAirport.city,
+        country: mapState.originAirport.country,
+      },
+      destination: {
+        code: mapState.destinationAirport.iata,
+        city: mapState.destinationAirport.city,
+        country: mapState.destinationAirport.country,
+      },
+    };
+  }, [mapState.originAirport, mapState.destinationAirport]);
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      <Header route={headerRoute} />
       <RouteSearchPanel search={search} header={header} />
 
       <div className="relative flex-1 overflow-hidden">
