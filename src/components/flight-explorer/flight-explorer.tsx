@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { POPULAR_ROUTES } from "@/data/popular-routes";
 import { useFlightExplorer } from "@/hooks/use-flight-explorer";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useScroll } from "@/hooks/use-scroll";
 import type { AirportData } from "@/server/services/airports";
 import { AirportMapView } from "./airport-map-view";
 import { FlightPricePanel } from "./flight-price-panel";
@@ -128,9 +130,29 @@ export function FlightExplorer({
     return "Click a route line to load it into the search fields.";
   }, [hoveredRoute, selectedPopularRoute]);
 
+  // Scroll detection for mobile
+  const isMobile = useIsMobile();
+  const { isAtTop, scrollY } = useScroll({ threshold: 50 });
+
+  // Determine if search panel should collapse on mobile
+  const hasRoute = Boolean(
+    mapState.originAirport && mapState.destinationAirport,
+  );
+  const shouldCollapseSearchPanel =
+    isMobile && hasRoute && !isAtTop && scrollY > 100;
+
+  const handleExpandSearchPanel = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <RouteSearchPanel search={search} header={header} />
+      <RouteSearchPanel
+        search={search}
+        header={header}
+        isCollapsed={shouldCollapseSearchPanel}
+        onExpand={handleExpandSearchPanel}
+      />
 
       <div className="relative flex-1 overflow-hidden">
         <div className="relative flex h-full flex-col">
