@@ -13,9 +13,16 @@ import { cn } from "@/lib/utils";
 type RouteSearchPanelProps = {
   search: FlightExplorerSearchState;
   header: FlightExplorerHeaderState;
+  isCollapsed?: boolean;
+  onExpand?: () => void;
 };
 
-export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
+export function RouteSearchPanel({
+  search,
+  header,
+  isCollapsed = false,
+  onExpand,
+}: RouteSearchPanelProps) {
   const {
     airports,
     origin,
@@ -61,6 +68,36 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
       <span className="sr-only">Edit {label} airport</span>
     </Button>
   );
+
+  // Collapsed pill view
+  if (isCollapsed && origin.selectedAirport && destination.selectedAirport) {
+    return (
+      <div className="flex-none border-b bg-card/50 backdrop-blur-sm z-10">
+        <div className="container mx-auto px-4 py-3">
+          <button
+            type="button"
+            onClick={onExpand}
+            className={cn(
+              "w-full flex items-center justify-between gap-3 px-4 py-3",
+              "rounded-full border bg-background/95 backdrop-blur-sm",
+              "transition-all duration-200 hover:bg-accent/50",
+              "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+            )}
+          >
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
+              <div className="flex items-center gap-2 text-sm font-semibold truncate">
+                <span>{origin.selectedAirport.iata}</span>
+                <span className="text-muted-foreground">→</span>
+                <span>{destination.selectedAirport.iata}</span>
+              </div>
+            </div>
+            <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-none border-b bg-card/50 backdrop-blur-sm z-10">

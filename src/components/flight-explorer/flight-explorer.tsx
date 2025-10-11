@@ -3,11 +3,13 @@
 import { Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { AirportMapPopularRoute } from "@/components/airport-map";
-import { Header, type HeaderRoute } from "@/components/header";
+import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { POPULAR_ROUTES } from "@/data/popular-routes";
 import { useFlightExplorer } from "@/hooks/use-flight-explorer";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useScroll } from "@/hooks/use-scroll";
 import type { AirportData } from "@/server/services/airports";
 import { AirportMapView } from "./airport-map-view";
 import { FlightPricePanel } from "./flight-price-panel";
@@ -129,30 +131,30 @@ export function FlightExplorer({
     return "Click a route line to load it into the search fields.";
   }, [hoveredRoute, selectedPopularRoute]);
 
-  // Prepare header route info
-  const headerRoute = useMemo<HeaderRoute | undefined>(() => {
-    if (!mapState.originAirport || !mapState.destinationAirport) {
-      return undefined;
-    }
+  // Scroll detection for mobile
+  const isMobile = useIsMobile();
+  const { isAtTop, scrollY } = useScroll({ threshold: 50 });
 
-    return {
-      origin: {
-        code: mapState.originAirport.iata,
-        city: mapState.originAirport.city,
-        country: mapState.originAirport.country,
-      },
-      destination: {
-        code: mapState.destinationAirport.iata,
-        city: mapState.destinationAirport.city,
-        country: mapState.destinationAirport.country,
-      },
-    };
-  }, [mapState.originAirport, mapState.destinationAirport]);
+  // Determine if search panel should collapse on mobile
+  const hasRoute = Boolean(
+    mapState.originAirport && mapState.destinationAirport,
+  );
+  const shouldCollapseSearchPanel =
+    isMobile && hasRoute && !isAtTop && scrollY > 100;
+
+  const handleExpandSearchPanel = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <Header route={headerRoute} />
-      <RouteSearchPanel search={search} header={header} />
+      <Header />
+      <RouteSearchPanel
+        search={search}
+        header={header}
+        isCollapsed={shouldCollapseSearchPanel}
+        onExpand={handleExpandSearchPanel}
+      />
 
       <div className="relative flex-1 overflow-hidden">
         <div className="relative flex h-full flex-col">
