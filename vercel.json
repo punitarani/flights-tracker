@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/webhooks/check-flight-alerts",
+      "schedule": "0 0,6,12,18 * * *"
+    },
+    {
+      "path": "/api/webhooks/process-flight-alerts",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

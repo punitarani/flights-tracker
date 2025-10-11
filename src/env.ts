@@ -9,6 +9,7 @@ export const env = createEnv({
     RESEND_FROM_EMAIL: z.string().email().optional(),
     WEBHOOK_SECRET: z.string().min(1),
     SENTRY_DSN: z.string().url().optional(),
+    SEATS_AERO_API_KEY: z.string().min(1),
     PROXY_ENABLED: z
       .enum(["true", "false"])
       .transform((val) => val === "true")
@@ -37,6 +38,7 @@ export const env = createEnv({
     WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
     SENTRY_DSN: process.env.SENTRY_DSN,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    SEATS_AERO_API_KEY: process.env.SEATS_AERO_API_KEY,
     PROXY_ENABLED: process.env.PROXY_ENABLED,
     PROXY_HOST: process.env.PROXY_HOST,
     PROXY_PORT: process.env.PROXY_PORT,
