@@ -1,15 +1,12 @@
 import { getUserIdsWithActiveDailyAlerts } from "@/core/alerts-db";
-import { env } from "@/env";
 import { logger } from "@/lib/logger";
 import { createServiceClient } from "@/lib/supabase/service";
+import { isAuthenticated } from "../auth";
 
-const SIGNATURE_HEADER = "x-signature";
 const QUEUE_NAME = "check_alerts";
 
 export async function POST(request: Request) {
-  const signature = request.headers.get(SIGNATURE_HEADER);
-
-  if (!signature || signature !== env.WEBHOOK_SECRET) {
+  if (!isAuthenticated(request)) {
     return new Response(null, { status: 401 });
   }
 
