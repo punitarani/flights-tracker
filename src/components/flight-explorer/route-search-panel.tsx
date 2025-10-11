@@ -72,8 +72,8 @@ export function RouteSearchPanel({
   // Collapsed pill view
   if (isCollapsed && origin.selectedAirport && destination.selectedAirport) {
     return (
-      <div className="flex-none border-b bg-card/50 backdrop-blur-sm z-10">
-        <div className="container mx-auto px-4 py-3">
+      <div className="sticky top-0 flex-none border-b bg-card/50 backdrop-blur-sm z-50 transition-all duration-300">
+        <div className="container mx-auto px-4 py-2">
           <button
             type="button"
             onClick={onExpand}
@@ -100,7 +100,7 @@ export function RouteSearchPanel({
   }
 
   return (
-    <div className="flex-none border-b bg-card/50 backdrop-blur-sm z-10">
+    <div className="sticky top-0 flex-none border-b bg-card/50 backdrop-blur-sm z-50 transition-all duration-300">
       <div className="container mx-auto p-4 space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-1 sm:items-stretch">

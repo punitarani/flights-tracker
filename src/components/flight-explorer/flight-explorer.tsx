@@ -3,7 +3,6 @@
 import { Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { AirportMapPopularRoute } from "@/components/airport-map";
-import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { POPULAR_ROUTES } from "@/data/popular-routes";
@@ -148,7 +147,6 @@ export function FlightExplorer({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <Header />
       <RouteSearchPanel
         search={search}
         header={header}
