@@ -9,6 +9,15 @@ export const env = createEnv({
     RESEND_FROM_EMAIL: z.string().email().optional(),
     WEBHOOK_SECRET: z.string().min(1),
     SENTRY_DSN: z.string().url().optional(),
+    PROXY_ENABLED: z
+      .enum(["true", "false"])
+      .transform((val) => val === "true")
+      .default(false),
+    PROXY_HOST: z.string().min(1).optional(),
+    PROXY_PORT: z.coerce.number().positive().optional(),
+    PROXY_USERNAME: z.string().min(1).optional(),
+    PROXY_PASSWORD: z.string().min(1).optional(),
+    PROXY_PROTOCOL: z.enum(["http", "https", "socks5"]).default("http"),
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.url(),
@@ -28,5 +37,11 @@ export const env = createEnv({
     WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
     SENTRY_DSN: process.env.SENTRY_DSN,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    PROXY_ENABLED: process.env.PROXY_ENABLED,
+    PROXY_HOST: process.env.PROXY_HOST,
+    PROXY_PORT: process.env.PROXY_PORT,
+    PROXY_USERNAME: process.env.PROXY_USERNAME,
+    PROXY_PASSWORD: process.env.PROXY_PASSWORD,
+    PROXY_PROTOCOL: process.env.PROXY_PROTOCOL,
   },
 });
