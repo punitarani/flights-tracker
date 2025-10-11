@@ -2,10 +2,15 @@ import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  reactCompiler: true,
+
+  // Optional: Enable Turbopack file system caching for faster development
+  experimental: {
+    turbopackFileSystemCacheForDev: true,
+  },
 };
 
-export default withSentryConfig(nextConfig, {
+const sentryConfig = {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
@@ -36,4 +41,6 @@ export default withSentryConfig(nextConfig, {
   // https://docs.sentry.io/product/crons/
   // https://vercel.com/docs/cron-jobs
   automaticVercelMonitors: true,
-});
+};
+
+export default withSentryConfig(nextConfig, sentryConfig);
