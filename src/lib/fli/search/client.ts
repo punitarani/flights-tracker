@@ -1,8 +1,16 @@
 import { retry, sleep } from "radash";
+import { createProxyAgent } from "@/lib/proxy";
 
 type RateLimiterOptions = {
   callsPerSecond: number;
   maxConcurrent?: number;
+};
+
+// Extend RequestOptions to support proxy agents
+type RequestOptionsWithAgent = RequestInit & {
+  agent?: Parameters<typeof createProxyAgent>[0] extends null
+    ? never
+    : ReturnType<typeof createProxyAgent>;
 };
 
 class RateLimiter {
@@ -50,7 +58,7 @@ class RateLimiter {
   }
 }
 
-type RequestOptions = RequestInit & { signal?: AbortSignal | null };
+type RequestOptions = RequestOptionsWithAgent & { signal?: AbortSignal | null };
 
 type RetryOptions = {
   times: number;
@@ -71,6 +79,7 @@ export class Client {
 
   private readonly defaultHeaders = new Headers(Client.DEFAULT_HEADERS);
   private readonly rateLimiter = new RateLimiter({ callsPerSecond: 10 });
+  private readonly proxyAgent = createProxyAgent();
 
   async get(url: string, options?: RequestOptions): Promise<Response> {
     return this.request("GET", url, options);
@@ -90,6 +99,11 @@ export class Client {
       method,
       headers: this.mergeHeaders(options?.headers ?? null),
     };
+
+    // Add proxy agent if available
+    if (this.proxyAgent) {
+      requestInit.agent = this.proxyAgent;
+    }
 
     return this.rateLimiter.execute(() =>
       retry(Client.RETRY, async () => {

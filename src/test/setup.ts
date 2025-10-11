@@ -7,6 +7,16 @@ vi.mock("@/env", () => ({
   env: {
     DATABASE_URL: "mock://test-database-url-for-testing",
     WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
+
+    // Use real proxy configuration if available, otherwise disabled
+    PROXY_ENABLED: process.env.PROXY_ENABLED === "true",
+    PROXY_HOST: process.env.PROXY_HOST,
+    PROXY_PORT: process.env.PROXY_PORT
+      ? parseInt(process.env.PROXY_PORT, 10)
+      : undefined,
+    PROXY_USERNAME: process.env.PROXY_USERNAME,
+    PROXY_PASSWORD: process.env.PROXY_PASSWORD,
+    PROXY_PROTOCOL: process.env.PROXY_PROTOCOL || "http",
   },
 }));
 
