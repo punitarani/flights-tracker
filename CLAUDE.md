@@ -14,12 +14,13 @@ A Next.js 15 application for tracking flight alerts with Supabase authentication
 - `bun start` - Start production server
 
 ### Testing
-- `bun test` - Run all tests with Bun's built-in test runner
+- `bun test` - Run all tests concurrently with Bun's built-in test runner
 - `bun run test:watch` - Run tests in watch mode
 - `bun run test:fli` - Run fli integration tests with extended timeout (60s)
 - Test files: `*.test.ts` files alongside source code
 - Test setup: `src/test/setup.ts` (mocks env, db client, console) - preloaded automatically
-- Uses Bun's built-in jsdom environment for DOM testing
+- Tests run concurrently (like Vitest) for faster execution
+- Uses happy-dom for DOM testing
 
 ### Code Quality
 - `bun run lint` - Run Biome linter and auto-fix issues (with --unsafe flag)
