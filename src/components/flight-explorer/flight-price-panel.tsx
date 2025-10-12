@@ -22,6 +22,7 @@ import type {
   FlightExplorerPriceState,
 } from "@/hooks/use-flight-explorer";
 import type { AirportData } from "@/server/services/airports";
+import { AwardAvailabilityPanel } from "./award-availability-panel";
 import { PRICE_CHART_CONFIG, USD_FORMATTER } from "./constants";
 import { FlightFiltersPanel } from "./flight-filters-panel";
 import { FlightOptionsList } from "./flight-options-list";
@@ -188,6 +189,15 @@ export function FlightPricePanel({
             </p>
           ) : null}
         </Card>
+
+        {originAirport && destinationAirport && !searchError ? (
+          <AwardAvailabilityPanel
+            originAirport={originAirport}
+            destinationAirport={destinationAirport}
+            startDate={filters.dateRange.from.toISOString().split("T")[0]}
+            endDate={filters.dateRange.to.toISOString().split("T")[0]}
+          />
+        ) : null}
 
         {chartData.length > 0 && !searchError ? (
           <Card className="space-y-4 p-4">

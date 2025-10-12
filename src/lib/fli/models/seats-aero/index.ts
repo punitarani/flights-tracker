@@ -8,6 +8,13 @@
  * @module seats-aero
  */
 
+// Database models (frontend-safe types)
+export type {
+  CabinClass as CabinClassModel,
+  SeatsAeroAvailabilityTripModel,
+  SeatsAeroSearchRequestModel,
+  SeatsAeroSearchRequestStatus,
+} from "./availability-trip";
 // Base types and enums
 export {
   type CabinAvailability,
@@ -17,7 +24,6 @@ export {
   Region,
   Source,
 } from "./base";
-
 // Search endpoint models
 export {
   type Availability,
@@ -29,7 +35,6 @@ export {
   type SearchResponse,
   SearchResponseSchema,
 } from "./search";
-
 // Search request models
 export {
   type BookingLink,

@@ -25,7 +25,7 @@ import {
 export type SeatsAeroClientConfig = {
   /** API key for authentication */
   apiKey: string;
-  /** Base URL for the API. Defaults to https://seats.aero/api */
+  /** Base URL for the API. Defaults to https://seats.aero/partnerapi */
   baseUrl?: string;
 };
 
@@ -84,7 +84,7 @@ export class SeatsAeroClient {
 
   constructor(config: SeatsAeroClientConfig) {
     this.apiKey = config.apiKey;
-    this.baseUrl = config.baseUrl ?? "https://seats.aero/api";
+    this.baseUrl = config.baseUrl ?? "https://seats.aero/partnerapi";
   }
 
   /**
@@ -115,7 +115,7 @@ export class SeatsAeroClient {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "X-API-Key": this.apiKey,
+        "Partner-Authorization": this.apiKey,
         Accept: "application/json",
       },
     });
@@ -132,47 +132,6 @@ export class SeatsAeroClient {
 
     // Validate response schema
     return SearchResponseSchema.parse(data);
-  }
-
-  /**
-   * Perform a live search against airline systems for real-time availability.
-   *
-   * This endpoint queries airline systems directly and returns current award
-   * availability. It's more accurate but slower than cached search.
-   *
-   * @param request - Live search request parameters
-   * @returns Live search response with availability trips and booking links
-   * @throws {SeatsAeroAPIError} If the API returns an error
-   * @throws {Error} If the response cannot be parsed or validated
-   */
-  async liveSearch(request: LiveSearchRequest): Promise<LiveSearchResponse> {
-    // Validate request body
-    const validatedRequest = LiveSearchRequestSchema.parse(request);
-
-    const url = `${this.baseUrl}/live`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "X-API-Key": this.apiKey,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(validatedRequest),
-    });
-
-    if (!response.ok) {
-      throw new SeatsAeroAPIError(
-        `Live search request failed: ${response.statusText}`,
-        response.status,
-        response.statusText,
-      );
-    }
-
-    const data = await response.json();
-
-    // Validate response schema
-    return LiveSearchResponseSchema.parse(data);
   }
 
   /**

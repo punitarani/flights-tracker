@@ -6,6 +6,8 @@ const tablePrefix = {
   airline: "aln",
   notification: "ntf",
   alertNotification: "ant",
+  seatsAeroSearchRequest: "sasr",
+  seatsAeroAvailabilityTrip: "saat",
 } as const;
 
 type TableName = keyof typeof tablePrefix;

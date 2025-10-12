@@ -49,7 +49,7 @@ describe("SeatsAeroClient - search", () => {
 
     // Verify fetch was called correctly
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining("https://api.seats.aero/search?"),
+      expect.stringContaining("https://seats.aero/partnerapi/search?"),
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({
