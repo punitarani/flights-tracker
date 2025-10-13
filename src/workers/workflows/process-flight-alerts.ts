@@ -10,6 +10,7 @@ import {
   type WorkflowStep,
 } from "cloudflare:workers";
 import { processDailyAlertsForUser } from "../adapters/alert-processing";
+import { userHasActiveAlerts } from "../adapters/alerts-db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
 import { addBreadcrumb, captureException, setUser } from "../utils/sentry";
@@ -36,6 +37,40 @@ export class ProcessFlightAlertsWorkflow extends WorkflowEntrypoint<
       userId,
       instanceId: event.instanceId,
     });
+
+    // Validate user has active alerts (defense-in-depth)
+    const hasActiveAlerts = await step.do(
+      "validate-user-has-active-alerts",
+      async () => {
+        const hasAlerts = await userHasActiveAlerts(this.env, userId);
+
+        if (!hasAlerts) {
+          workerLogger.warn("User has no active alerts", {
+            userId,
+            instanceId: event.instanceId,
+          });
+
+          addBreadcrumb("Validation failed: no active alerts", { userId });
+        }
+
+        return hasAlerts;
+      },
+    );
+
+    // Skip processing if user has no active alerts
+    if (!hasActiveAlerts) {
+      const result = {
+        success: false,
+        reason: "User has no active daily alerts",
+      };
+
+      workerLogger.info("Skipping workflow - no active alerts", {
+        userId,
+        instanceId: event.instanceId,
+      });
+
+      return result;
+    }
 
     const result = await step.do(
       `process-alerts-for-user-${userId}`,

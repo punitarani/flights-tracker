@@ -67,6 +67,8 @@ Examples:
 Environment Variables:
   WORKER_URL            Production worker URL (required if not using --local)
                         Example: https://flights-tracker-worker.YOUR_SUBDOMAIN.workers.dev
+  WORKER_API_KEY        API key for authentication (recommended for production)
+                        Set this secret in Cloudflare: bunx wrangler secret put WORKER_API_KEY
 
 Notes:
   - Triggers CheckFlightAlertsWorkflow (fetches all users with active daily alerts)
@@ -98,6 +100,13 @@ function getWorkerUrl(local: boolean): string {
 }
 
 /**
+ * Gets the API key for authentication
+ */
+function getApiKey(): string | undefined {
+  return process.env.WORKER_API_KEY;
+}
+
+/**
  * Triggers the check-alerts workflow (all users)
  */
 async function triggerWorkflow(workerUrl: string): Promise<void> {
@@ -105,11 +114,24 @@ async function triggerWorkflow(workerUrl: string): Promise<void> {
   console.log(`   URL: ${workerUrl}/trigger/check-alerts\n`);
 
   try {
+    const apiKey = getApiKey();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    // Add Authorization header if API key is provided
+    if (apiKey) {
+      headers.Authorization = `Bearer ${apiKey}`;
+      console.log("   🔐 Using API key authentication\n");
+    } else {
+      console.log(
+        "   ⚠️  No API key provided (set WORKER_API_KEY env var for production)\n",
+      );
+    }
+
     const response = await fetch(`${workerUrl}/trigger/check-alerts`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
     });
 
     if (!response.ok) {

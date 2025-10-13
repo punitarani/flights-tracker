@@ -5,6 +5,7 @@
 
 import * as Sentry from "@sentry/cloudflare";
 import type { QueueMessage, WorkerEnv } from "./env";
+import { getClientIp, getUserAgent, validateApiKey } from "./utils/auth";
 import { workerLogger } from "./utils/logger";
 import { captureException, getSentryOptions, setTag } from "./utils/sentry";
 import { CheckFlightAlertsWorkflow } from "./workflows/check-flight-alerts";
@@ -132,6 +133,29 @@ const handlers = {
         url.pathname === "/trigger/check-alerts" &&
         request.method === "POST"
       ) {
+        // Get client information for logging
+        const clientIp = getClientIp(request);
+        const userAgent = getUserAgent(request);
+
+        // Step 1: Validate API key
+        const authResult = validateApiKey(request, env);
+        if (!authResult.authenticated) {
+          workerLogger.warn("Unauthorized trigger attempt", {
+            reason: authResult.reason,
+            clientIp,
+            userAgent,
+          });
+
+          return Response.json(
+            {
+              error: "Unauthorized",
+              message: authResult.reason,
+            },
+            { status: 401 },
+          );
+        }
+
+        // Step 2: Create workflow instance
         const date = new Date().toISOString().split("T")[0];
         const instanceId = `CheckFlightAlertsWorkflow_${date}_manual`;
 
@@ -140,8 +164,26 @@ const handlers = {
           params: {},
         });
 
+        // Step 3: Audit log
         workerLogger.info("Manually triggered CheckFlightAlertsWorkflow", {
           instanceId,
+          clientIp,
+          userAgent,
+          authenticated: true,
+        });
+
+        // Send to Sentry for audit trail
+        captureException(new Error("Manual workflow trigger"), {
+          level: "info",
+          tags: {
+            event_type: "manual_trigger",
+            workflow: "check-flight-alerts",
+          },
+          extra: {
+            instanceId,
+            clientIp,
+            userAgent,
+          },
         });
 
         return Response.json({

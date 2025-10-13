@@ -25,6 +25,10 @@ export interface WorkerEnv {
   SENTRY_DSN: string;
   SENTRY_ENVIRONMENT: string;
 
+  // Security
+  WORKER_API_KEY?: string; // API key for manual trigger authentication
+  DISABLE_MANUAL_TRIGGERS?: string; // Set to "true" to disable manual HTTP triggers
+
   // Proxy configuration (optional)
   PROXY_ENABLED?: string;
   PROXY_HOST?: string;

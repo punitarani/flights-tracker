@@ -29,3 +29,29 @@ export async function getUserIdsWithActiveDailyAlerts(
 
   return results.map((row) => row.userId);
 }
+
+/**
+ * Checks if a user has active daily alerts
+ */
+export async function userHasActiveAlerts(
+  env: WorkerEnv,
+  userId: string,
+): Promise<boolean> {
+  const db = getWorkerDb(env);
+  const now = new Date().toISOString();
+
+  const result = await db
+    .select({ count: alert.id })
+    .from(alert)
+    .where(
+      and(
+        eq(alert.userId, userId),
+        eq(alert.status, "active"),
+        eq(alert.type, AlertType.DAILY),
+        or(isNull(alert.alertEnd), gte(alert.alertEnd, now)),
+      ),
+    )
+    .limit(1);
+
+  return result.length > 0;
+}

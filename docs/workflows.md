@@ -117,10 +117,14 @@ bunx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 bunx wrangler secret put NEXTJS_API_URL
 bunx wrangler secret put SEATS_AERO_API_KEY
 
+# Security (highly recommended for production)
+bunx wrangler secret put WORKER_API_KEY  # Generate a strong random key
+
 # Optional (recommended)
 bunx wrangler secret put RESEND_FROM_EMAIL
 bunx wrangler secret put SENTRY_DSN
 bunx wrangler secret put SENTRY_ENVIRONMENT
+bunx wrangler secret put DISABLE_MANUAL_TRIGGERS  # Set to "true" to disable manual HTTP triggers
 ```
 
 **Secret Values:**
@@ -131,6 +135,8 @@ bunx wrangler secret put SENTRY_ENVIRONMENT
 * `SUPABASE_SERVICE_ROLE_KEY`: Service role key from Supabase dashboard
 * `NEXTJS_API_URL`: Production URL of Next.js app (e.g., `https://flights-tracker.vercel.app`)
 * `SEATS_AERO_API_KEY`: Seats.aero API key
+* `WORKER_API_KEY`: Strong random key for manual trigger authentication (generate with: `openssl rand -base64 32`)
+* `DISABLE_MANUAL_TRIGGERS`: Set to `"true"` to completely disable manual HTTP triggers
 * `RESEND_FROM_EMAIL`: Email sender (default: `alerts@graypane.com`)
 * `SENTRY_DSN`: Sentry project DSN (optional but recommended)
 * `SENTRY_ENVIRONMENT`: `production` or `staging`
@@ -227,6 +233,147 @@ bun scripts/trigger-alerts.ts --help
 6. Emails sent if eligible (6-9 PM UTC, once per 24h)
 7. Instance IDs include `_manual` suffix to distinguish from cron triggers
 8. Real-time status and monitoring commands displayed after trigger
+
+## Security
+
+### Overview
+
+The worker implements multiple layers of security to prevent unauthorized access:
+
+1. **API Key Authentication** - Protects manual HTTP triggers
+2. **Audit Logging** - Tracks all manual triggers with Sentry
+3. **Workflow Validation** - Validates user data before processing
+4. **Environment-Based Controls** - Ability to disable manual triggers entirely
+
+### API Key Authentication
+
+Manual HTTP triggers (`/trigger/check-alerts`) require authentication via API key.
+
+**Setup:**
+
+```bash
+# Generate a strong random API key
+openssl rand -base64 32
+
+# Set as Cloudflare secret
+bunx wrangler secret put WORKER_API_KEY
+```
+
+**Usage:**
+
+```bash
+# With curl
+curl -X POST https://your-worker.workers.dev/trigger/check-alerts \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# With trigger script
+WORKER_API_KEY=your_key bun run trigger:alerts
+```
+
+**Behavior:**
+
+* ✅ If `WORKER_API_KEY` is not set: Allows all requests (development mode)
+* ❌ If `WORKER_API_KEY` is set but request has no/invalid key: Returns 401 Unauthorized
+* ✅ If `WORKER_API_KEY` matches request header: Allows request
+
+### Audit Logging
+
+All manual workflow triggers are logged to both structured logs and Sentry for audit trail.
+
+**Logged Information:**
+
+* Timestamp
+* Client IP address
+* User agent
+* Authentication status
+* Instance ID
+
+**View Logs:**
+
+```bash
+# Live logs
+bun run worker:tail
+
+# Sentry dashboard
+# Events tagged with: event_type=manual_trigger
+```
+
+### Workflow Validation
+
+`ProcessFlightAlertsWorkflow` validates that the user has active alerts before processing (defense-in-depth).
+
+**Validation Steps:**
+
+1. Check if `userId` exists in database
+2. Verify user has active daily alerts
+3. Skip processing if validation fails
+
+This prevents malicious actors from triggering workflows for invalid or inactive users.
+
+**Code Location:** `src/workers/workflows/process-flight-alerts.ts:41-73`
+
+### Disabling Manual Triggers
+
+For maximum security in production, you can completely disable manual HTTP triggers.
+
+**Setup:**
+
+```bash
+bunx wrangler secret put DISABLE_MANUAL_TRIGGERS
+# Enter: true
+```
+
+**Effect:**
+
+* All requests to `/trigger/*` endpoints return 401 Unauthorized
+* Only cron-triggered workflows will run
+* Prevents any manual intervention
+
+### Security Best Practices
+
+**Production Deployment:**
+
+1. ✅ Always set `WORKER_API_KEY` to a strong random value
+2. ✅ Store API key securely (password manager, secrets vault)
+3. ✅ Rotate API key periodically (e.g., quarterly)
+4. ✅ Monitor Sentry for unauthorized access attempts
+5. ✅ Consider setting `DISABLE_MANUAL_TRIGGERS=true` if manual triggers aren't needed
+
+**API Key Management:**
+
+```bash
+# Generate new key
+openssl rand -base64 32
+
+# Update in Cloudflare
+bunx wrangler secret put WORKER_API_KEY
+
+# Update in local environment for trigger script
+export WORKER_API_KEY="your_new_key"
+```
+
+**Monitoring for Attacks:**
+
+Look for these patterns in logs:
+
+* Multiple 401 Unauthorized responses (brute force attempts)
+* Unusual IP addresses in audit logs
+* Unexpected spike in manual triggers
+
+### Threat Model
+
+**Protected Against:**
+
+* ✅ Unauthorized workflow triggering
+* ✅ Processing alerts for invalid users
+* ✅ Timing attacks (constant-time API key comparison)
+
+**Not Protected Against:**
+
+* ❌ Compromised `WORKER_API_KEY` (rotate immediately if leaked)
+* ❌ DOS/abuse via repeated triggering (consider adding rate limiting if needed)
+* ❌ Cloudflare account compromise (use strong passwords + 2FA)
+* ❌ Database compromise (separate concern)
 
 ## Monitoring & Observability
 
