@@ -1,7 +1,7 @@
 /**
  * ProcessFlightAlertsWorkflow
  * Processes all alerts for a single user
- * Instance ID pattern: process-alerts:{userId}:{YYYY-MM-DD}
+ * Instance ID pattern: ProcessFlightAlertsWorkflow_{userId}_{YYYY-MM-DD}
  */
 
 import {

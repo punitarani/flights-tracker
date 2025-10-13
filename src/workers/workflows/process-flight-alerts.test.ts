@@ -12,11 +12,11 @@ describe("ProcessFlightAlertsWorkflow", () => {
   test("creates correct instance ID format", () => {
     const userId = "user-123";
     const date = "2025-01-15";
-    const instanceId = `process-alerts:${userId}:${date}`;
+    const instanceId = `ProcessFlightAlertsWorkflow_${userId}_${date}`;
 
-    expect(instanceId).toBe("process-alerts:user-123:2025-01-15");
+    expect(instanceId).toBe("ProcessFlightAlertsWorkflow_user-123_2025-01-15");
     expect(instanceId).toMatch(
-      /^process-alerts:[a-zA-Z0-9-]+:\d{4}-\d{2}-\d{2}$/,
+      /^ProcessFlightAlertsWorkflow_[a-zA-Z0-9-]+_\d{4}-\d{2}-\d{2}$/,
     );
   });
 
@@ -40,11 +40,11 @@ describe("ProcessFlightAlertsWorkflow", () => {
   test("instance ID includes all required components", () => {
     const userId = "user-test-789";
     const date = new Date().toISOString().split("T")[0];
-    const instanceId = `process-alerts:${userId}:${date}`;
+    const instanceId = `ProcessFlightAlertsWorkflow_${userId}_${date}`;
 
-    const parts = instanceId.split(":");
+    const parts = instanceId.split("_");
     expect(parts).toHaveLength(3);
-    expect(parts[0]).toBe("process-alerts");
+    expect(parts[0]).toBe("ProcessFlightAlertsWorkflow");
     expect(parts[1]).toBe(userId);
     expect(parts[2]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });

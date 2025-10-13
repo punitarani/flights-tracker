@@ -28,10 +28,10 @@ describe("CheckFlightAlertsWorkflow", () => {
 
   test("creates correct instance ID format", () => {
     const date = "2025-01-15";
-    const instanceId = `check-alerts:${date}`;
+    const instanceId = `CheckFlightAlertsWorkflow_${date}`;
 
-    expect(instanceId).toBe("check-alerts:2025-01-15");
-    expect(instanceId).toMatch(/^check-alerts:\d{4}-\d{2}-\d{2}$/);
+    expect(instanceId).toBe("CheckFlightAlertsWorkflow_2025-01-15");
+    expect(instanceId).toMatch(/^CheckFlightAlertsWorkflow_\d{4}-\d{2}-\d{2}$/);
   });
 
   test("queue message format is correct", () => {

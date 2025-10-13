@@ -15,9 +15,11 @@ describe("E2E Worker Flows", () => {
 
     // Step 1: Cron creates instance ID
     const date = new Date().toISOString().split("T")[0];
-    const checkInstanceId = `check-alerts:${date}`;
+    const checkInstanceId = `CheckFlightAlertsWorkflow_${date}`;
 
-    expect(checkInstanceId).toMatch(/^check-alerts:\d{4}-\d{2}-\d{2}$/);
+    expect(checkInstanceId).toMatch(
+      /^CheckFlightAlertsWorkflow_\d{4}-\d{2}-\d{2}$/,
+    );
 
     // Step 2: Check workflow queues users
     const userIds = ["user-1", "user-2", "user-3"];
@@ -28,11 +30,13 @@ describe("E2E Worker Flows", () => {
 
     // Step 3: Queue creates process instances
     const processInstanceIds = userIds.map(
-      (userId) => `process-alerts:${userId}:${date}`,
+      (userId) => `ProcessFlightAlertsWorkflow_${userId}_${date}`,
     );
 
     expect(processInstanceIds).toHaveLength(3);
-    expect(processInstanceIds[0]).toBe(`process-alerts:user-1:${date}`);
+    expect(processInstanceIds[0]).toBe(
+      `ProcessFlightAlertsWorkflow_user-1_${date}`,
+    );
   });
 
   test("validates batching logic for large user sets", () => {

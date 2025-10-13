@@ -15,7 +15,7 @@ CheckFlightAlertsWorkflow
          ↓
 Queue Consumer (max 10 concurrent, auto-scales)
     ↓
-ProcessFlightAlertsWorkflow:{userId}:{date}
+ProcessFlightAlertsWorkflow_{userId}_{date}
     ├─ Check email eligibility (6-9 PM UTC + 24h limit)
     ├─ Fetch active alerts for user
     ├─ Filter expired/processed alerts
@@ -225,7 +225,7 @@ bun scripts/trigger-alerts.ts --help
 4. Queue consumer processes up to 10 users concurrently
 5. Each user gets a ProcessFlightAlertsWorkflow instance
 6. Emails sent if eligible (6-9 PM UTC, once per 24h)
-7. Instance IDs include `:manual` suffix to distinguish from cron triggers
+7. Instance IDs include `_manual` suffix to distinguish from cron triggers
 8. Real-time status and monitoring commands displayed after trigger
 
 ## Monitoring & Observability
@@ -270,7 +270,7 @@ bunx wrangler workflows instances describe check-flight-alerts latest
 
 # Check specific user's workflow
 bunx wrangler workflows instances describe process-flight-alerts \
-  process-alerts:USER_ID:2025-10-12
+  ProcessFlightAlertsWorkflow_USER_ID_2025-10-12
 
 # View detailed workflow step execution
 bunx wrangler workflows instances describe process-flight-alerts latest --full

@@ -12,9 +12,11 @@ describe("Worker Handlers", () => {
   describe("scheduled handler", () => {
     test("validates cron instance ID format", () => {
       const date = new Date().toISOString().split("T")[0];
-      const instanceId = `check-alerts:${date}`;
+      const instanceId = `CheckFlightAlertsWorkflow_${date}`;
 
-      expect(instanceId).toMatch(/^check-alerts:\d{4}-\d{2}-\d{2}$/);
+      expect(instanceId).toMatch(
+        /^CheckFlightAlertsWorkflow_\d{4}-\d{2}-\d{2}$/,
+      );
     });
 
     test("validates cron schedule format", () => {
@@ -45,10 +47,10 @@ describe("Worker Handlers", () => {
     test("validates instance ID pattern for queue messages", () => {
       const userId = "user-456";
       const date = new Date().toISOString().split("T")[0];
-      const instanceId = `process-alerts:${userId}:${date}`;
+      const instanceId = `ProcessFlightAlertsWorkflow_${userId}_${date}`;
 
       expect(instanceId).toMatch(
-        /^process-alerts:[a-zA-Z0-9-]+:\d{4}-\d{2}-\d{2}$/,
+        /^ProcessFlightAlertsWorkflow_[a-zA-Z0-9-]+_\d{4}-\d{2}-\d{2}$/,
       );
     });
 
@@ -85,10 +87,12 @@ describe("Worker Handlers", () => {
 
     test("validates manual trigger instance ID format", () => {
       const date = new Date().toISOString().split("T")[0];
-      const instanceId = `check-alerts:${date}:manual`;
+      const instanceId = `CheckFlightAlertsWorkflow_${date}_manual`;
 
-      expect(instanceId).toMatch(/^check-alerts:\d{4}-\d{2}-\d{2}:manual$/);
-      expect(instanceId).toContain(":manual");
+      expect(instanceId).toMatch(
+        /^CheckFlightAlertsWorkflow_\d{4}-\d{2}-\d{2}_manual$/,
+      );
+      expect(instanceId).toContain("_manual");
     });
 
     test("health response structure", () => {

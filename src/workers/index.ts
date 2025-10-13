@@ -30,7 +30,7 @@ const handlers = {
       });
 
       const date = new Date().toISOString().split("T")[0];
-      const instanceId = `check-alerts-${date}`;
+      const instanceId = `CheckFlightAlertsWorkflow_${date}`;
 
       const instance = await env.CHECK_ALERTS_WORKFLOW.create({
         id: instanceId,
@@ -77,7 +77,7 @@ const handlers = {
 
       try {
         const date = new Date().toISOString().split("T")[0];
-        const instanceId = `process-alerts-${userId}-${date}`;
+        const instanceId = `ProcessFlightAlertsWorkflow_${userId}_${date}`;
 
         await env.PROCESS_ALERTS_WORKFLOW.create({
           id: instanceId,
@@ -133,7 +133,7 @@ const handlers = {
         request.method === "POST"
       ) {
         const date = new Date().toISOString().split("T")[0];
-        const instanceId = `check-alerts-${date}-manual`;
+        const instanceId = `CheckFlightAlertsWorkflow_${date}_manual`;
 
         const instance = await env.CHECK_ALERTS_WORKFLOW.create({
           id: instanceId,
