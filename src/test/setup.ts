@@ -1,4 +1,4 @@
-import { afterEach, mock } from "bun:test";
+import { mock } from "bun:test";
 import { GlobalWindow } from "happy-dom";
 
 // Set up DOM environment for all tests
@@ -13,13 +13,9 @@ global.Element = window.Element;
 global.Event = window.Event;
 global.KeyboardEvent = window.KeyboardEvent;
 
-process.env.WEBHOOK_SECRET =
-  process.env.WEBHOOK_SECRET ?? "test-webhook-secret";
-
 mock.module("@/env", () => ({
   env: {
     DATABASE_URL: "mock://test-database-url-for-testing",
-    WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
 
     // External Services
     SEATS_AERO_API_KEY: "test-seats-aero-api-key",
@@ -72,10 +68,6 @@ class ResizeObserverMock {
 if (typeof globalThis.ResizeObserver === "undefined") {
   (globalThis as Record<string, unknown>).ResizeObserver = ResizeObserverMock;
 }
-
-afterEach(() => {
-  mock.restore();
-});
 
 Object.assign(globalThis, {
   console: {

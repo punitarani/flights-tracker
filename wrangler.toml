@@ -1,0 +1,43 @@
+name = "flights-tracker-worker"
+main = "src/workers/index.ts"
+compatibility_date = "2025-09-15"
+compatibility_flags = ["nodejs_compat", "nodejs_als", "nodejs_compat_populate_process_env"]
+
+# Keep workers.dev subdomain
+workers_dev = true
+
+# Custom domain routing
+[[routes]]
+pattern = "workers.graypane.com"
+custom_domain = true
+
+# Observability
+observability.enabled = true
+observability.head_sampling_rate = 1
+
+# Cron trigger - every 6 hours
+[triggers]
+crons = ["0 */6 * * *"]
+
+# Workflow bindings
+[[workflows]]
+name = "check-flight-alerts"
+binding = "CHECK_ALERTS_WORKFLOW"
+class_name = "CheckFlightAlertsWorkflow"
+
+[[workflows]]
+name = "process-flight-alerts"
+binding = "PROCESS_ALERTS_WORKFLOW"
+class_name = "ProcessFlightAlertsWorkflow"
+
+# Queue configuration
+[[queues.producers]]
+queue = "flights-tracker-alerts-queue"
+binding = "ALERTS_QUEUE"
+
+[[queues.consumers]]
+queue = "flights-tracker-alerts-queue"
+max_batch_size = 10
+max_batch_timeout = 30
+max_concurrency = 10  # Critical: limit to 10 concurrent users
+max_retries = 3

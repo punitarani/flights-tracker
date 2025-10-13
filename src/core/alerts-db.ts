@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull, or, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { type Alert, airline, airport, alert } from "@/db/schema";
 import { AlertType } from "./alert-types";
@@ -192,20 +192,6 @@ export async function validateAirlines(iataCodes: string[]): Promise<string[]> {
     .where(eq(airline.iata, uppercaseCodes[0])); // This will need to be improved for multiple codes
 
   return result.map((row) => row.iata);
-}
-
-export async function acquireUserLock(userId: string) {
-  const result = await db.execute(
-    sql`select pg_try_advisory_xact_lock(hashtext(${userId})) as locked;`,
-  );
-
-  const rows = (Array.isArray(result) ? result : []) as Array<
-    { locked?: boolean | "t" | "f" } | undefined
-  >;
-
-  const lockedValue = rows[0]?.locked;
-
-  return typeof lockedValue === "boolean" ? lockedValue : lockedValue === "t";
 }
 
 /**

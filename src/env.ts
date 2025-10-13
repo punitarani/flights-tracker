@@ -1,7 +1,8 @@
-import { createEnv } from "@t3-oss/env-nextjs";
+import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
 
 export const env = createEnv({
+  clientPrefix: "NEXT_PUBLIC_",
   server: {
     // Database
     DATABASE_URL: z.string().min(1),
@@ -12,9 +13,6 @@ export const env = createEnv({
     // Email & Notifications
     RESEND_API_KEY: z.string().min(1),
     RESEND_FROM_EMAIL: z.string().email().optional(),
-
-    // Security
-    WEBHOOK_SECRET: z.string().min(1),
 
     // External APIs
     SEATS_AERO_API_KEY: z.string().min(1),
@@ -33,6 +31,7 @@ export const env = createEnv({
     PROXY_PASSWORD: z.string().min(1).optional(),
     PROXY_PROTOCOL: z.enum(["http", "https", "socks5"]).default("http"),
   },
+
   client: {
     // Supabase
     NEXT_PUBLIC_SUPABASE_URL: z.url(),
@@ -44,6 +43,7 @@ export const env = createEnv({
     // Monitoring
     NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
   },
+
   runtimeEnv: {
     // Server - Database
     DATABASE_URL: process.env.DATABASE_URL,
@@ -54,9 +54,6 @@ export const env = createEnv({
     // Server - Email & Notifications
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
-
-    // Server - Security
-    WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
 
     // Server - External APIs
     SEATS_AERO_API_KEY: process.env.SEATS_AERO_API_KEY,
@@ -83,4 +80,6 @@ export const env = createEnv({
     // Client - Monitoring
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
   },
+  // Only validate on server
+  skipValidation: process.env.VERCEL !== "1",
 });

@@ -14,7 +14,13 @@ import {
 } from "@/lib/fli/models";
 import { SearchFlights } from "@/lib/fli/search";
 
-describe("SearchFlights", () => {
+// Integration tests - make real HTTP calls to Google Flights API
+// Run explicitly with: bun run test:fli
+const describeOrSkip = process.env.RUN_INTEGRATION_TESTS
+  ? describe
+  : describe.skip;
+
+describeOrSkip("SearchFlights", () => {
   let search: SearchFlights;
 
   beforeAll(() => {

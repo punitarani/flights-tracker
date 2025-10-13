@@ -1,0 +1,33 @@
+# Copy this file to .dev.vars for local Cloudflare Worker development
+# DO NOT commit .dev.vars to version control
+
+# These should match your .env values for the web app
+
+# Database
+DATABASE_URL=postgresql://user:password@host:port/database
+
+# Email
+RESEND_API_KEY=re_xxxxxxxxxxxxx
+RESEND_FROM_EMAIL=Flight Alerts <alerts@yourdomain.com>
+
+# Supabase (for fetching user emails)
+SUPABASE_URL=https://xxxxxxxxxxxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# Next.js App URL (for fetching flight data)
+NEXTJS_API_URL=http://localhost:3000
+
+# External APIs
+SEATS_AERO_API_KEY=xxxxxxxxxxxxx
+
+# Sentry (optional - for error tracking)
+SENTRY_DSN=https://xxxxxxxxxxxxx@o0.ingest.sentry.io/xxxxxxxxxxxxx
+SENTRY_ENVIRONMENT=development
+
+# Proxy (optional)
+PROXY_ENABLED=false
+PROXY_PROTOCOL=http
+PROXY_HOST=
+PROXY_PORT=
+PROXY_USERNAME=
+PROXY_PASSWORD=

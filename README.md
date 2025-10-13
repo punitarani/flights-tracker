@@ -20,6 +20,7 @@ GrayPane helps travelers check available flights, monitor price trends, plan upc
 
 * **Frontend:** Next.js 15, React 19, Tailwind CSS, Radix UI primitives, next-themes, Sonner.
 * **Backend:** Next.js Server Actions, Supabase SSR client, Drizzle ORM.
+* **Workers:** Cloudflare Workers with Workflows and Queues for alert processing.
 * **Database:** PostgreSQL with prefixed ULID identifiers.
 * **Tooling:** TypeScript, Vitest with happy-dom, Biome formatter/linter, Bun runtime.
 
@@ -36,14 +37,27 @@ GrayPane helps travelers check available flights, monitor price trends, plan upc
 
 ## Available Scripts
 
+### Application
 * `bun run dev` – Start the Turbopack development server.
 * `bun run build` – Produce an optimized production bundle.
 * `bun start` – Serve the production build.
-* `bun test` – Execute all tests with Vitest.
+
+### Testing
+* `bun test` – Execute all tests with Bun's built-in test runner.
 * `bun run test:watch` – Run tests in watch mode.
-* `bun run test:ui` – Launch the Vitest UI runner.
+* `bun run test:fli` – Run fli integration tests with extended timeout.
+* `bun run test:workers` – Run Cloudflare Worker tests (37 tests).
+
+### Code Quality
 * `bun run lint` – Check code style with Biome.
 * `bun run format` – Format the codebase with Biome.
+
+### Workers (Cloudflare)
+* `bun run worker:dev` – Start worker with local development server.
+* `bun run worker:deploy` – Deploy worker to Cloudflare.
+* `bun run worker:tail` – Stream live logs from production worker.
+* `bun run trigger:alerts` – Manually trigger alert processing (production).
+* `bun run trigger:alerts:local` – Manually trigger alert processing (local).
 
 ## Database & Migrations
 
@@ -70,6 +84,19 @@ Supabase handles authentication with SSR support. Middleware in `src/middleware.
 
 Alert-related domain logic lives in `src/core/alerts-service.ts`, `src/core/alerts-db.ts`, and versioned filter schemas in `src/core/filters.ts`.
 
+### Alert Processing (Cloudflare Workers)
+
+Automated alert processing runs on Cloudflare Workers with:
+- **Cron Triggers**: Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
+- **Workflows**: Durable execution with automatic retries and state persistence
+- **Queues**: Process up to 10 users concurrently with auto-scaling
+- **Email Scheduling**: Sends daily emails between 6-9 PM UTC, max once per 24 hours
+- **Monitoring**: Full Sentry integration for error tracking and performance monitoring
+- **Testing**: Comprehensive test suite with 37 passing tests
+- **Performance**: Optimized with parallel async operations throughout
+
+See `docs/workflows.md` for complete deployment and monitoring guide.
+
 ### UI Components
 
 Reusable components reside in `src/components/ui`, while custom features like `airport-search` and `airport-map` integrate Apple MapKit and Tailwind styling. Path alias `@/*` maps to `./src/*` for cleaner imports.
@@ -82,6 +109,17 @@ Reusable components reside in `src/components/ui`, while custom features like `a
 * `SUPABASE_SECRET_KEY` – Supabase service role key.
 * `NEXT_PUBLIC_MAPKIT_TOKEN` – Apple MapKit JS token.
 
-## Testing Notes
+## Testing
 
-Tests run with Vitest in a happy-dom environment. Global setup, mocks, and database stubs are configured in `src/test-setup.ts`.
+### Application Tests
+Tests run with Bun's built-in test runner in a happy-dom environment. Global setup, mocks, and database stubs are configured in `src/test/setup.ts`.
+
+### Worker Tests
+Comprehensive test suite for Cloudflare Workers with 37 passing tests covering:
+- Utils (logger, user fetching, flights search, sentry)
+- Adapters (alerts-db, alert-processing)
+- Workflows (check-flight-alerts, process-flight-alerts)
+- Handlers (scheduled, queue, fetch)
+- E2E flow validation
+
+Run with `bun run test:workers` - all tests execute in under 100ms without requiring Cloudflare Workers runtime.

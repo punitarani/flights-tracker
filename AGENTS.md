@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Next.js 15 application for tracking flight alerts with Supabase authentication, PostgreSQL database (via Drizzle ORM), and Apple MapKit integration. Built with React 19, TypeScript, and Tailwind CSS.
 
+**Alert Processing**: Automated via Cloudflare Workers with Workflows and Queues. See `src/workers/` directory and `docs/cloudflare-migration.md`.
+
 ## Development Commands
 
 ### Running the Application
@@ -37,6 +39,19 @@ A Next.js 15 application for tracking flight alerts with Supabase authentication
 * Schema: `src/db/schema.ts`
 * Config: `drizzle.config.ts`
 * Migrations directory: `./migrations`
+
+### Cloudflare Workers (Async Data Processing)
+
+* Located in: `src/workers/` directory
+* `bun run worker:dev` - Run worker locally
+* `bun run worker:deploy` - Deploy to Cloudflare
+* `bun run worker:tail` - View live logs
+* Config: `wrangler.toml` at project root
+* See `src/workers/README.md` for documentation
+* Cron: Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
+* Emails: Only sent 6-9 PM UTC, max once per 24h per user
+* **Code reuse**: Workers import from `src/core/`, `src/db/`, `src/lib/` - no duplication
+* **Observability**: Sentry integration for error tracking and performance monitoring
 
 ## Architecture
 
