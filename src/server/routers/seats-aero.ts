@@ -1,6 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { getAvailabilityTrips } from "@/core/seats-aero-cache-db";
+import {
+  getAvailabilityByDay,
+  getAvailabilityTrips,
+} from "@/core/seats-aero-cache-db";
 import { SeatsAeroSearchInputSchema } from "../schemas/seats-aero-search";
 import {
   SeatsAeroSearchError,
@@ -35,12 +38,33 @@ export const seatsAeroRouter = createRouter()
       }
     },
   })
-  .query("getTrips", {
+  .query("getAvailabilityByDay", {
     input: z.object({
       originAirport: z.string().length(3),
       destinationAirport: z.string().length(3),
       searchStartDate: z.string(),
       searchEndDate: z.string(),
+      cabinClass: z
+        .enum(["economy", "business", "first", "premium_economy"])
+        .optional(),
+    }),
+    async resolve({ input }) {
+      try {
+        return await getAvailabilityByDay(input);
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to fetch availability by day",
+          cause: error,
+        });
+      }
+    },
+  })
+  .query("getTrips", {
+    input: z.object({
+      originAirport: z.string().length(3),
+      destinationAirport: z.string().length(3),
+      travelDate: z.string(),
       cabinClass: z
         .enum(["economy", "business", "first", "premium_economy"])
         .optional(),

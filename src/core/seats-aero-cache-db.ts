@@ -1,4 +1,4 @@
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   type SeatsAeroAvailabilityTrip,
@@ -45,6 +45,28 @@ export type GetAvailabilityTripsParams = {
   searchEndDate?: string;
   cabinClass?: "economy" | "business" | "first" | "premium_economy";
   source?: string;
+};
+
+export type GetAvailabilityByDayParams = {
+  originAirport: string;
+  destinationAirport: string;
+  searchStartDate: string;
+  searchEndDate: string;
+  cabinClass?: "economy" | "business" | "first" | "premium_economy";
+};
+
+export type AvailabilityByDay = {
+  travelDate: string;
+  totalFlights: number;
+  economyCount: number;
+  businessCount: number;
+  firstCount: number;
+  premiumEconomyCount: number;
+  economyMinMileage: number | null;
+  businessMinMileage: number | null;
+  firstMinMileage: number | null;
+  premiumEconomyMinMileage: number | null;
+  hasDirectFlights: boolean;
 };
 
 /**
@@ -255,6 +277,58 @@ export async function upsertAvailabilityTrip(
     .returning();
 
   return result[0];
+}
+
+/**
+ * Gets aggregated availability by day with counts and min mileage per cabin class
+ * Uses SQL GROUP BY for optimal performance
+ * @param params - Query parameters
+ * @returns Array of daily availability aggregates
+ */
+export async function getAvailabilityByDay(
+  params: GetAvailabilityByDayParams,
+): Promise<AvailabilityByDay[]> {
+  const now = new Date().toISOString();
+
+  // Build WHERE conditions
+  const conditions = [
+    sql`${seatsAeroAvailabilityTrip.originAirport} = ${params.originAirport.toUpperCase()}`,
+    sql`${seatsAeroAvailabilityTrip.destinationAirport} = ${params.destinationAirport.toUpperCase()}`,
+    sql`${seatsAeroAvailabilityTrip.travelDate} >= ${params.searchStartDate}`,
+    sql`${seatsAeroAvailabilityTrip.travelDate} <= ${params.searchEndDate}`,
+    sql`${seatsAeroAvailabilityTrip.expiresAt} >= ${now}`,
+  ];
+
+  // Add optional cabin class filter
+  if (params.cabinClass) {
+    conditions.push(
+      sql`${seatsAeroAvailabilityTrip.cabinClass} = ${params.cabinClass}`,
+    );
+  }
+
+  const whereClause = sql.join(conditions, sql.raw(" AND "));
+
+  // SQL query with aggregation
+  const results = await db.execute<AvailabilityByDay>(sql`
+    SELECT
+      ${seatsAeroAvailabilityTrip.travelDate} as "travelDate",
+      COUNT(*)::int as "totalFlights",
+      COUNT(CASE WHEN ${seatsAeroAvailabilityTrip.cabinClass} = 'economy' THEN 1 END)::int as "economyCount",
+      COUNT(CASE WHEN ${seatsAeroAvailabilityTrip.cabinClass} = 'business' THEN 1 END)::int as "businessCount",
+      COUNT(CASE WHEN ${seatsAeroAvailabilityTrip.cabinClass} = 'first' THEN 1 END)::int as "firstCount",
+      COUNT(CASE WHEN ${seatsAeroAvailabilityTrip.cabinClass} = 'premium_economy' THEN 1 END)::int as "premiumEconomyCount",
+      MIN(CASE WHEN ${seatsAeroAvailabilityTrip.cabinClass} = 'economy' THEN ${seatsAeroAvailabilityTrip.mileageCost} END)::int as "economyMinMileage",
+      MIN(CASE WHEN ${seatsAeroAvailabilityTrip.cabinClass} = 'business' THEN ${seatsAeroAvailabilityTrip.mileageCost} END)::int as "businessMinMileage",
+      MIN(CASE WHEN ${seatsAeroAvailabilityTrip.cabinClass} = 'first' THEN ${seatsAeroAvailabilityTrip.mileageCost} END)::int as "firstMinMileage",
+      MIN(CASE WHEN ${seatsAeroAvailabilityTrip.cabinClass} = 'premium_economy' THEN ${seatsAeroAvailabilityTrip.mileageCost} END)::int as "premiumEconomyMinMileage",
+      BOOL_OR(${seatsAeroAvailabilityTrip.stops} = 0) as "hasDirectFlights"
+    FROM ${seatsAeroAvailabilityTrip}
+    WHERE ${whereClause}
+    GROUP BY ${seatsAeroAvailabilityTrip.travelDate}
+    ORDER BY ${seatsAeroAvailabilityTrip.travelDate} ASC
+  `);
+
+  return results as AvailabilityByDay[];
 }
 
 /**
