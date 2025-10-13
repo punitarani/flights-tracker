@@ -7,10 +7,6 @@ import * as Sentry from "@sentry/cloudflare";
 import type { WorkerEnv } from "../env";
 
 export function getSentryOptions(env: WorkerEnv) {
-  if (!env.SENTRY_DSN) {
-    return null;
-  }
-
   return {
     dsn: env.SENTRY_DSN,
     environment: env.SENTRY_ENVIRONMENT || "production",
