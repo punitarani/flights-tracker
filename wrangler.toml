@@ -12,8 +12,9 @@ pattern = "workers.graypane.com"
 custom_domain = true
 
 # Observability
-observability.enabled = true
-observability.head_sampling_rate = 1
+[observability]
+enabled = true
+head_sampling_rate = 1
 
 # Cron trigger - every 6 hours
 [triggers]
