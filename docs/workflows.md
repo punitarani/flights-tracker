@@ -46,6 +46,86 @@ src/workers/                     (~350 lines of Cloudflare-specific code)
 
 **Key Design:** Workers import directly from `src/core/`, `src/db/`, and `src/lib/` for ~90% code reuse with zero duplication.
 
+## Seats.aero Search Workflow
+
+### ProcessSeatsAeroSearchWorkflow
+
+**Purpose:** Asynchronously fetches award flight availability data from seats.aero API
+
+**Trigger:** HTTP endpoint `/trigger/seats-aero-search` (called by Next.js API when frontend requests data)
+
+**Instance ID Pattern:**
+```
+ProcessSeatsAeroSearch_{origin}_{dest}_{startDate}_{endDate}
+Example: ProcessSeatsAeroSearch_SFO_NRT_2025-10-15_2025-10-22
+```
+
+**Flow:**
+```
+Frontend Request (tRPC)
+    ↓
+Service Layer (searchSeatsAero)
+    ├─ Check DB for search request
+    ├─ If completed: return trips
+    ├─ If pending/processing: return status + partial trips
+    ├─ If failed: delete and recreate
+    └─ If not exists: create + trigger workflow
+         ↓
+    Return status: 'pending' immediately
+         ↓
+Worker HTTP Endpoint (/trigger/seats-aero-search)
+    ↓
+ProcessSeatsAeroSearchWorkflow_{origin}_{dest}_{dates}
+    ├─ Validate search request exists
+    ├─ Fetch from seats.aero API (paginated)
+    ├─ Store individual trips in DB
+    ├─ Update progress (cursor, count)
+    └─ Mark completed or failed
+         ↓
+Frontend polls every 3s (TanStack Query)
+    ↓
+Once completed: returns trips from DB
+```
+
+**Configuration:**
+- Timeout: 30 minutes
+- Retries: 3 attempts with exponential backoff
+- Retry delay: 5 minutes
+- TTL: Search requests expire after 60 minutes
+- Trip TTL: Trips expire after 120 minutes
+- Pagination: 1000 results per page
+
+**Idempotency:**
+- Only 1 workflow per route + date range (enforced by instance ID)
+- Duplicate triggers are safely ignored by Cloudflare
+- Failed searches can be retried after deletion
+
+**Monitoring:**
+```bash
+# List instances
+bunx wrangler workflows instances list seats-aero-search
+
+# Check specific route
+bunx wrangler workflows instances describe seats-aero-search \
+  ProcessSeatsAeroSearch_SFO_NRT_2025-10-15_2025-10-22
+
+# Trigger manually (requires WORKER_API_KEY)
+curl -X POST https://your-worker.workers.dev/trigger/seats-aero-search \
+  -H "Authorization: Bearer $WORKER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"originAirport":"SFO","destinationAirport":"NRT","searchStartDate":"2025-10-15","searchEndDate":"2025-10-22"}'
+```
+
+**Database Tables:**
+- `seats_aero_search_request` - Tracks search status and pagination state
+- `seats_aero_availability_trip` - Individual flight availability records
+
+**Integration:**
+- Next.js service layer calls worker endpoint to trigger workflow
+- Frontend polls tRPC endpoint until status is "completed"
+- TanStack Query handles automatic 3-second polling
+- Workflow stores data in database for immediate access
+
 ## Email Sending Rules
 
 Emails sent **ONLY** when ALL conditions are met:
@@ -74,6 +154,11 @@ class_name = "CheckFlightAlertsWorkflow"
 name = "process-flight-alerts"
 binding = "PROCESS_ALERTS_WORKFLOW"
 class_name = "ProcessFlightAlertsWorkflow"
+
+[[workflows]]
+name = "seats-aero-search"
+binding = "SEATS_AERO_SEARCH_WORKFLOW"
+class_name = "ProcessSeatsAeroSearchWorkflow"
 
 # Queue
 [[queues.consumers]]
@@ -147,10 +232,31 @@ bunx wrangler secret put DISABLE_MANUAL_TRIGGERS  # Set to "true" to disable man
 bun run worker:deploy
 ```
 
-### Step 4: Verify
+### Step 4: Configure Next.js Environment
+
+The Next.js application needs to know how to communicate with the worker for seats.aero searches:
 
 ```bash
-# Check workflows registered
+# .env.local (for local development)
+WORKER_URL=http://localhost:8787  # or your worker URL
+WORKER_API_KEY=your-api-key
+
+# Vercel (for production)
+vercel env add WORKER_URL
+# Enter: https://your-worker.workers.dev
+
+vercel env add WORKER_API_KEY
+# Enter: same key as WORKER_API_KEY in Cloudflare secrets
+```
+
+**Important:** The `WORKER_API_KEY` must be the same in both:
+- Cloudflare Worker secrets (for authenticating incoming requests)
+- Next.js environment variables (for authenticating outgoing requests)
+
+### Step 5: Verify
+
+```bash
+# Check workflows registered (should show 3 workflows)
 bunx wrangler workflows list
 
 # View live logs
@@ -158,7 +264,14 @@ bun run worker:tail
 
 # Wait for next cron (00:00, 06:00, 12:00, 18:00 UTC)
 # OR trigger manually for testing:
-curl -X POST https://YOUR-WORKER.workers.dev/trigger/check-alerts
+curl -X POST https://YOUR-WORKER.workers.dev/trigger/check-alerts \
+  -H "Authorization: Bearer $WORKER_API_KEY"
+
+# Test seats.aero workflow
+curl -X POST https://YOUR-WORKER.workers.dev/trigger/seats-aero-search \
+  -H "Authorization: Bearer $WORKER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"originAirport":"SFO","destinationAirport":"NRT","searchStartDate":"2025-11-01","searchEndDate":"2025-11-08"}'
 ```
 
 ## Development

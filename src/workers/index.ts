@@ -10,8 +10,13 @@ import { workerLogger } from "./utils/logger";
 import { captureException, getSentryOptions, setTag } from "./utils/sentry";
 import { CheckFlightAlertsWorkflow } from "./workflows/check-flight-alerts";
 import { ProcessFlightAlertsWorkflow } from "./workflows/process-flight-alerts";
+import { ProcessSeatsAeroSearchWorkflow } from "./workflows/process-seats-aero-search";
 
-export { CheckFlightAlertsWorkflow, ProcessFlightAlertsWorkflow };
+export {
+  CheckFlightAlertsWorkflow,
+  ProcessFlightAlertsWorkflow,
+  ProcessSeatsAeroSearchWorkflow,
+};
 
 const handlers = {
   /**
@@ -193,12 +198,139 @@ const handlers = {
         });
       }
 
+      // Trigger seats.aero search workflow
+      if (
+        url.pathname === "/trigger/seats-aero-search" &&
+        request.method === "POST"
+      ) {
+        // Get client information for logging
+        const clientIp = getClientIp(request);
+        const userAgent = getUserAgent(request);
+
+        // Step 1: Validate API key
+        const authResult = validateApiKey(request, env);
+        if (!authResult.authenticated) {
+          workerLogger.warn("Unauthorized seats.aero search trigger attempt", {
+            reason: authResult.reason,
+            clientIp,
+            userAgent,
+          });
+
+          return Response.json(
+            {
+              error: "Unauthorized",
+              message: authResult.reason,
+            },
+            { status: 401 },
+          );
+        }
+
+        // Step 2: Parse and validate request body
+        const body = (await request.json()) as {
+          originAirport: string;
+          destinationAirport: string;
+          searchStartDate: string;
+          searchEndDate: string;
+        };
+
+        // Validate required fields
+        if (
+          !body.originAirport ||
+          !body.destinationAirport ||
+          !body.searchStartDate ||
+          !body.searchEndDate
+        ) {
+          return Response.json(
+            {
+              error: "Bad Request",
+              message:
+                "Missing required fields: originAirport, destinationAirport, searchStartDate, searchEndDate",
+            },
+            { status: 400 },
+          );
+        }
+
+        // Step 3: Determine instance ID with retry logic
+        const baseInstanceId = `ProcessSeatsAeroSearch_${body.originAirport}_${body.destinationAirport}_${body.searchStartDate}_${body.searchEndDate}`;
+        let instanceId = baseInstanceId;
+        let _shouldCreateNew = true;
+
+        // Check if workflow instance already exists
+        try {
+          const existingInstance =
+            await env.SEATS_AERO_SEARCH_WORKFLOW.get(baseInstanceId);
+          const status = await existingInstance.status();
+
+          if (
+            status.status === "complete" ||
+            status.status === "running" ||
+            status.status === "queued" ||
+            status.status === "paused"
+          ) {
+            // Workflow is active or completed, return existing instance
+            workerLogger.info("Returning existing workflow instance", {
+              instanceId: baseInstanceId,
+              status: status.status,
+            });
+
+            return Response.json({
+              success: true,
+              instanceId: existingInstance.id,
+              status,
+            });
+          }
+
+          // Workflow is in terminal failed state, create new instance with retry suffix
+          if (status.status === "errored" || status.status === "terminated") {
+            instanceId = `${baseInstanceId}_retry_${Date.now()}`;
+            workerLogger.info("Creating retry workflow instance", {
+              originalId: baseInstanceId,
+              retryId: instanceId,
+              previousStatus: status.status,
+            });
+          }
+        } catch (_error) {
+          // Instance doesn't exist, use original ID
+          workerLogger.info(
+            "No existing workflow found, creating new instance",
+            {
+              instanceId: baseInstanceId,
+            },
+          );
+          _shouldCreateNew = true;
+        }
+
+        // Step 4: Create workflow instance
+        const instance = await env.SEATS_AERO_SEARCH_WORKFLOW.create({
+          id: instanceId,
+          params: body,
+        });
+
+        // Step 5: Audit log
+        workerLogger.info("Triggered seats.aero search workflow", {
+          instanceId,
+          route: `${body.originAirport}-${body.destinationAirport}`,
+          dates: `${body.searchStartDate} to ${body.searchEndDate}`,
+          clientIp,
+          userAgent,
+          authenticated: true,
+        });
+
+        return Response.json({
+          success: true,
+          instanceId: instance.id,
+          status: await instance.status(),
+        });
+      }
+
       return Response.json({
         message: "Flights Tracker Worker",
         endpoints: {
           health: "GET /health",
           triggerCheck:
             "POST /trigger/check-alerts (manual testing - processes all users)",
+          triggerSeatsAero:
+            "POST /trigger/seats-aero-search (trigger seats.aero data fetch)",
         },
       });
     } catch (error) {

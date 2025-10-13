@@ -6,15 +6,8 @@
  */
 
 import { env } from "@/env";
-import type {
-  LiveSearchRequest,
-  LiveSearchResponse,
-  SearchRequestParams,
-  SearchResponse,
-} from "../models/seats-aero";
+import type { SearchRequestParams, SearchResponse } from "../models/seats-aero";
 import {
-  LiveSearchRequestSchema,
-  LiveSearchResponseSchema,
   SearchRequestParamsSchema,
   SearchResponseSchema,
 } from "../models/seats-aero";

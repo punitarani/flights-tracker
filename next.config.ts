@@ -4,6 +4,14 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactCompiler: true,
 
+  // Exclude Sentry packages from bundling to avoid module resolution issues with Turbopack
+  serverExternalPackages: [
+    "@sentry/nextjs",
+    "@sentry/node",
+    "@sentry/core",
+    "@sentry/opentelemetry",
+  ],
+
   // Optional: Enable Turbopack file system caching for faster development
   experimental: {
     turbopackFileSystemCacheForDev: true,

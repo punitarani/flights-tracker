@@ -1,18 +1,16 @@
 import {
-  completeSearchRequest,
   createSearchRequest,
+  deleteRouteRecords,
   failSearchRequest,
   getAvailabilityTrips,
   getSearchRequest,
-  updateSearchRequestProgress,
-  upsertAvailabilityTrip,
 } from "@/core/seats-aero-cache-db";
-import type { SearchResponse } from "@/lib/fli/models/seats-aero";
-import { createSeatsAeroClient } from "@/lib/fli/seats-aero/client";
+import type { SeatsAeroAvailabilityTrip } from "@/db/schema";
+import { env } from "@/env";
 import type { SeatsAeroSearchInput } from "../schemas/seats-aero-search";
 
 /**
- * Service for searching flight availability using seats.aero API with normalized caching
+ * Service for searching flight availability using seats.aero API with workflow-based processing
  */
 
 export class SeatsAeroSearchError extends Error {
@@ -26,21 +24,32 @@ export class SeatsAeroSearchError extends Error {
 }
 
 /**
- * Searches for flight availability using seats.aero API with normalized caching
+ * Result of seats.aero search operation
+ */
+export type SeatsAeroSearchResult = {
+  status: "pending" | "processing" | "completed" | "failed";
+  trips: SeatsAeroAvailabilityTrip[];
+  errorMessage?: string;
+};
+
+/**
+ * Searches for flight availability using seats.aero API with workflow-based processing
  *
  * Flow:
- * 1. Check if we have a fresh completed search request
- * 2. If yes, return cached trips from DB
- * 3. If no, fetch from API, store individual trips, track pagination
- * 4. Return trips from DB
+ * 1. Check if we have a search request in DB
+ * 2. If completed and useCache: return cached trips
+ * 3. If pending/processing: return current status with partial trips
+ * 4. If failed: delete records and create new search
+ * 5. If not exists: create search request and trigger workflow
+ * 6. Return status for frontend polling
  *
  * @param input - Search parameters
- * @returns Search response with availability data
+ * @returns Search result with status and trips
  * @throws {SeatsAeroSearchError} If the search fails
  */
 export async function searchSeatsAero(
   input: SeatsAeroSearchInput,
-): Promise<SearchResponse> {
+): Promise<SeatsAeroSearchResult> {
   const searchParams = {
     originAirport: input.originAirport,
     destinationAirport: input.destinationAirport,
@@ -49,11 +58,11 @@ export async function searchSeatsAero(
   };
 
   try {
-    // 1. Check for existing fresh search request
+    // 1. Check for existing search request
     const existingSearch = await getSearchRequest(searchParams);
 
+    // 2. If completed and useCache, return trips
     if (existingSearch?.status === "completed" && input.useCache) {
-      // Return cached trips from DB
       const trips = await getAvailabilityTrips({
         originAirport: input.originAirport,
         destinationAirport: input.destinationAirport,
@@ -61,75 +70,64 @@ export async function searchSeatsAero(
         searchEndDate: input.endDate,
       });
 
-      return {
-        data: [], // We don't need the Availability structure anymore
-        count: trips.length,
-        hasMore: false,
-        cursor: 0,
-      };
+      return { status: "completed", trips };
     }
 
-    // 2. If search is in progress or failed, we could resume, but for now let's create fresh
-    // In production, you might want to handle resuming interrupted searches
+    // 3. If pending or processing, check useCache flag
+    if (
+      existingSearch?.status === "pending" ||
+      existingSearch?.status === "processing"
+    ) {
+      // If useCache=false, force a refresh by deleting and restarting
+      if (!input.useCache) {
+        await deleteRouteRecords(input.originAirport, input.destinationAirport);
+        // Continue to create new search request below
+      } else {
+        // Return current status with partial trips
+        const trips = await getAvailabilityTrips({
+          originAirport: input.originAirport,
+          destinationAirport: input.destinationAirport,
+          searchStartDate: input.startDate,
+          searchEndDate: input.endDate,
+        });
 
-    // 3. Create new search request
-    const searchRequest =
-      existingSearch?.status === "pending"
-        ? existingSearch
-        : await createSearchRequest({
-            ...searchParams,
-            ttlMinutes: 60,
-          });
+        return { status: existingSearch.status, trips };
+      }
+    }
 
-    const client = createSeatsAeroClient();
+    // 4. If failed, delete records to allow retry
+    if (existingSearch?.status === "failed") {
+      await deleteRouteRecords(input.originAirport, input.destinationAirport);
+    }
 
-    // 4. Fetch from API with pagination
-    let cursor: number | undefined = searchRequest.cursor ?? undefined;
-    let totalProcessed = searchRequest.processedCount ?? 0;
+    // 5. Create new search request
+    const searchRequest = await createSearchRequest({
+      ...searchParams,
+      ttlMinutes: 60,
+    });
+
+    // 6. Trigger workflow via worker HTTP endpoint
+    const workerUrl = env.WORKER_URL;
+    const workerApiKey = env.WORKER_API_KEY;
 
     try {
-      do {
-        const apiResponse = await client.search({
-          origin_airport: input.originAirport,
-          destination_airport: input.destinationAirport,
-          start_date: input.startDate,
-          end_date: input.endDate,
-          include_trips: true,
-          take: 1000,
-          only_direct_flights: false,
-          include_filtered: false,
-          cursor,
-        });
+      const response = await fetch(`${workerUrl}/trigger/seats-aero-search`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${workerApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(searchParams),
+      });
 
-        // 5. Parse and store each trip
-        for (const availability of apiResponse.data) {
-          for (const trip of availability.AvailabilityTrips) {
-            await upsertAvailabilityTrip({
-              searchRequestId: searchRequest.id,
-              trip,
-              ttlMinutes: 120, // 2 hours
-            });
-          }
-        }
-
-        totalProcessed += apiResponse.count;
-
-        // 6. Update progress
-        await updateSearchRequestProgress({
-          id: searchRequest.id,
-          cursor: apiResponse.cursor,
-          hasMore: apiResponse.hasMore,
-          processedCount: totalProcessed,
-        });
-
-        // Check if more pages exist
-        cursor = apiResponse.hasMore ? apiResponse.cursor : undefined;
-      } while (cursor !== undefined);
-
-      // 7. Mark complete
-      await completeSearchRequest(searchRequest.id);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Worker request failed: ${response.status} ${errorText}`,
+        );
+      }
     } catch (error) {
-      // Mark as failed
+      // Rollback: mark search as failed so it can be retried
       await failSearchRequest(
         searchRequest.id,
         error instanceof Error ? error.message : "Unknown error",
@@ -137,20 +135,8 @@ export async function searchSeatsAero(
       throw error;
     }
 
-    // 8. Return trips from DB
-    const trips = await getAvailabilityTrips({
-      originAirport: input.originAirport,
-      destinationAirport: input.destinationAirport,
-      searchStartDate: input.startDate,
-      searchEndDate: input.endDate,
-    });
-
-    return {
-      data: [], // We return empty array here, trips are now normalized
-      count: trips.length,
-      hasMore: false,
-      cursor: 0,
-    };
+    // 7. Return pending status
+    return { status: "pending", trips: [] };
   } catch (error) {
     throw new SeatsAeroSearchError(
       error instanceof Error

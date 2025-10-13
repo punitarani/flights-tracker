@@ -60,6 +60,7 @@ export const createMockEnv = (overrides?: Partial<WorkerEnv>): WorkerEnv => ({
   SENTRY_ENVIRONMENT: "test",
   CHECK_ALERTS_WORKFLOW: createMockWorkflow() as unknown as Workflow,
   PROCESS_ALERTS_WORKFLOW: createMockWorkflow() as unknown as Workflow,
+  SEATS_AERO_SEARCH_WORKFLOW: createMockWorkflow() as unknown as Workflow,
   ALERTS_QUEUE: createMockQueue() as unknown as Queue<QueueMessageBody>,
   ...overrides,
 });

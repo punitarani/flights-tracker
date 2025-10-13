@@ -6,6 +6,7 @@ export interface WorkerEnv {
   // Workflows
   CHECK_ALERTS_WORKFLOW: Workflow;
   PROCESS_ALERTS_WORKFLOW: Workflow;
+  SEATS_AERO_SEARCH_WORKFLOW: Workflow;
 
   // Queue
   ALERTS_QUEUE: Queue<QueueMessage>;
