@@ -261,7 +261,7 @@ export function FlightOptionsList({
                         variant="outline"
                         className="w-fit whitespace-nowrap text-xs"
                       >
-                        Y: {MILEAGE_FORMATTER.format(awardMatch.economy)}
+                        Economy: {MILEAGE_FORMATTER.format(awardMatch.economy)}
                       </Badge>
                     )}
                     {awardMatch.premiumEconomy !== null && (
@@ -269,7 +269,8 @@ export function FlightOptionsList({
                         variant="outline"
                         className="w-fit whitespace-nowrap text-xs"
                       >
-                        W: {MILEAGE_FORMATTER.format(awardMatch.premiumEconomy)}
+                        Premium:{" "}
+                        {MILEAGE_FORMATTER.format(awardMatch.premiumEconomy)}
                       </Badge>
                     )}
                     {awardMatch.business !== null && (
@@ -277,7 +278,8 @@ export function FlightOptionsList({
                         variant="outline"
                         className="w-fit whitespace-nowrap text-xs"
                       >
-                        J: {MILEAGE_FORMATTER.format(awardMatch.business)}
+                        Business:{" "}
+                        {MILEAGE_FORMATTER.format(awardMatch.business)}
                       </Badge>
                     )}
                     {awardMatch.first !== null && (
@@ -285,7 +287,7 @@ export function FlightOptionsList({
                         variant="outline"
                         className="w-fit whitespace-nowrap text-xs"
                       >
-                        F: {MILEAGE_FORMATTER.format(awardMatch.first)}
+                        First: {MILEAGE_FORMATTER.format(awardMatch.first)}
                       </Badge>
                     )}
                   </div>
