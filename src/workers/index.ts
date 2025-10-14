@@ -35,8 +35,14 @@ const handlers = {
         scheduledTime: controller.scheduledTime,
       });
 
-      const date = new Date().toISOString().split("T")[0];
-      const instanceId = `CheckFlightAlertsWorkflow_${date}`;
+      const now = new Date();
+      const date = now.toISOString().split("T")[0];
+      const time = now
+        .toISOString()
+        .split("T")[1]
+        .substring(0, 5)
+        .replace(":", "-"); // HH-MM format
+      const instanceId = `CheckFlightAlertsWorkflow_${date}_${time}`;
 
       const instance = await env.CHECK_ALERTS_WORKFLOW.create({
         id: instanceId,
@@ -161,8 +167,14 @@ const handlers = {
         }
 
         // Step 2: Create workflow instance
-        const date = new Date().toISOString().split("T")[0];
-        const instanceId = `CheckFlightAlertsWorkflow_${date}_manual`;
+        const now = new Date();
+        const date = now.toISOString().split("T")[0];
+        const time = now
+          .toISOString()
+          .split("T")[1]
+          .substring(0, 5)
+          .replace(":", "-"); // HH-MM format
+        const instanceId = `CheckFlightAlertsWorkflow_${date}_${time}_manual`;
 
         const instance = await env.CHECK_ALERTS_WORKFLOW.create({
           id: instanceId,
