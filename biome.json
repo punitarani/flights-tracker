@@ -13,7 +13,8 @@
       "!.next",
       "!dist",
       "!build",
-      "!src/components/ui"
+      "!src/components/ui",
+      "!data/seats-aero"
     ]
   },
   "formatter": {
