@@ -7,10 +7,12 @@ import {
   seatsAeroSearchRequest,
 } from "@/db/schema";
 import type { AvailabilityTrip } from "@/lib/fli/models/seats-aero";
+import { parseFlightNumbers } from "@/lib/fli/models/seats-aero";
 
 /**
- * Database operations for seats.aero normalized cache
+ * Database operations for seats.aero persistent store
  * Tracks search requests and individual flight availability records
+ * Data persists indefinitely - API is only queried once per route/date
  */
 
 export type SearchRequestParams = {
@@ -20,9 +22,7 @@ export type SearchRequestParams = {
   searchEndDate: string;
 };
 
-export type CreateSearchRequestInput = SearchRequestParams & {
-  ttlMinutes?: number;
-};
+export type CreateSearchRequestInput = SearchRequestParams;
 
 export type UpdateSearchRequestProgressInput = {
   id: string;
@@ -34,7 +34,6 @@ export type UpdateSearchRequestProgressInput = {
 export type UpsertAvailabilityTripInput = {
   searchRequestId: string;
   trip: AvailabilityTrip;
-  ttlMinutes?: number;
 };
 
 export type GetAvailabilityTripsParams = {
@@ -71,17 +70,12 @@ export type AvailabilityByDay = {
 
 /**
  * Creates a new search request record or updates if one exists
- * Uses UPSERT to handle expired records with same route/dates
  * @param input - Search request parameters
  * @returns The created or updated search request
  */
 export async function createSearchRequest(
   input: CreateSearchRequestInput,
 ): Promise<SeatsAeroSearchRequest> {
-  const now = new Date();
-  const ttl = input.ttlMinutes ?? 60;
-  const expiresAt = new Date(now.getTime() + ttl * 60 * 1000);
-
   const values = {
     originAirport: input.originAirport.toUpperCase(),
     destinationAirport: input.destinationAirport.toUpperCase(),
@@ -94,7 +88,6 @@ export async function createSearchRequest(
     processedCount: null,
     errorMessage: null,
     completedAt: null,
-    expiresAt: expiresAt.toISOString(),
   };
 
   const result = await db
@@ -115,15 +108,13 @@ export async function createSearchRequest(
 }
 
 /**
- * Gets an existing search request if it exists and is not expired
+ * Gets an existing search request if it exists
  * @param params - Search parameters to match
  * @returns Search request if found, null otherwise
  */
 export async function getSearchRequest(
   params: SearchRequestParams,
 ): Promise<SeatsAeroSearchRequest | null> {
-  const now = new Date().toISOString();
-
   const result = await db
     .select()
     .from(seatsAeroSearchRequest)
@@ -139,7 +130,6 @@ export async function getSearchRequest(
         ),
         eq(seatsAeroSearchRequest.searchStartDate, params.searchStartDate),
         eq(seatsAeroSearchRequest.searchEndDate, params.searchEndDate),
-        gte(seatsAeroSearchRequest.expiresAt, now),
       ),
     )
     .orderBy(seatsAeroSearchRequest.createdAt)
@@ -217,10 +207,6 @@ export async function failSearchRequest(
 export async function upsertAvailabilityTrip(
   input: UpsertAvailabilityTripInput,
 ): Promise<SeatsAeroAvailabilityTrip> {
-  const now = new Date();
-  const ttl = input.ttlMinutes ?? 120; // 2 hours default
-  const expiresAt = new Date(now.getTime() + ttl * 60 * 1000);
-
   const trip = input.trip;
 
   // Map cabin class from API enum to our schema
@@ -242,7 +228,7 @@ export async function upsertAvailabilityTrip(
     originAirport: trip.OriginAirport.toUpperCase(),
     destinationAirport: trip.DestinationAirport.toUpperCase(),
     travelDate: trip.DepartsAt.split("T")[0], // Extract date from ISO timestamp
-    flightNumbers: trip.FlightNumbers,
+    flightNumbers: parseFlightNumbers(trip.FlightNumbers),
     carriers: trip.Carriers,
     aircraftTypes: trip.Aircraft ?? null,
     departureTime: trip.DepartsAt,
@@ -259,7 +245,6 @@ export async function upsertAvailabilityTrip(
     source: trip.Source,
     apiCreatedAt: trip.CreatedAt,
     apiUpdatedAt: trip.UpdatedAt,
-    expiresAt: expiresAt.toISOString(),
     rawData: trip,
   };
 
@@ -288,15 +273,12 @@ export async function upsertAvailabilityTrip(
 export async function getAvailabilityByDay(
   params: GetAvailabilityByDayParams,
 ): Promise<AvailabilityByDay[]> {
-  const now = new Date().toISOString();
-
   // Build WHERE conditions
   const conditions = [
     sql`${seatsAeroAvailabilityTrip.originAirport} = ${params.originAirport.toUpperCase()}`,
     sql`${seatsAeroAvailabilityTrip.destinationAirport} = ${params.destinationAirport.toUpperCase()}`,
     sql`${seatsAeroAvailabilityTrip.travelDate} >= ${params.searchStartDate}`,
     sql`${seatsAeroAvailabilityTrip.travelDate} <= ${params.searchEndDate}`,
-    sql`${seatsAeroAvailabilityTrip.expiresAt} >= ${now}`,
   ];
 
   // Add optional cabin class filter
@@ -339,8 +321,6 @@ export async function getAvailabilityByDay(
 export async function getAvailabilityTrips(
   params: GetAvailabilityTripsParams,
 ): Promise<SeatsAeroAvailabilityTrip[]> {
-  const now = new Date().toISOString();
-
   const conditions = [
     eq(
       seatsAeroAvailabilityTrip.originAirport,
@@ -350,7 +330,6 @@ export async function getAvailabilityTrips(
       seatsAeroAvailabilityTrip.destinationAirport,
       params.destinationAirport.toUpperCase(),
     ),
-    gte(seatsAeroAvailabilityTrip.expiresAt, now),
   ];
 
   // Add optional filters
@@ -389,32 +368,6 @@ export async function getAvailabilityTrips(
     );
 
   return results;
-}
-
-/**
- * Deletes expired search requests and trips
- * @returns Number of records deleted
- */
-export async function deleteExpiredRecords(): Promise<{
-  searchRequests: number;
-  trips: number;
-}> {
-  const now = new Date().toISOString();
-
-  const expiredRequests = await db
-    .delete(seatsAeroSearchRequest)
-    .where(lte(seatsAeroSearchRequest.expiresAt, now))
-    .returning();
-
-  const expiredTrips = await db
-    .delete(seatsAeroAvailabilityTrip)
-    .where(lte(seatsAeroAvailabilityTrip.expiresAt, now))
-    .returning();
-
-  return {
-    searchRequests: expiredRequests.length,
-    trips: expiredTrips.length,
-  };
 }
 
 /**

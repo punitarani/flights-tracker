@@ -1,6 +1,9 @@
 import { mock } from "bun:test";
 import { GlobalWindow } from "happy-dom";
 
+// Indicate we're in a test environment
+process.env.NODE_ENV = process.env.NODE_ENV || "test";
+
 // Set up DOM environment for all tests
 const window = new GlobalWindow();
 const document = window.document;
@@ -13,14 +16,22 @@ global.Element = window.Element;
 global.Event = window.Event;
 global.KeyboardEvent = window.KeyboardEvent;
 
+// Mock environment variables to avoid @t3-oss/env-nextjs blocking server vars
+// when happy-dom sets up global.window (making it think we're on client-side)
 mock.module("@/env", () => ({
   env: {
     DATABASE_URL: "mock://test-database-url-for-testing",
-
-    // External Services
+    SUPABASE_SECRET_KEY: "test-supabase-secret-key",
+    RESEND_API_KEY: "test-resend-api-key",
+    RESEND_FROM_EMAIL: "Flight Alerts <alerts@resend.dev>",
     SEATS_AERO_API_KEY: "test-seats-aero-api-key",
+    WORKER_URL: "https://test-worker.example.com",
+    WORKER_API_KEY: "test-worker-api-key",
+    NEXT_PUBLIC_SUPABASE_URL: "https://test.supabase.co",
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-supabase-publishable-key",
+    NEXT_PUBLIC_MAPKIT_TOKEN: "test-mapkit-token",
 
-    // Use real proxy configuration if available, otherwise disabled
+    // Use real proxy configuration if set in actual environment
     PROXY_ENABLED: process.env.PROXY_ENABLED === "true",
     PROXY_HOST: process.env.PROXY_HOST,
     PROXY_PORT: process.env.PROXY_PORT

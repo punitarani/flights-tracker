@@ -4,7 +4,7 @@ import {
   failSearchRequest,
   getAvailabilityTrips,
   getSearchRequest,
-} from "@/core/seats-aero-cache-db";
+} from "@/core/seats-aero.db";
 import type { SeatsAeroAvailabilityTrip } from "@/db/schema";
 import { env } from "@/env";
 import type { SeatsAeroSearchInput } from "../schemas/seats-aero-search";
@@ -101,10 +101,7 @@ export async function searchSeatsAero(
     }
 
     // 5. Create new search request
-    const searchRequest = await createSearchRequest({
-      ...searchParams,
-      ttlMinutes: 60,
-    });
+    const searchRequest = await createSearchRequest(searchParams);
 
     // 6. Trigger workflow via worker HTTP endpoint
     const workerUrl = env.WORKER_URL;

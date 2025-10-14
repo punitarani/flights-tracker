@@ -14,12 +14,12 @@ import {
   fetchFlightDataForAlerts,
 } from "./alert-flight-fetcher";
 import { AlertType } from "./alert-types";
-import { getAirportByIata, updateAlert } from "./alerts-db";
+import { getAirportByIata, updateAlert } from "./alerts.db";
 import { getUserAlerts } from "./alerts-service";
 import {
   createNotificationWithAlerts,
   hasAlertBeenProcessedRecently,
-} from "./notifications-db";
+} from "./notifications.db";
 
 /**
  * Main alert processing service

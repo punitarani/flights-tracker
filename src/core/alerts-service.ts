@@ -9,7 +9,7 @@ import {
   updateAlert,
   validateAirlineExists,
   validateAirportExists,
-} from "./alerts-db";
+} from "./alerts.db";
 import { AlertNotFoundError, AlertValidationError } from "./errors";
 import {
   type AlertFilterCriteria,

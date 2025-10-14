@@ -1,7 +1,7 @@
 import "@/test/setup";
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { AlertType } from "@/core/alert-types";
-import * as alertsDb from "@/core/alerts-db";
+import * as alertsDb from "@/core/alerts.db";
 import {
   createFlightAlert,
   getFlightAlert,
@@ -17,7 +17,7 @@ import {
   createMockUserId,
 } from "./mock-data";
 
-mock.module("@/core/alerts-db", () => ({
+mock.module("@/core/alerts.db", () => ({
   validateAirportExists: mock(),
   validateAirlineExists: mock(),
   createAlert: mock(),

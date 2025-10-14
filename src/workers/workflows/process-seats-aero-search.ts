@@ -9,7 +9,7 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
-import type { SearchRequestParams } from "@/core/seats-aero-cache-db";
+import type { SearchRequestParams } from "@/core/seats-aero.db";
 import { createSeatsAeroClient } from "@/lib/fli/seats-aero/client";
 import {
   completeSearchRequest,
@@ -17,7 +17,7 @@ import {
   getSearchRequest,
   updateSearchRequestProgress,
   upsertAvailabilityTrip,
-} from "../adapters/seats-aero-db";
+} from "../adapters/seats-aero.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
 import { addBreadcrumb, captureException } from "../utils/sentry";
@@ -125,7 +125,6 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
                 await upsertAvailabilityTrip(this.env, {
                   searchRequestId: searchRequest.id,
                   trip,
-                  ttlMinutes: 120, // 2 hours
                 });
               }
             }

@@ -9,7 +9,7 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
-import { getUserIdsWithActiveDailyAlerts } from "../adapters/alerts-db";
+import { getUserIdsWithActiveDailyAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
 import { addBreadcrumb, captureException } from "../utils/sentry";

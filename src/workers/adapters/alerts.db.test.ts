@@ -6,7 +6,7 @@
 import { describe, expect, test } from "bun:test";
 import { AlertType } from "@/core/alert-types";
 import { createMockEnv } from "../test/setup";
-import { getUserIdsWithActiveDailyAlerts } from "./alerts-db";
+import { getUserIdsWithActiveDailyAlerts } from "./alerts.db";
 
 describe("getUserIdsWithActiveDailyAlerts", () => {
   const _env = createMockEnv();

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev & next dev",
-    "build": "next build",
+    "build": "wrangler deploy --dry-run && next build",
     "start": "wrangler dev & next start",
     "lint": "biome check --write --unsafe",
     "format": "biome format --write",

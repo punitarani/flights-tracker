@@ -9,7 +9,7 @@ import {
   updateAlert,
   validateAirlineExists,
   validateAirportExists,
-} from "@/core/alerts-db";
+} from "@/core/alerts.db";
 import { db } from "@/db/client";
 import { createMockAlert, createMockAlertFilters } from "./mock-data";
 

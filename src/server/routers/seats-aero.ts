@@ -3,7 +3,7 @@ import { z } from "zod";
 import {
   getAvailabilityByDay,
   getAvailabilityTrips,
-} from "@/core/seats-aero-cache-db";
+} from "@/core/seats-aero.db";
 import { SeatsAeroSearchInputSchema } from "../schemas/seats-aero-search";
 import {
   SeatsAeroSearchError,

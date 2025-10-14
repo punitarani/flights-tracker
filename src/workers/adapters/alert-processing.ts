@@ -9,11 +9,11 @@ import {
   getAirportByIata,
   getAlertsByUser,
   updateAlert,
-} from "@/core/alerts-db";
+} from "@/core/alerts.db";
 import {
   createNotificationWithAlerts,
   hasAlertBeenProcessedRecently,
-} from "@/core/notifications-db";
+} from "@/core/notifications.db";
 import type { Alert } from "@/db/schema";
 import { notification } from "@/db/schema";
 import { sendNotificationEmail } from "@/lib/notifications";

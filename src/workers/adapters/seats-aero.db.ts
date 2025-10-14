@@ -1,14 +1,14 @@
 /**
- * Adapter for seats-aero-cache-db to work in Cloudflare Worker environment
+ * Adapter for seats-aero.db to work in Cloudflare Worker environment
  * Wraps DB operations with worker DB instance
  */
 
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type {
   SearchRequestParams,
   UpdateSearchRequestProgressInput,
   UpsertAvailabilityTripInput,
-} from "@/core/seats-aero-cache-db";
+} from "@/core/seats-aero.db";
 import {
   type SeatsAeroAvailabilityTrip,
   type SeatsAeroSearchRequest,
@@ -16,18 +16,18 @@ import {
   seatsAeroSearchRequest,
 } from "@/db/schema";
 import type { AvailabilityTrip } from "@/lib/fli/models/seats-aero";
+import { parseFlightNumbers } from "@/lib/fli/models/seats-aero";
 import { getWorkerDb } from "../db";
 import type { WorkerEnv } from "../env";
 
 /**
- * Gets an existing search request if it exists and is not expired
+ * Gets an existing search request if it exists
  */
 export async function getSearchRequest(
   env: WorkerEnv,
   params: SearchRequestParams,
 ): Promise<SeatsAeroSearchRequest | null> {
   const db = getWorkerDb(env);
-  const now = new Date().toISOString();
 
   const result = await db
     .select()
@@ -44,7 +44,6 @@ export async function getSearchRequest(
         ),
         eq(seatsAeroSearchRequest.searchStartDate, params.searchStartDate),
         eq(seatsAeroSearchRequest.searchEndDate, params.searchEndDate),
-        gte(seatsAeroSearchRequest.expiresAt, now),
       ),
     )
     .orderBy(seatsAeroSearchRequest.createdAt)
@@ -129,10 +128,6 @@ export async function upsertAvailabilityTrip(
   input: UpsertAvailabilityTripInput,
 ): Promise<SeatsAeroAvailabilityTrip> {
   const db = getWorkerDb(env);
-  const now = new Date();
-  const ttl = input.ttlMinutes ?? 120; // 2 hours default
-  const expiresAt = new Date(now.getTime() + ttl * 60 * 1000);
-
   const trip: AvailabilityTrip = input.trip;
 
   // Map cabin class from API enum to our schema
@@ -154,7 +149,7 @@ export async function upsertAvailabilityTrip(
     originAirport: trip.OriginAirport.toUpperCase(),
     destinationAirport: trip.DestinationAirport.toUpperCase(),
     travelDate: trip.DepartsAt.split("T")[0], // Extract date from ISO timestamp
-    flightNumbers: trip.FlightNumbers,
+    flightNumbers: parseFlightNumbers(trip.FlightNumbers),
     carriers: trip.Carriers,
     aircraftTypes: trip.Aircraft ?? null,
     departureTime: trip.DepartsAt,
@@ -171,7 +166,6 @@ export async function upsertAvailabilityTrip(
     source: trip.Source,
     apiCreatedAt: trip.CreatedAt,
     apiUpdatedAt: trip.UpdatedAt,
-    expiresAt: expiresAt.toISOString(),
     rawData: trip,
   };
 

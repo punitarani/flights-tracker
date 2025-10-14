@@ -111,24 +111,19 @@ export const seatsAeroSearchRequest = pgTable(
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
     completedAt: timestamp("completed_at", { mode: "string" }),
-    expiresAt: timestamp("expires_at", { mode: "string" }).notNull(),
   },
   (table) => ({
+    // Unique constraint on search parameters (also serves as index)
     uniqueSearch: unique().on(
       table.originAirport,
       table.destinationAirport,
       table.searchStartDate,
       table.searchEndDate,
     ),
-    routeDatesIdx: index("idx_search_requests_route_dates").on(
-      table.originAirport,
-      table.destinationAirport,
-      table.searchStartDate,
-      table.searchEndDate,
-    ),
+    // Index for status-based queries and cleanup operations
     statusIdx: index("idx_search_requests_status").on(
       table.status,
-      table.expiresAt,
+      table.createdAt,
     ),
   }),
 );
@@ -142,7 +137,7 @@ export const seatsAeroAvailabilityTrip = pgTable(
       .$defaultFn(() => generateId("seatsAeroAvailabilityTrip")),
     searchRequestId: text("search_request_id").references(
       () => seatsAeroSearchRequest.id,
-      { onDelete: "set null" },
+      { onDelete: "cascade" },
     ),
 
     // API identifiers
@@ -156,7 +151,7 @@ export const seatsAeroAvailabilityTrip = pgTable(
     travelDate: text("travel_date").notNull(),
 
     // Flight details
-    flightNumbers: text("flight_numbers").notNull(),
+    flightNumbers: text("flight_numbers").array().notNull(),
     carriers: text("carriers").notNull(),
     aircraftTypes: jsonb("aircraft_types").$type<string[] | null>(),
     departureTime: timestamp("departure_time", { mode: "string" }).notNull(),
@@ -184,23 +179,20 @@ export const seatsAeroAvailabilityTrip = pgTable(
     createdAt: timestamp("created_at", { mode: "string" })
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
-    expiresAt: timestamp("expires_at", { mode: "string" }).notNull(),
     rawData: jsonb("raw_data").notNull().$type<AvailabilityTrip>(),
   },
   (table) => [
-    index("idx_trips_route_date").on(
+    // Main query index: covers origin, dest, date filtering
+    // Includes createdAt for TTL-based expiry checks
+    index("idx_trips_route_date_created").on(
       table.originAirport,
       table.destinationAirport,
       table.travelDate,
+      table.createdAt,
     ),
-    index("idx_trips_route_date_cabin").on(
-      table.originAirport,
-      table.destinationAirport,
-      table.travelDate,
-      table.cabinClass,
-    ),
-    index("idx_trips_departure").on(table.departureTime),
-    index("idx_trips_expires").on(table.expiresAt),
+    // Cleanup operations that filter by creation time
+    index("idx_trips_created").on(table.createdAt),
+    // Foreign key index for joins
     index("idx_trips_search_request").on(table.searchRequestId),
   ],
 );

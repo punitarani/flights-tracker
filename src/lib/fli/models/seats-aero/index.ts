@@ -47,3 +47,5 @@ export {
   type SearchRequestParams,
   SearchRequestParamsSchema,
 } from "./search-request";
+// Utility functions
+export { parseFlightNumbers } from "./utils";

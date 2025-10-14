@@ -10,7 +10,7 @@ import {
   type WorkflowStep,
 } from "cloudflare:workers";
 import { processDailyAlertsForUser } from "../adapters/alert-processing";
-import { userHasActiveAlerts } from "../adapters/alerts-db";
+import { userHasActiveAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
 import { addBreadcrumb, captureException, setUser } from "../utils/sentry";

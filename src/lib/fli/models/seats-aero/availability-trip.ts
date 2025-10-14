@@ -14,7 +14,7 @@ export type SeatsAeroAvailabilityTripModel = {
   originAirport: string;
   destinationAirport: string;
   travelDate: string;
-  flightNumbers: string;
+  flightNumbers: string[];
   carriers: string;
   aircraftTypes: string[] | null;
   departureTime: string;
@@ -32,7 +32,6 @@ export type SeatsAeroAvailabilityTripModel = {
   apiCreatedAt: string;
   apiUpdatedAt: string;
   createdAt: string;
-  expiresAt: string;
 };
 
 export type SeatsAeroSearchRequestStatus =
@@ -55,5 +54,4 @@ export type SeatsAeroSearchRequestModel = {
   errorMessage: string | null;
   createdAt: string;
   completedAt: string | null;
-  expiresAt: string;
 };

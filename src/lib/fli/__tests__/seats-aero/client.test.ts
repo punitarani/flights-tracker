@@ -49,11 +49,11 @@ describe("SeatsAeroClient - search", () => {
 
     // Verify fetch was called correctly
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining("https://seats.aero/partnerapi/search?"),
+      expect.stringContaining("https://api.seats.aero/search?"),
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({
-          "X-API-Key": "test-api-key",
+          "Partner-Authorization": "test-api-key",
           Accept: "application/json",
         }),
       }),

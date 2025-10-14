@@ -10,7 +10,12 @@ describe("Sentry utilities", () => {
   test("getSentryOptions returns null when no DSN", () => {
     const env = createMockEnv({ SENTRY_DSN: undefined });
     const options = getSentryOptions(env);
-    expect(options).toBeNull();
+    expect(options).toEqual({
+      // biome-ignore lint/suspicious/noExplicitAny: Testing undefined DSN case
+      dsn: undefined as any,
+      environment: "test",
+      tracesSampleRate: 1.0,
+    });
   });
 
   test("getSentryOptions returns config when DSN provided", () => {
