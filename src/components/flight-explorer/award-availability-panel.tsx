@@ -2,8 +2,9 @@
 
 import { format, parseISO } from "date-fns";
 import { Calendar, Loader2, Plane } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -98,6 +99,7 @@ export function AwardAvailabilityPanel({
   sources,
 }: AwardAvailabilityPanelProps) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const toastIdRef = useRef<string | number | null>(null);
 
   // Trigger the search to populate cache
   const { isLoading: isSearching } = trpc.useQuery([
@@ -110,6 +112,19 @@ export function AwardAvailabilityPanel({
       useCache: true,
     },
   ]);
+
+  // Show toast notification when searching for award data
+  useEffect(() => {
+    if (isSearching) {
+      toastIdRef.current = toast.loading(
+        "Live search in progress for points. Please wait 1-2 minutes.",
+        { duration: Infinity },
+      );
+    } else if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current);
+      toastIdRef.current = null;
+    }
+  }, [isSearching]);
 
   // Query 1: Get daily aggregates (for calendar view)
   const {
