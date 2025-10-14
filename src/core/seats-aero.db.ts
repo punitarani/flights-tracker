@@ -44,6 +44,9 @@ export type GetAvailabilityTripsParams = {
   searchEndDate?: string;
   cabinClass?: "economy" | "business" | "first" | "premium_economy";
   source?: string;
+  sources?: string[]; // Multiple sources filter
+  maxStops?: number; // 0 for direct only, 1 for 1 stop max, etc.
+  directOnly?: boolean; // Shorthand for maxStops = 0
 };
 
 export type GetAvailabilityByDayParams = {
@@ -52,6 +55,9 @@ export type GetAvailabilityByDayParams = {
   searchStartDate: string;
   searchEndDate: string;
   cabinClass?: "economy" | "business" | "first" | "premium_economy";
+  sources?: string[]; // Multiple sources filter
+  maxStops?: number; // Filter by maximum stops
+  directOnly?: boolean; // Shorthand for maxStops = 0
 };
 
 export type AvailabilityByDay = {
@@ -288,6 +294,23 @@ export async function getAvailabilityByDay(
     );
   }
 
+  // Add optional sources filter (multiple airlines/programs)
+  if (params.sources && params.sources.length > 0) {
+    const sourcesConditions = params.sources.map(
+      (source) => sql`${seatsAeroAvailabilityTrip.source} = ${source}`,
+    );
+    conditions.push(sql`(${sql.join(sourcesConditions, sql.raw(" OR "))})`);
+  }
+
+  // Add optional stops filter
+  if (params.directOnly) {
+    conditions.push(sql`${seatsAeroAvailabilityTrip.stops} = 0`);
+  } else if (typeof params.maxStops === "number") {
+    conditions.push(
+      sql`${seatsAeroAvailabilityTrip.stops} <= ${params.maxStops}`,
+    );
+  }
+
   const whereClause = sql.join(conditions, sql.raw(" AND "));
 
   // SQL query with aggregation
@@ -356,6 +379,23 @@ export async function getAvailabilityTrips(
 
   if (params.source) {
     conditions.push(eq(seatsAeroAvailabilityTrip.source, params.source));
+  }
+
+  // Add sources filter (multiple programs)
+  if (params.sources && params.sources.length > 0) {
+    // Use SQL IN clause for multiple sources
+    const sourcesCondition = sql`${seatsAeroAvailabilityTrip.source} IN (${sql.join(
+      params.sources.map((s) => sql`${s}`),
+      sql.raw(", "),
+    )})`;
+    conditions.push(sourcesCondition);
+  }
+
+  // Add stops filter
+  if (params.directOnly) {
+    conditions.push(eq(seatsAeroAvailabilityTrip.stops, 0));
+  } else if (typeof params.maxStops === "number") {
+    conditions.push(lte(seatsAeroAvailabilityTrip.stops, params.maxStops));
   }
 
   const results = await db

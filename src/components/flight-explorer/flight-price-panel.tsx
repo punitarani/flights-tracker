@@ -21,6 +21,7 @@ import type {
   FlightExplorerFiltersState,
   FlightExplorerPriceState,
 } from "@/hooks/use-flight-explorer";
+import { trpc } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
 import { AwardAvailabilityPanel } from "./award-availability-panel";
 import { PRICE_CHART_CONFIG, USD_FORMATTER } from "./constants";
@@ -56,6 +57,23 @@ export function FlightPricePanel({
     onRefetch,
     onSelectDate,
   } = state;
+
+  // Query award trips for the selected date to show points alongside prices
+  const { data: awardTrips } = trpc.useQuery(
+    [
+      "seatsAero.getTrips",
+      {
+        originAirport: originAirport?.iata ?? "",
+        destinationAirport: destinationAirport?.iata ?? "",
+        travelDate: selectedDate ?? "",
+      },
+    ],
+    {
+      enabled: Boolean(
+        selectedDate && originAirport?.iata && destinationAirport?.iata,
+      ),
+    },
+  );
 
   if (!shouldShowPanel) {
     return null;
@@ -190,12 +208,25 @@ export function FlightPricePanel({
           ) : null}
         </Card>
 
-        {originAirport && destinationAirport && !searchError ? (
+        {originAirport &&
+        destinationAirport &&
+        !searchError &&
+        chartData.length > 0 ? (
           <AwardAvailabilityPanel
             originAirport={originAirport}
             destinationAirport={destinationAirport}
             startDate={filters.dateRange.from.toISOString().split("T")[0]}
             endDate={filters.dateRange.to.toISOString().split("T")[0]}
+            directOnly={filters.stops === 1}
+            maxStops={
+              filters.stops === 1
+                ? 0
+                : filters.stops === 2
+                  ? 1
+                  : filters.stops === 3
+                    ? 2
+                    : undefined
+            }
           />
         ) : null}
 
@@ -273,6 +304,7 @@ export function FlightPricePanel({
               selectedDate={selectedDate}
               isLoading={isFlightOptionsLoading}
               error={flightOptionsError}
+              awardTrips={awardTrips ?? []}
             />
           </Card>
         ) : null}

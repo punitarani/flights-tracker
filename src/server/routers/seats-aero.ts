@@ -47,6 +47,9 @@ export const seatsAeroRouter = createRouter()
       cabinClass: z
         .enum(["economy", "business", "first", "premium_economy"])
         .optional(),
+      sources: z.array(z.string()).optional(),
+      maxStops: z.number().int().min(0).max(10).optional(),
+      directOnly: z.boolean().optional(),
     }),
     async resolve({ input }) {
       try {
@@ -69,6 +72,9 @@ export const seatsAeroRouter = createRouter()
         .enum(["economy", "business", "first", "premium_economy"])
         .optional(),
       source: z.string().optional(),
+      sources: z.array(z.string()).optional(),
+      maxStops: z.number().int().min(0).max(10).optional(),
+      directOnly: z.boolean().optional(),
     }),
     async resolve({ input }) {
       try {

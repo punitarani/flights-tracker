@@ -5,9 +5,32 @@ export const PRICE_CHART_CONFIG = {
   },
 } as const;
 
+export const AWARD_CHART_CONFIG = {
+  economy: {
+    label: "Economy",
+    color: "var(--chart-1)",
+  },
+  business: {
+    label: "Business",
+    color: "var(--chart-2)",
+  },
+  first: {
+    label: "First",
+    color: "var(--chart-3)",
+  },
+  premiumEconomy: {
+    label: "Premium Economy",
+    color: "var(--chart-4)",
+  },
+} as const;
+
 export const USD_FORMATTER = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
+  maximumFractionDigits: 0,
+});
+
+export const MILEAGE_FORMATTER = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 0,
 });
 

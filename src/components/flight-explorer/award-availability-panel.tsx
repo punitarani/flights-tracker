@@ -1,24 +1,30 @@
 "use client";
 
 import { format, parseISO } from "date-fns";
-import { Calendar, ChevronRight, Loader2, Plane } from "lucide-react";
+import { Calendar, Loader2, Plane } from "lucide-react";
 import { useMemo, useState } from "react";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 import type { SeatsAeroAvailabilityTripModel } from "@/lib/fli/models/seats-aero";
 import { trpc } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
+import { AWARD_CHART_CONFIG, MILEAGE_FORMATTER } from "./constants";
 
 type AwardAvailabilityPanelProps = {
   originAirport: AirportData;
   destinationAirport: AirportData;
   startDate: string;
   endDate: string;
+  directOnly?: boolean;
+  maxStops?: number;
+  sources?: string[];
 };
-
-const MILEAGE_FORMATTER = new Intl.NumberFormat(undefined, {
-  maximumFractionDigits: 0,
-});
 
 type CabinSummary = {
   cabin: "Economy" | "Premium Economy" | "Business" | "First";
@@ -87,6 +93,9 @@ export function AwardAvailabilityPanel({
   destinationAirport,
   startDate,
   endDate,
+  directOnly,
+  maxStops,
+  sources,
 }: AwardAvailabilityPanelProps) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -114,6 +123,9 @@ export function AwardAvailabilityPanel({
       destinationAirport: destinationAirport.iata,
       searchStartDate: startDate,
       searchEndDate: endDate,
+      directOnly,
+      maxStops,
+      sources,
     },
   ]);
 
@@ -130,6 +142,9 @@ export function AwardAvailabilityPanel({
         destinationAirport: destinationAirport.iata,
         // biome-ignore lint/style/noNonNullAssertion: selectedDate is guaranteed to be set
         travelDate: selectedDate!,
+        directOnly,
+        maxStops,
+        sources,
       },
     ],
     {
@@ -141,6 +156,19 @@ export function AwardAvailabilityPanel({
     if (!trips) return [];
     return extractCabinSummaries(trips);
   }, [trips]);
+
+  // Transform daily availability data into chart format
+  const chartData = useMemo(() => {
+    if (!dailyAvailability) return [];
+    return dailyAvailability.map((day) => ({
+      date: day.travelDate,
+      formattedDate: format(parseISO(day.travelDate), "MMM d"),
+      economy: day.economyMinMileage,
+      business: day.businessMinMileage,
+      first: day.firstMinMileage,
+      premiumEconomy: day.premiumEconomyMinMileage,
+    }));
+  }, [dailyAvailability]);
 
   const error = dailyError || tripsError;
 
@@ -195,9 +223,13 @@ export function AwardAvailabilityPanel({
         !error &&
         dailyAvailability &&
         dailyAvailability.length === 0 && (
-          <p className="py-2 text-sm text-muted-foreground">
-            No award availability found for this route.
-          </p>
+          <div className="py-2 text-sm text-muted-foreground">
+            <p>No award availability found for this route.</p>
+            <p className="mt-1 text-xs">
+              Try searching the reverse route ({destinationAirport.iata} →{" "}
+              {originAirport.iata}) or run a new search to populate award data.
+            </p>
+          </div>
         )}
 
       {!isLoadingInitial &&
@@ -205,61 +237,103 @@ export function AwardAvailabilityPanel({
         dailyAvailability &&
         dailyAvailability.length > 0 && (
           <div className="space-y-3">
-            {/* Daily availability calendar */}
-            {!selectedDate && (
+            {/* Award availability chart */}
+            {!selectedDate && chartData.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                   <Calendar className="h-3 w-3" />
-                  <span>Select a date to see flight details</span>
+                  <span>Click a date to see flight details</span>
                 </div>
-                <div className="grid gap-2">
-                  {dailyAvailability.map((day) => {
-                    const dateDisplay = format(
-                      parseISO(day.travelDate),
-                      "EEE, MMM d",
-                    );
-                    const minMileage = Math.min(
-                      ...[
-                        day.economyMinMileage,
-                        day.businessMinMileage,
-                        day.firstMinMileage,
-                        day.premiumEconomyMinMileage,
-                      ].filter((m): m is number => m !== null),
-                    );
-
-                    return (
-                      <Button
-                        key={day.travelDate}
-                        variant="outline"
-                        className="flex h-auto w-full items-center justify-between px-3 py-2 text-left"
-                        onClick={() => setSelectedDate(day.travelDate)}
-                      >
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-medium">
-                            {dateDisplay}
-                          </span>
-                          <div className="flex gap-2 text-xs text-muted-foreground">
-                            <span>
-                              {day.totalFlights}{" "}
-                              {day.totalFlights === 1 ? "flight" : "flights"}
-                            </span>
-                            {day.hasDirectFlights && (
-                              <span className="text-primary">• Direct</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-right">
-                            <div className="text-sm font-semibold">
-                              {MILEAGE_FORMATTER.format(minMileage)} mi
-                            </div>
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      </Button>
-                    );
-                  })}
-                </div>
+                <ChartContainer
+                  config={AWARD_CHART_CONFIG}
+                  className="h-64 w-full"
+                >
+                  <LineChart
+                    data={chartData}
+                    margin={{ left: 12, right: 12 }}
+                    onClick={(data) => {
+                      if (data?.activePayload?.[0]?.payload?.date) {
+                        setSelectedDate(data.activePayload[0].payload.date);
+                      }
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="formattedDate"
+                      tickLine={false}
+                      axisLine={false}
+                      minTickGap={16}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      width={56}
+                      tickFormatter={(value: number) =>
+                        `${MILEAGE_FORMATTER.format(value / 1000)}k`
+                      }
+                    />
+                    <ChartTooltip
+                      cursor={{ strokeDasharray: "4 4" }}
+                      content={
+                        <ChartTooltipContent
+                          labelFormatter={(_, items) => {
+                            const isoDate = items?.[0]?.payload?.date;
+                            if (typeof isoDate === "string") {
+                              const parsed = parseISO(isoDate);
+                              if (!Number.isNaN(parsed.getTime())) {
+                                return format(parsed, "EEE, MMM d");
+                              }
+                            }
+                            const fallback = items?.[0]?.payload?.formattedDate;
+                            return typeof fallback === "string" ? fallback : "";
+                          }}
+                          formatter={(value) =>
+                            typeof value === "number"
+                              ? `${MILEAGE_FORMATTER.format(value)} miles`
+                              : (value ?? "N/A")
+                          }
+                        />
+                      }
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="economy"
+                      stroke="var(--color-economy)"
+                      strokeWidth={2}
+                      dot={{ r: 2, cursor: "pointer" }}
+                      activeDot={{ r: 5, cursor: "pointer" }}
+                      connectNulls
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="business"
+                      stroke="var(--color-business)"
+                      strokeWidth={2}
+                      dot={{ r: 2, cursor: "pointer" }}
+                      activeDot={{ r: 5, cursor: "pointer" }}
+                      connectNulls
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="first"
+                      stroke="var(--color-first)"
+                      strokeWidth={2}
+                      dot={{ r: 2, cursor: "pointer" }}
+                      activeDot={{ r: 5, cursor: "pointer" }}
+                      connectNulls
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="premiumEconomy"
+                      stroke="var(--color-premiumEconomy)"
+                      strokeWidth={2}
+                      dot={{ r: 2, cursor: "pointer" }}
+                      activeDot={{ r: 5, cursor: "pointer" }}
+                      connectNulls
+                    />
+                  </LineChart>
+                </ChartContainer>
               </div>
             )}
 
