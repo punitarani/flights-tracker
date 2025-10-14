@@ -147,6 +147,7 @@ export function FlightExplorer({
               filters={filters}
               originAirport={mapState.originAirport}
               destinationAirport={mapState.destinationAirport}
+              airports={airports}
             />
           ) : (
             <div className="container mx-auto flex h-full w-full flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8 lg:pb-10">

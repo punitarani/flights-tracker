@@ -33,6 +33,7 @@ type FlightPricePanelProps = {
   filters: FlightExplorerFiltersState;
   originAirport: AirportData | null;
   destinationAirport: AirportData | null;
+  airports: AirportData[];
 };
 
 export function FlightPricePanel({
@@ -40,6 +41,7 @@ export function FlightPricePanel({
   filters,
   originAirport,
   destinationAirport,
+  airports,
 }: FlightPricePanelProps) {
   const {
     shouldShowPanel,
@@ -305,6 +307,7 @@ export function FlightPricePanel({
               isLoading={isFlightOptionsLoading}
               error={flightOptionsError}
               awardTrips={awardTrips ?? []}
+              airports={airports}
             />
           </Card>
         ) : null}
