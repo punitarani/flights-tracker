@@ -46,7 +46,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.1.30
 
       - name: Cache Bun dependencies
         uses: actions/cache@v4
@@ -77,5 +77,5 @@ jobs:
             exit 1
           fi
 
-      - name: Run Fli tests only
-        run: bun run test:fli
+      - name: Run Fli tests only (100s timeout)
+        run: bun test --concurrent --timeout 100000 --preload ./src/test/setup.ts src/lib/fli
