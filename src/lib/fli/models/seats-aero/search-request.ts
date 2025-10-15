@@ -5,7 +5,6 @@
  */
 
 import { z } from "zod";
-import { Source } from "./base";
 import { AvailabilityTripSchema } from "./search";
 
 /**
@@ -48,7 +47,7 @@ export const SearchRequestParamsSchema = z.object({
   take: z.number().int().min(10).max(1000).default(500),
 
   /** Result ordering method */
-  order_by: z.enum(SearchOrderBy).optional(),
+  order_by: z.string().optional(),
 
   /** Number of results to skip for pagination */
   skip: z.number().int().min(0).optional(),
@@ -92,7 +91,7 @@ export const LiveSearchRequestSchema = z.object({
   departure_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 
   /** Mileage program to search (e.g., "united", "delta", "aeroplan") */
-  source: z.enum(Source),
+  source: z.string(),
 
   /** Disable filters for dynamic pricing or mismatched airports */
   disable_filters: z.boolean().default(false),
