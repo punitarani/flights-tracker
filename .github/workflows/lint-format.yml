@@ -5,7 +5,7 @@ on:
 
 jobs:
   lint-format:
-    name: Biome Lint and Format (check only)
+    name: Biome Lint and Format (auto-fix, then verify)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -32,8 +32,11 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Biome check (lint + format)
-        run: bunx @biomejs/biome check --no-errors-on-unmatched --reporter=github .
+      - name: Auto-format
+        run: bun run format
 
-      - name: Biome format (no write)
-        run: bunx @biomejs/biome format --no-errors-on-unmatched --write=false --log-level=info .
+      - name: Auto-lint (with fixes)
+        run: bun run lint
+
+      - name: Verify formatting and lint are clean
+        run: bunx @biomejs/biome check --no-errors-on-unmatched --reporter=github .
