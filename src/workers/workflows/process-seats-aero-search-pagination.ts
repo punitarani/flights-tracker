@@ -14,7 +14,7 @@ type SeatsAeroSearchResponse = {
   hasMore: boolean;
   cursor?: number;
   data: Array<{
-    AvailabilityTrips?: AvailabilityTrip[] | null;
+    AvailabilityTrips: AvailabilityTrip[] | null;
   }>;
 };
 
