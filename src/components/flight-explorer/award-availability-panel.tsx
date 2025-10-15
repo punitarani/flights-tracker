@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
@@ -316,6 +318,11 @@ export function AwardAvailabilityPanel({
                           }
                         />
                       }
+                    />
+                    <ChartLegend
+                      verticalAlign="bottom"
+                      height={36}
+                      content={<ChartLegendContent />}
                     />
                     <Line
                       type="monotone"
