@@ -1,0 +1,191 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+  SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+  NEXT_PUBLIC_MAPKIT_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPKIT_TOKEN }}
+  WORKER_URL: ${{ secrets.WORKER_URL }}
+  WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
+  RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  NEXTJS_API_URL: ${{ secrets.NEXTJS_API_URL }}
+  SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
+  SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+  SENTRY_ENVIRONMENT: ${{ secrets.SENTRY_ENVIRONMENT }}
+  NEXT_TELEMETRY_DISABLED: "1"
+  CI: "1"
+
+jobs:
+  quality:
+    name: Format & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: "1.3.0"
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            ~/.cache/bun
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check formatting
+        run: |
+          bunx biome format --write
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "::error::Formatting issues detected. Run 'bun run format' locally."
+            git diff
+            exit 1
+          fi
+
+      - name: Check linting
+        run: |
+          bunx biome check --write --unsafe
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "::error::Lint issues detected. Run 'bun run lint' locally."
+            git diff
+            exit 1
+          fi
+
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    needs:
+      - quality
+    strategy:
+      matrix:
+        target: [next-app, workers]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: "1.3.0"
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            ~/.cache/bun
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build ${{ matrix.target }}
+        run: |
+          if [ "${{ matrix.target }}" = "next-app" ]; then
+            bunx next build
+          else
+            bunx wrangler deploy --dry-run
+          fi
+
+  db-migrate:
+    name: Database Migration
+    runs-on: ubuntu-latest
+    needs:
+      - build
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: "1.3.0"
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            ~/.cache/bun
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run migrations (dry run)
+        if: github.event_name == 'pull_request'
+        run: bunx drizzle-kit migrate --preview
+
+      - name: Run migrations
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: bun run db:migrate
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    needs:
+      - db-migrate
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: "1.3.0"
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            ~/.cache/bun
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run core tests
+        run: bun run test
+
+      - name: Run worker tests
+        run: bun run test:workers
+
+      - name: Run FLI integration tests
+        run: bun run test:fli
+
+      - name: Run seats.aero focused tests
+        run: bun test --concurrent --timeout 60000 --preload ./src/test/setup.ts src/lib/fli/__tests__/seats-aero
