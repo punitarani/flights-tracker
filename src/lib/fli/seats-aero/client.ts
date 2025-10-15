@@ -1,10 +1,9 @@
 /**
- * Seats.aero API client.
- *
- * Simple HTTP client for querying award flight availability from seats.aero.
- * Supports both cached search and live search endpoints with pagination.
+ * Seats.aero API client for querying award flight availability.
+ * Supports both cached search and pagination.
  */
 
+import axios, { type AxiosError } from "axios";
 import { env } from "@/env";
 import type { SearchRequestParams, SearchResponse } from "../models/seats-aero";
 import {
@@ -12,13 +11,8 @@ import {
   SearchResponseSchema,
 } from "../models/seats-aero";
 
-/**
- * Configuration options for the SeatsAeroClient.
- */
 export type SeatsAeroClientConfig = {
-  /** API key for authentication */
   apiKey: string;
-  /** Base URL for the API. Defaults to https://seats.aero/partnerapi */
   baseUrl?: string;
 };
 
@@ -42,35 +36,8 @@ export class SeatsAeroAPIError extends Error {
  * @example
  * ```typescript
  * const client = new SeatsAeroClient();
- *
- * // Search for cached availability
- * const results = await client.search({
- *   origin_airport: "SFO",
- *   destination_airport: "PHX",
- *   start_date: "2025-10-11",
- *   end_date: "2025-10-18",
- *   include_trips: true,
- * });
- *
- * // Fetch next page
- * if (results.hasMore && results.cursor) {
- *   const nextPage = await client.search({
- *     origin_airport: "SFO",
- *     destination_airport: "PHX",
- *     cursor: results.cursor,
- *   });
- * }
- *
- * // Live search
- * const liveResults = await client.liveSearch({
- *   origin_airport: "SFO",
- *   destination_airport: "NRT",
- *   departure_date: "2025-12-15",
- *   source: "united",
- *   seat_count: 2,
- * });
- * ```
  */
+
 export class SeatsAeroClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -82,20 +49,9 @@ export class SeatsAeroClient {
 
   /**
    * Search for cached award availability across multiple dates and sources.
-   *
-   * This endpoint queries pre-cached availability data and is suitable for
-   * searching across date ranges and multiple mileage programs.
-   *
-   * @param params - Search parameters
-   * @returns Search response with availability data and pagination info
-   * @throws {SeatsAeroAPIError} If the API returns an error
-   * @throws {Error} If the response cannot be parsed or validated
    */
   async search(params: SearchRequestParams): Promise<SearchResponse> {
-    // Validate request parameters
     const validatedParams = SearchRequestParamsSchema.parse(params);
-
-    // Build query string
     const queryParams = new URLSearchParams();
     for (const [key, value] of Object.entries(validatedParams)) {
       if (value !== undefined) {
@@ -105,53 +61,44 @@ export class SeatsAeroClient {
 
     const url = `${this.baseUrl}/search?${queryParams.toString()}`;
 
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Partner-Authorization": this.apiKey,
-        Accept: "application/json",
-      },
-    });
+    try {
+      const response = await axios.get(url, {
+        headers: {
+          "Partner-Authorization": this.apiKey,
+          Accept: "application/json",
+        },
+      });
 
-    if (!response.ok) {
+      return SearchResponseSchema.parse(response.data);
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const axiosError = error as AxiosError;
+        if (axiosError.response) {
+          throw new SeatsAeroAPIError(
+            `Search request failed: ${axiosError.response.statusText}`,
+            axiosError.response.status,
+            axiosError.response.statusText || "Unknown Error",
+          );
+        } else if (axiosError.request) {
+          throw new SeatsAeroAPIError(
+            "Search request failed: No response received",
+            0,
+            "Network Error",
+          );
+        }
+      }
+
       throw new SeatsAeroAPIError(
-        `Search request failed: ${response.statusText}`,
-        response.status,
-        response.statusText,
+        `Search request failed: ${(error as Error).message}`,
+        0,
+        "Unknown Error",
       );
     }
-
-    const data = await response.json();
-
-    // Validate response schema
-    return SearchResponseSchema.parse(data);
   }
 
   /**
    * Search all pages of cached availability for a route.
-   *
-   * Automatically handles pagination by following the cursor until all
-   * results are retrieved.
-   *
-   * @param params - Search parameters (cursor will be automatically managed)
-   * @param maxPages - Maximum number of pages to fetch (default: unlimited)
-   * @returns Generator yielding search responses for each page
-   * @throws {SeatsAeroAPIError} If any API request returns an error
-   *
-   * @example
-   * ```typescript
-   * const client = new SeatsAeroClient();
-   *
-   * for await (const page of client.searchAll({
-   *   origin_airport: "SFO",
-   *   destination_airport: "PHX",
-   *   start_date: "2025-10-11",
-   *   end_date: "2025-10-18",
-   * })) {
-   *   console.log(`Page has ${page.data.length} results`);
-   *   // Process results...
-   * }
-   * ```
+   * Automatically handles pagination by following the cursor until all results are retrieved.
    */
   async *searchAll(
     params: SearchRequestParams,
@@ -186,11 +133,7 @@ export class SeatsAeroClient {
 
 /**
  * Create a new SeatsAeroClient instance with optional configuration.
- *
  * Uses env.SEATS_AERO_API_KEY as the default API key if not provided.
- *
- * @param config - Optional client configuration
- * @returns A new SeatsAeroClient instance
  */
 export function createSeatsAeroClient(
   config?: Partial<SeatsAeroClientConfig>,

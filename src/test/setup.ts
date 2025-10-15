@@ -31,15 +31,13 @@ mock.module("@/env", () => ({
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-supabase-publishable-key",
     NEXT_PUBLIC_MAPKIT_TOKEN: "test-mapkit-token",
 
-    // Use real proxy configuration if set in actual environment
-    PROXY_ENABLED: process.env.PROXY_ENABLED === "true",
-    PROXY_HOST: process.env.PROXY_HOST,
-    PROXY_PORT: process.env.PROXY_PORT
-      ? parseInt(process.env.PROXY_PORT, 10)
-      : undefined,
-    PROXY_USERNAME: process.env.PROXY_USERNAME,
-    PROXY_PASSWORD: process.env.PROXY_PASSWORD,
-    PROXY_PROTOCOL: process.env.PROXY_PROTOCOL || "http",
+    // Disable proxy in test environment to prevent network issues
+    PROXY_ENABLED: false,
+    PROXY_HOST: undefined,
+    PROXY_PORT: undefined,
+    PROXY_USERNAME: undefined,
+    PROXY_PASSWORD: undefined,
+    PROXY_PROTOCOL: "http",
   },
 }));
 

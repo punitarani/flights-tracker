@@ -98,10 +98,10 @@ export class SearchDates {
 
     try {
       const response = await this.client.post(SearchDates.BASE_URL, {
-        body: `f.req=${encodedFilters}`,
+        data: `f.req=${encodedFilters}`,
       });
 
-      const text = await response.text();
+      const text = response.data;
       const parsed = JSON.parse(text.replace(/^\)]}'/, ""))[0][2];
 
       if (!parsed) {
