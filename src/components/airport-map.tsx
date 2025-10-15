@@ -391,32 +391,73 @@ export function AirportMap({
         return;
       }
 
+      // Check if Style constructor exists and is accessible
       const StyleCtor = (
         mapkit as unknown as {
-          Style: new (options: Record<string, unknown>) => unknown;
+          Style?: new (options: Record<string, unknown>) => unknown;
         }
       ).Style;
 
+      if (!StyleCtor || typeof StyleCtor !== "function") {
+        // Fallback: directly modify overlay properties if Style constructor unavailable
+        const styleConfig = {
+          lineWidth: 2.1,
+          strokeColor: "#0f172a",
+        };
+
+        if (mode === "hover") {
+          styleConfig.lineWidth = 3.5;
+          styleConfig.strokeColor = "#1d4ed8";
+        } else if (mode === "active") {
+          styleConfig.lineWidth = 4.8;
+          styleConfig.strokeColor = "#1e3a8a";
+        }
+
+        for (const overlay of entry.overlays) {
+          const overlayWithStyle = overlay as {
+            lineWidth?: number;
+            strokeColor?: string;
+          };
+          try {
+            overlayWithStyle.lineWidth = styleConfig.lineWidth;
+            overlayWithStyle.strokeColor = styleConfig.strokeColor;
+          } catch {
+            // Ignore style application errors
+          }
+        }
+        return;
+      }
+
+      // Use Style constructor if available
       const styleConfig = {
-        lineCap: "round",
-        lineJoin: "round",
         lineWidth: 2.1,
         strokeColor: "#0f172a",
-        opacity: 0.32,
       } satisfies Record<string, unknown>;
 
       if (mode === "hover") {
         styleConfig.lineWidth = 3.5;
         styleConfig.strokeColor = "#1d4ed8";
-        styleConfig.opacity = 0.78;
       } else if (mode === "active") {
         styleConfig.lineWidth = 4.8;
         styleConfig.strokeColor = "#1e3a8a";
-        styleConfig.opacity = 0.94;
       }
 
       for (const overlay of entry.overlays) {
-        (overlay as { style?: unknown }).style = new StyleCtor(styleConfig);
+        try {
+          (overlay as { style?: unknown }).style = new StyleCtor(styleConfig);
+        } catch (_error) {
+          // Fallback to direct property assignment if Style constructor fails
+          const overlayWithStyle = overlay as {
+            lineWidth?: number;
+            strokeColor?: string;
+          };
+          try {
+            overlayWithStyle.lineWidth = styleConfig.lineWidth;
+            overlayWithStyle.strokeColor = styleConfig.strokeColor;
+          } catch {
+            // Ignore style application errors
+          }
+        }
       }
     },
     [],
