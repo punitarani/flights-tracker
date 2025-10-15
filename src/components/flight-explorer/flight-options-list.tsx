@@ -241,6 +241,15 @@ export function FlightOptionsList({
     <>
       <div className="space-y-4">
         {options.map((option, optionIndex) => {
+          const optionKey =
+            option.slices
+              .flatMap((slice) =>
+                slice.legs.map(
+                  (leg) =>
+                    `${leg.airlineCode}${leg.flightNumber}-${leg.departureDateTime}`,
+                ),
+              )
+              .join("|") || `${option.totalPrice}-${optionIndex}`;
           const formattedPrice = formatCurrency(
             option.totalPrice,
             option.currency,
@@ -262,10 +271,11 @@ export function FlightOptionsList({
               : `Option ${optionIndex + 1}`;
           const awardMatch = awardMatches[optionIndex];
           return (
-            <div
-              key={`${option.totalPrice}-${optionIndex}`}
+            <button
+              key={optionKey}
+              type="button"
               onClick={() => handleFlightClick(option)}
-              className="cursor-pointer rounded-lg border bg-card/80 p-4 shadow-sm transition-all hover:shadow-md hover:border-primary/50"
+              className="w-full cursor-pointer rounded-lg border bg-card/80 p-4 text-left shadow-sm transition-all hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm font-semibold">{headerTitle}</p>
@@ -320,6 +330,13 @@ export function FlightOptionsList({
 
               <div className="mt-3 space-y-4">
                 {option.slices.map((slice, sliceIndex) => {
+                  const sliceKey =
+                    slice.legs
+                      .map(
+                        (leg) =>
+                          `${leg.airlineCode}${leg.flightNumber}-${leg.departureDateTime}`,
+                      )
+                      .join("|") || `${slice.durationMinutes}-${sliceIndex}`;
                   const stopsLabel =
                     slice.stops === 0
                       ? "Nonstop"
@@ -327,10 +344,7 @@ export function FlightOptionsList({
                   const durationLabel = formatDuration(slice.durationMinutes);
 
                   return (
-                    <div
-                      key={`${slice.durationMinutes}-${sliceIndex}`}
-                      className="space-y-2"
-                    >
+                    <div key={sliceKey} className="space-y-2">
                       {option.slices.length > 1 && (
                         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           <Plane className="h-3 w-3" aria-hidden="true" />
@@ -347,6 +361,7 @@ export function FlightOptionsList({
                       </div>
                       <div className="space-y-3">
                         {slice.legs.map((leg, legIndex) => {
+                          const legKey = `${leg.airlineCode}${leg.flightNumber}-${leg.departureDateTime}`;
                           const departureTime = format(
                             parseISO(leg.departureDateTime),
                             "MMM d • h:mm a",
@@ -356,7 +371,7 @@ export function FlightOptionsList({
                             "MMM d • h:mm a",
                           );
                           return (
-                            <Fragment key={`${leg.flightNumber}-${legIndex}`}>
+                            <Fragment key={legKey}>
                               <div className="flex flex-col gap-2 rounded-md border bg-background/80 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
                                   <div className="flex flex-col">
@@ -400,7 +415,7 @@ export function FlightOptionsList({
                   );
                 })}
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
