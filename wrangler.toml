@@ -33,16 +33,19 @@ binding = "CF_VERSION_METADATA"
 name = "check-flight-alerts"
 binding = "CHECK_ALERTS_WORKFLOW"
 class_name = "CheckFlightAlertsWorkflow"
+max_concurrency = 1
 
 [[workflows]]
 name = "process-flight-alerts"
 binding = "PROCESS_ALERTS_WORKFLOW"
 class_name = "ProcessFlightAlertsWorkflow"
+max_concurrency = 100
 
 [[workflows]]
 name = "seats-aero-search"
 binding = "SEATS_AERO_SEARCH_WORKFLOW"
 class_name = "ProcessSeatsAeroSearchWorkflow"
+max_concurrency = 10
 
 # Queue configuration
 [[queues.producers]]
