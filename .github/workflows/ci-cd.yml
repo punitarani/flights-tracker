@@ -78,10 +78,10 @@ jobs:
         with:
           bun-version: 1.1.30
       - run: bun install --frozen-lockfile
-      - name: Generate migration plan (no write)
+      - name: Drizzle schema check
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: bunx drizzle-kit generate --no-check --print
+        run: npx drizzle-kit check
 
   tests:
     name: Tests
