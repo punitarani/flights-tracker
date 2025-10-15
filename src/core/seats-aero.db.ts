@@ -260,10 +260,7 @@ export async function upsertAvailabilityTrip(
     .values(values)
     .onConflictDoUpdate({
       target: seatsAeroAvailabilityTrip.apiTripId,
-      set: {
-        ...values,
-        createdAt: undefined, // Don't update createdAt on conflict
-      },
+      set: values,
     })
     .returning();
 
