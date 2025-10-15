@@ -1,0 +1,86 @@
+name: CI Orchestrator
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  lint_format:
+    name: Lint and Format
+    uses: ./.github/workflows/lint-format.yml
+
+  worker_build:
+    name: Worker Build (Dry Run)
+    needs: [lint_format]
+    uses: ./.github/workflows/worker-build.yml
+    secrets:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
+      WORKER_URL: ${{ secrets.WORKER_URL }}
+      WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_MAPKIT_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPKIT_TOKEN }}
+
+  web_build:
+    name: Web App Build
+    needs: [worker_build]
+    uses: ./.github/workflows/web-build.yml
+    secrets:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
+      WORKER_URL: ${{ secrets.WORKER_URL }}
+      WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_MAPKIT_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPKIT_TOKEN }}
+
+  app_tests:
+    name: App Tests
+    needs: [web_build]
+    uses: ./.github/workflows/app-tests.yml
+    secrets:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
+      WORKER_URL: ${{ secrets.WORKER_URL }}
+      WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_MAPKIT_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPKIT_TOKEN }}
+
+  worker_tests:
+    name: Worker Tests
+    needs: [app_tests]
+    uses: ./.github/workflows/worker-tests.yml
+    secrets:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
+      WORKER_URL: ${{ secrets.WORKER_URL }}
+      WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_MAPKIT_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPKIT_TOKEN }}
+
+  fli_tests:
+    name: Fli Tests
+    needs: [worker_tests]
+    uses: ./.github/workflows/fli-tests.yml
+    secrets:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
+      WORKER_URL: ${{ secrets.WORKER_URL }}
+      WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_MAPKIT_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPKIT_TOKEN }}

@@ -1,9 +1,26 @@
 name: Fli Tests (only)
 
 on:
-  pull_request:
-  push:
-    branches: [ main ]
+  workflow_call:
+    secrets:
+      DATABASE_URL:
+        required: true
+      SUPABASE_SECRET_KEY:
+        required: true
+      RESEND_API_KEY:
+        required: true
+      SEATS_AERO_API_KEY:
+        required: true
+      WORKER_URL:
+        required: true
+      WORKER_API_KEY:
+        required: true
+      NEXT_PUBLIC_SUPABASE_URL:
+        required: true
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+        required: true
+      NEXT_PUBLIC_MAPKIT_TOKEN:
+        required: true
 
 jobs:
   fli-tests:
