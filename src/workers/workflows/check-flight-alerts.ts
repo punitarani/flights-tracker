@@ -24,6 +24,7 @@ class CheckFlightAlertsWorkflowBase extends WorkflowEntrypoint<
 
     const userIds = await step.do(
       "fetch-user-ids-with-active-alerts",
+      {},
       async () => {
         try {
           workerLogger.info("Fetching user IDs with active daily alerts");
@@ -43,7 +44,7 @@ class CheckFlightAlertsWorkflowBase extends WorkflowEntrypoint<
       },
     );
 
-    await step.do("queue-users-for-processing", async () => {
+    await step.do("queue-users-for-processing", {}, async () => {
       if (userIds.length === 0) {
         workerLogger.info("No users to queue");
         return { queued: 0 };

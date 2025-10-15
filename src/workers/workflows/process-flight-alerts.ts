@@ -42,6 +42,7 @@ class ProcessFlightAlertsWorkflowBase extends WorkflowEntrypoint<
     // Validate user has active alerts (defense-in-depth)
     const hasActiveAlerts = await step.do(
       "validate-user-has-active-alerts",
+      {},
       async () => {
         const hasAlerts = await userHasActiveAlerts(this.env, userId);
 

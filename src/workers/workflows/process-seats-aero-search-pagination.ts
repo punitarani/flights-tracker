@@ -81,7 +81,7 @@ export async function paginateSeatsAeroSearch({
     const currentCursor = cursor;
 
     const pageResult = await step.do(
-      `fetch-page-${pageIndex}`,
+      `fetch-page-${pageIndex + 1}`,
       stepOptions,
       async () => {
         const response = await client.search({

@@ -272,7 +272,7 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
     });
 
     expect(result.totalProcessed).toBe(3);
-    expect(stepCalls).toEqual(["fetch-page-0", "fetch-page-1"]);
+    expect(stepCalls).toEqual(["fetch-page-1", "fetch-page-2"]);
     expect(searchArgs).toHaveLength(2);
     expect((searchArgs[0] as { cursor?: number }).cursor).toBeUndefined();
     expect((searchArgs[1] as { cursor?: number }).cursor).toBe(101);
@@ -356,7 +356,7 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
     });
 
     expect(result.totalProcessed).toBe(0);
-    expect(stepCalls).toEqual(["fetch-page-0"]);
+    expect(stepCalls).toEqual(["fetch-page-1"]);
     expect(upsertCalls).toHaveLength(0);
     expect(updateProgressCalls).toHaveLength(1);
     expect(updateProgressCalls[0]).toMatchObject({
