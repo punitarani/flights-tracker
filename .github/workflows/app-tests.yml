@@ -1,0 +1,80 @@
+name: App Tests (Unit + App only)
+
+on:
+  workflow_call:
+    secrets:
+      DATABASE_URL:
+        required: true
+      SUPABASE_SECRET_KEY:
+        required: true
+      RESEND_API_KEY:
+        required: true
+      SEATS_AERO_API_KEY:
+        required: true
+      WORKER_URL:
+        required: true
+      WORKER_API_KEY:
+        required: true
+      NEXT_PUBLIC_SUPABASE_URL:
+        required: true
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+        required: true
+      NEXT_PUBLIC_MAPKIT_TOKEN:
+        required: true
+
+jobs:
+  app-tests:
+    name: Run App Tests (exclude workers & fli)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
+      WORKER_URL: ${{ secrets.WORKER_URL }}
+      WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_MAPKIT_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPKIT_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.1.30
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            ~/.cache/bun
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', 'bun.lock', 'bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate required environment variables
+        run: |
+          set -euo pipefail
+          required_vars=(DATABASE_URL SUPABASE_SECRET_KEY RESEND_API_KEY SEATS_AERO_API_KEY WORKER_URL WORKER_API_KEY NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY NEXT_PUBLIC_MAPKIT_TOKEN)
+          missing=0
+          for v in "${required_vars[@]}"; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required env: $v" >&2
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Run tests (app only; serialized to avoid global mock conflicts)
+        run: bun test --timeout 60000 --jobs 1 --preload ./src/test/setup.ts src/components src/core src/lib/notifications
