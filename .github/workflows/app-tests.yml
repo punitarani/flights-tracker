@@ -45,7 +45,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.1.30
 
       - name: Cache Bun dependencies
         uses: actions/cache@v4
@@ -76,5 +76,5 @@ jobs:
             exit 1
           fi
 
-      - name: Run tests (app only)
-        run: bun test --concurrent --timeout 60000 --preload ./src/test/setup.ts src/components src/core src/lib/notifications
+      - name: Run tests (app only; serialized to avoid global mock conflicts)
+        run: bun test --timeout 60000 --jobs 1 --preload ./src/test/setup.ts src/components src/core src/lib/notifications
