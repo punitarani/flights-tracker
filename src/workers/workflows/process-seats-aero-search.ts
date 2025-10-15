@@ -27,6 +27,20 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
   SearchRequestParams
 > {
   async run(event: WorkflowEvent<SearchRequestParams>, step: WorkflowStep) {
+    try {
+      return await this.runWorkflow(event, step);
+    } catch (error) {
+      // This catch block only executes when the entire workflow fails
+      // (i.e., after all step retries and workflow retries are exhausted)
+      await this.handleWorkflowFailure(event, error);
+      throw error;
+    }
+  }
+
+  private async runWorkflow(
+    event: WorkflowEvent<SearchRequestParams>,
+    step: WorkflowStep,
+  ) {
     const {
       originAirport,
       destinationAirport,
@@ -79,50 +93,79 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
       apiKey: this.env.SEATS_AERO_API_KEY,
     });
 
-    try {
-      const { totalProcessed } = await paginateSeatsAeroSearch({
-        client,
-        env: this.env,
-        params: event.payload,
-        searchRequest,
-        step,
-      });
+    const { totalProcessed } = await paginateSeatsAeroSearch({
+      client,
+      env: this.env,
+      params: event.payload,
+      searchRequest,
+      step,
+    });
 
-      await completeSearchRequest(this.env, searchRequest.id);
+    await completeSearchRequest(this.env, searchRequest.id);
 
-      workerLogger.info("Completed seats.aero search", {
-        searchRequestId: searchRequest.id,
-        totalProcessed,
-        instanceId: event.instanceId,
-      });
+    workerLogger.info("Completed seats.aero search", {
+      searchRequestId: searchRequest.id,
+      totalProcessed,
+      instanceId: event.instanceId,
+    });
 
-      addBreadcrumb("Search completed", {
-        totalProcessed,
-      });
+    addBreadcrumb("Search completed", {
+      totalProcessed,
+    });
 
-      return { success: true, totalProcessed };
-    } catch (error) {
-      await failSearchRequest(
-        this.env,
-        searchRequest.id,
-        error instanceof Error ? error.message : "Unknown error",
+    return { success: true, totalProcessed };
+  }
+
+  private async handleWorkflowFailure(
+    event: WorkflowEvent<SearchRequestParams>,
+    error: unknown,
+  ) {
+    const { originAirport, destinationAirport } = event.payload;
+
+    // Get the search request ID to mark it as failed
+    const searchRequest = await getSearchRequest(this.env, event.payload);
+    if (!searchRequest) {
+      workerLogger.error(
+        "Cannot mark search as failed - search request not found",
+        {
+          route: `${originAirport}-${destinationAirport}`,
+          instanceId: event.instanceId,
+        },
       );
+      return;
+    }
 
-      workerLogger.error("Search failed", {
+    // Mark the search request as failed in the database
+    await failSearchRequest(
+      this.env,
+      searchRequest.id,
+      error instanceof Error
+        ? error.message
+        : "Workflow failed after all retries",
+    );
+
+    workerLogger.error(
+      "Workflow permanently failed - marked search as failed",
+      {
         searchRequestId: searchRequest.id,
         error: error instanceof Error ? error.message : String(error),
-        instanceId: event.instanceId,
-      });
-
-      captureException(error, {
-        workflow: "process-seats-aero-search",
-        searchRequestId: searchRequest.id,
         route: `${originAirport}-${destinationAirport}`,
         instanceId: event.instanceId,
-      });
+      },
+    );
 
-      throw error;
-    }
+    captureException(error, {
+      workflow: "process-seats-aero-search",
+      searchRequestId: searchRequest.id,
+      route: `${originAirport}-${destinationAirport}`,
+      instanceId: event.instanceId,
+      level: "final_failure",
+    });
+
+    addBreadcrumb("Workflow permanently failed", {
+      searchRequestId: searchRequest.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
