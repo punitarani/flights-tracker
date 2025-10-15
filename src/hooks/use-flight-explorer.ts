@@ -948,8 +948,8 @@ export function useFlightExplorer({
         if (latestNearbyRequestRef.current === requestId) {
           // Silently handle AbortError - user cancelled request intentionally
           if (
-            error?.message?.includes("AbortError") ||
-            error?.message?.includes("aborted")
+            (error as any)?.message?.includes("AbortError") ||
+            (error as any)?.message?.includes("aborted")
           ) {
             return;
           }
