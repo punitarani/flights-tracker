@@ -51,12 +51,46 @@ function formatDuration(minutes: number) {
   return `${hours}h ${remaining}m`;
 }
 
-function formatCurrency(amount: number, currency: string) {
+function formatCurrency(amountInCents: number, currency: string) {
+  const normalizedAmount = amountInCents / 100;
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
-    maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(normalizedAmount);
+}
+
+function parseAmountToCents(
+  value: number | string | null | undefined,
+): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    if (Number.isNaN(value)) {
+      return null;
+    }
+    return Math.round(value);
+  }
+
+  const cleaned = value.replace(/,/g, "").trim();
+  if (cleaned.length === 0) {
+    return null;
+  }
+
+  if (cleaned.includes(".")) {
+    const parsed = Number.parseFloat(cleaned);
+    if (Number.isNaN(parsed)) {
+      return null;
+    }
+    return Math.round(parsed * 100);
+  }
+
+  const parsed = Number.parseInt(cleaned, 10);
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+  return parsed;
 }
 
 const CABIN_CLASS_LABELS: Record<string, string> = {
@@ -321,7 +355,7 @@ export function FlightDetailsSheet({
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full gap-0 overflow-hidden bg-background/95 sm:max-w-3xl"
+        className="w-full gap-0 overflow-hidden bg-background sm:max-w-3xl"
       >
         <SheetHeader className="flex flex-col gap-4 border-b border-border/40 px-6 py-6 sm:pr-14">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
@@ -771,16 +805,25 @@ export function FlightDetailsSheet({
                                     )}{" "}
                                     miles
                                   </p>
-                                  {award.totalTaxes && (
-                                    <p className="text-xs text-muted-foreground">
-                                      +{" "}
-                                      {formatCurrency(
-                                        Number.parseFloat(award.totalTaxes),
-                                        award.taxesCurrency || "USD",
-                                      )}{" "}
-                                      taxes
-                                    </p>
-                                  )}
+                                  {(() => {
+                                    const taxesCents = parseAmountToCents(
+                                      award.totalTaxes,
+                                    );
+                                    if (taxesCents === null) {
+                                      return null;
+                                    }
+                                    return (
+                                      <p className="text-xs text-muted-foreground">
+                                        +{" "}
+                                        {formatCurrency(
+                                          taxesCents,
+                                          award.taxesCurrency ||
+                                            flightOption.currency,
+                                        )}{" "}
+                                        taxes
+                                      </p>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             );
