@@ -278,6 +278,7 @@ export function FlightDetailsSheet({
     (total, slice) => total + slice.legs.length,
     0,
   );
+  const legsLabel = `${totalLegs} leg${totalLegs === 1 ? "" : "s"}`;
 
   const totalStopsLabel =
     totalStops === 0
@@ -286,7 +287,7 @@ export function FlightDetailsSheet({
 
   const summaryMetrics = [
     {
-      label: "Total duration",
+      label: "Duration",
       value: formatDuration(totalDurationMinutes),
       icon: Clock,
     },
@@ -296,8 +297,8 @@ export function FlightDetailsSheet({
       icon: MapPin,
     },
     {
-      label: "Segments",
-      value: `${totalLegs} leg${totalLegs > 1 ? "s" : ""}`,
+      label: "Legs",
+      value: legsLabel,
       icon: Plane,
     },
   ];
@@ -322,8 +323,8 @@ export function FlightDetailsSheet({
         side="right"
         className="w-full gap-0 overflow-hidden bg-background/95 sm:max-w-3xl"
       >
-        <SheetHeader className="flex flex-col gap-4 border-b border-border/40 px-6 py-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <SheetHeader className="flex flex-col gap-4 border-b border-border/40 px-6 py-6 sm:pr-14">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
                 {formattedDate}
@@ -336,13 +337,22 @@ export function FlightDetailsSheet({
                 <span aria-hidden="true">→</span>
                 <span>{arrivalLabel}</span>
               </div>
+            </div>
+
+            <div className="flex flex-col items-start gap-2 text-xs font-medium text-muted-foreground sm:items-end">
+              <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
+                {formattedPrice}
+                <span className="ml-2 text-xs font-medium uppercase tracking-wide text-primary/80">
+                  Total
+                </span>
+              </span>
               {airlineNames.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-1 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   {airlineNames.map((name) => (
                     <Badge
                       key={name}
                       variant="outline"
-                      className="rounded-full border-border/50 px-3 py-1 text-xs"
+                      className="rounded-full border-border/50 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground"
                     >
                       {name}
                     </Badge>
@@ -350,79 +360,82 @@ export function FlightDetailsSheet({
                 </div>
               )}
             </div>
-            <Badge className="self-start rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
-              {formattedPrice}
-            </Badge>
           </div>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-6 pb-12 pt-6">
           <div className="space-y-8">
             <Card className="rounded-2xl border border-border/50 bg-card/60 px-6 py-6 shadow-[0_24px_80px_-60px_rgba(15,23,42,0.8)] backdrop-blur">
-              <div className="space-y-6">
-                <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
-                      Departure
-                    </p>
-                    <p className="text-lg font-semibold text-foreground">
-                      {firstSliceFirstLeg.departureAirportCode}
-                      <span className="ml-2 text-sm text-muted-foreground">
-                        {departureShort}
-                      </span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {originDisplayCity}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-center">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10">
-                      <ArrowRight
-                        className="h-5 w-5 text-primary"
-                        aria-hidden="true"
-                      />
+              <div className="space-y-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+                        Departure
+                      </p>
+                      <p className="text-lg font-semibold text-foreground">
+                        {firstSliceFirstLeg.departureAirportCode}
+                        <span className="ml-2 text-sm text-muted-foreground">
+                          {departureShort}
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {originDisplayCity}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                        <ArrowRight
+                          className="h-4 w-4 text-primary"
+                          aria-hidden="true"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1 text-left sm:text-right">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+                        Arrival
+                      </p>
+                      <p className="text-lg font-semibold text-foreground">
+                        {lastSliceLastLeg.arrivalAirportCode}
+                        <span className="ml-2 text-sm text-muted-foreground">
+                          {arrivalShort}
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {destinationDisplayCity}
+                      </p>
                     </div>
                   </div>
-                  <div className="space-y-1 text-left sm:text-right">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
-                      Arrival
+                  <div className="text-left sm:text-right">
+                    <p className="text-2xl font-semibold text-foreground">
+                      {formattedPrice}
                     </p>
-                    <p className="text-lg font-semibold text-foreground">
-                      {lastSliceLastLeg.arrivalAirportCode}
-                      <span className="ml-2 text-sm text-muted-foreground">
-                        {arrivalShort}
-                      </span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {destinationDisplayCity}
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+                      Total fare
                     </p>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
                   {summaryMetrics.map(({ label, value, icon: Icon }) => (
                     <div
                       key={label}
-                      className="inline-flex items-center gap-2 rounded-full border border-border/40 bg-background/60 px-3 py-1.5 text-xs"
+                      className="inline-flex items-center gap-2 rounded-full border border-border/40 bg-background/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground"
                     >
                       <Icon
                         className="h-3.5 w-3.5 text-muted-foreground"
                         aria-hidden="true"
                       />
-                      <span className="uppercase tracking-wide text-muted-foreground/70">
-                        {label}
-                      </span>
-                      <span className="font-semibold text-foreground">
-                        {value}
-                      </span>
+                      <span>{label}</span>
+                      <span className="text-foreground/90">{value}</span>
                     </div>
                   ))}
                 </div>
 
                 <p className="text-xs leading-relaxed text-muted-foreground/80">
                   Track this itinerary to monitor schedule changes, award space,
-                  and pricing variations. Segment data updates in near real-time
-                  as we refresh availability.
+                  and pricing variations. Flight data refreshes in near
+                  real-time as availability updates.
                 </p>
               </div>
             </Card>
@@ -481,26 +494,49 @@ export function FlightDetailsSheet({
                     parseISO(lastLeg.arrivalDateTime),
                     "MMM d • h:mm a",
                   );
+                  const routeAirports = [
+                    firstLeg.departureAirportCode,
+                    ...slice.legs.map((leg) => leg.arrivalAirportCode),
+                  ];
+                  const routeDisplay = routeAirports
+                    .filter(Boolean)
+                    .join(" → ");
+                  const sliceAirlineNames = Array.from(
+                    new Set(
+                      slice.legs
+                        .map((leg) => toTitleCase(leg.airlineName))
+                        .filter((name) => name.length > 0),
+                    ),
+                  );
 
                   return (
                     <Card
                       key={sliceKey}
                       className="rounded-2xl border border-border/50 bg-card/60 px-5 py-6 shadow-sm"
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
-                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
-                            {sliceIndex + 1}
-                          </span>
-                          Segment {sliceIndex + 1}
+                      <div className="flex flex-wrap items-start justify-between gap-4 text-xs text-muted-foreground">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                              {sliceIndex + 1}
+                            </span>
+                            Flight {sliceIndex + 1}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                            <span className="font-medium text-foreground/90">
+                              {routeDisplay}
+                            </span>
+                          </div>
+                          {sliceAirlineNames.length > 0 ? (
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                              {sliceAirlineNames.join(" • ")}
+                            </p>
+                          ) : null}
                         </div>
-                        <div className="flex flex-wrap items-center gap-3 text-xs">
-                          <span className="inline-flex items-center gap-1">
+                        <div className="flex flex-col items-start gap-1 whitespace-nowrap text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground/80 sm:items-end">
+                          <span className="inline-flex items-center gap-2">
                             <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                             {durationLabel}
-                          </span>
-                          <span className="hidden text-muted-foreground/50 sm:inline">
-                            •
                           </span>
                           <span>{stopsLabel}</span>
                         </div>
@@ -514,7 +550,7 @@ export function FlightDetailsSheet({
                         </div>
 
                         {isMultiLeg ? (
-                          <ol className="relative border-l border-border/40 pl-5">
+                          <ol className="space-y-5">
                             {slice.legs.map((leg, legIndex) => {
                               const legKey = `${leg.airlineCode}${leg.flightNumber}-${leg.departureDateTime}`;
                               const legDepartureTime = format(
@@ -535,13 +571,18 @@ export function FlightDetailsSheet({
                               return (
                                 <li
                                   key={legKey}
-                                  className="relative pb-6 last:pb-0"
+                                  className="flex gap-4 pb-2 last:pb-0"
                                 >
-                                  <span className="absolute -left-[7px] top-1.5 flex h-3 w-3 items-center justify-center rounded-full border-2 border-background bg-primary">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-background" />
-                                  </span>
+                                  <div className="flex min-w-[1.25rem] flex-col items-center pt-1">
+                                    <span className="flex h-2.5 w-2.5 items-center justify-center rounded-full border-2 border-primary bg-background">
+                                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                                    </span>
+                                    {!isLastLeg && (
+                                      <span className="mt-1 h-full w-px flex-1 bg-border/40" />
+                                    )}
+                                  </div>
 
-                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                     <div className="space-y-1">
                                       <p className="text-sm font-semibold text-foreground">
                                         {leg.departureAirportCode} →{" "}
@@ -566,6 +607,12 @@ export function FlightDetailsSheet({
                                         {toTitleCase(leg.departureAirportName)}{" "}
                                         → {toTitleCase(leg.arrivalAirportName)}
                                       </p>
+                                      {!isLastLeg && (
+                                        <p className="text-xs text-muted-foreground/70">
+                                          Layover in{" "}
+                                          {toTitleCase(leg.arrivalAirportName)}
+                                        </p>
+                                      )}
                                     </div>
                                     <div className="flex flex-col items-start gap-1 text-xs text-muted-foreground sm:items-end">
                                       <span className="font-semibold text-foreground">
@@ -576,13 +623,6 @@ export function FlightDetailsSheet({
                                       </span>
                                     </div>
                                   </div>
-
-                                  {!isLastLeg && (
-                                    <p className="mt-3 text-xs text-muted-foreground/80">
-                                      Layover in{" "}
-                                      {toTitleCase(leg.arrivalAirportName)}
-                                    </p>
-                                  )}
                                 </li>
                               );
                             })}
