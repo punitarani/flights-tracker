@@ -4,7 +4,15 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import type { SearchRequestParams } from "@/core/seats-aero.db";
+import type { SeatsAeroSearchRequest } from "@/db/schema";
+import { type AvailabilityTrip, Source } from "@/lib/fli/models/seats-aero";
 import { createMockEnv } from "../test/setup";
+import {
+  paginateSeatsAeroSearch,
+  type SeatsAeroClientLike,
+  type WorkflowStepLike,
+} from "./process-seats-aero-search-pagination";
 
 describe("ProcessSeatsAeroSearchWorkflow", () => {
   const _env = createMockEnv();
@@ -131,5 +139,231 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
     expect(searchParams.start_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(searchParams.end_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(searchParams.take).toBeGreaterThan(0);
+  });
+
+  test("creates a new workflow step for each paginated API request", async () => {
+    const env = createMockEnv();
+    const params: SearchRequestParams = {
+      originAirport: "SFO",
+      destinationAirport: "NRT",
+      searchStartDate: "2025-10-15",
+      searchEndDate: "2025-10-22",
+    };
+
+    const searchRequest: SeatsAeroSearchRequest = {
+      id: "sar-123",
+      originAirport: params.originAirport,
+      destinationAirport: params.destinationAirport,
+      searchStartDate: params.searchStartDate,
+      searchEndDate: params.searchEndDate,
+      status: "processing",
+      cursor: null,
+      hasMore: true,
+      totalCount: 0,
+      processedCount: 0,
+      errorMessage: null,
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+    } as const;
+
+    const stepCalls: string[] = [];
+    const step: WorkflowStepLike = {
+      do: async (
+        name: string,
+        _options: unknown,
+        operation: () => Promise<{
+          cursor: number | undefined;
+          hasMore: boolean;
+          processedCount: number;
+        }>,
+      ) => {
+        stepCalls.push(name);
+        return operation();
+      },
+    };
+
+    const searchArgs: unknown[] = [];
+    const baseTrip: AvailabilityTrip = {
+      ID: "trip-1",
+      RouteID: "route-1",
+      AvailabilityID: "avail-1",
+      OriginAirport: "SFO",
+      DestinationAirport: "NRT",
+      DepartsAt: "2025-10-15T10:00:00Z",
+      ArrivesAt: "2025-10-16T02:00:00Z",
+      TotalDuration: 720,
+      Stops: 1,
+      MileageCost: 70000,
+      RemainingSeats: 2,
+      Cabin: "business",
+      TotalSegmentDistance: 5100,
+      TotalTaxes: 5,
+      TaxesCurrency: "USD",
+      TaxesCurrencySymbol: "$",
+      Carriers: "UA",
+      FlightNumbers: "UA837",
+      Aircraft: ["777"],
+      Source: Source.UNITED,
+      CreatedAt: "2025-10-01T00:00:00Z",
+      UpdatedAt: "2025-10-01T00:00:00Z",
+    };
+
+    const trip2: AvailabilityTrip = {
+      ...baseTrip,
+      ID: "trip-2",
+      FlightNumbers: "UA838",
+    };
+
+    const trip3: AvailabilityTrip = {
+      ...baseTrip,
+      ID: "trip-3",
+      FlightNumbers: "UA839",
+    };
+
+    const responses = [
+      {
+        count: 2,
+        hasMore: true,
+        cursor: 101,
+        data: [
+          { AvailabilityTrips: [baseTrip] },
+          { AvailabilityTrips: [trip2] },
+        ],
+      },
+      {
+        count: 1,
+        hasMore: false,
+        cursor: 202,
+        data: [{ AvailabilityTrips: [trip3] }],
+      },
+    ];
+
+    const client: SeatsAeroClientLike = {
+      search: async (args: unknown) => {
+        searchArgs.push(args);
+        const response = responses.shift();
+        if (!response) {
+          throw new Error("No more responses available");
+        }
+        return response;
+      },
+    };
+
+    const upsertCalls: Array<{ searchRequestId: string; trip: unknown }> = [];
+    const updateProgressCalls: Array<{
+      id: string;
+      cursor: number | undefined;
+      hasMore: boolean | undefined;
+      processedCount: number | undefined;
+    }> = [];
+
+    const result = await paginateSeatsAeroSearch({
+      client,
+      env,
+      params,
+      searchRequest,
+      step,
+      upsertTrip: async (_env, payload) => {
+        upsertCalls.push(payload);
+      },
+      updateProgress: async (_env, payload) => {
+        updateProgressCalls.push(payload);
+      },
+    });
+
+    expect(result.totalProcessed).toBe(3);
+    expect(stepCalls).toEqual(["fetch-page-0", "fetch-page-1"]);
+    expect(searchArgs).toHaveLength(2);
+    expect((searchArgs[0] as { cursor?: number }).cursor).toBeUndefined();
+    expect((searchArgs[1] as { cursor?: number }).cursor).toBe(101);
+    expect(upsertCalls).toHaveLength(3);
+    expect(updateProgressCalls.map((call) => call.processedCount)).toEqual([
+      2, 3,
+    ]);
+    expect(updateProgressCalls[1]?.hasMore).toBe(false);
+  });
+
+  test("handles empty response pages without trips", async () => {
+    const env = createMockEnv();
+    const params: SearchRequestParams = {
+      originAirport: "JFK",
+      destinationAirport: "LHR",
+      searchStartDate: "2025-11-01",
+      searchEndDate: "2025-11-08",
+    };
+
+    const searchRequest: SeatsAeroSearchRequest = {
+      id: "sar-empty",
+      originAirport: params.originAirport,
+      destinationAirport: params.destinationAirport,
+      searchStartDate: params.searchStartDate,
+      searchEndDate: params.searchEndDate,
+      status: "processing",
+      cursor: null,
+      hasMore: false,
+      totalCount: 0,
+      processedCount: 0,
+      errorMessage: null,
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+    } as const;
+
+    const stepCalls: string[] = [];
+    const step: WorkflowStepLike = {
+      do: async (
+        name: string,
+        _options: unknown,
+        operation: () => Promise<{
+          cursor: number | undefined;
+          hasMore: boolean;
+          processedCount: number;
+        }>,
+      ) => {
+        stepCalls.push(name);
+        return operation();
+      },
+    };
+
+    const client: SeatsAeroClientLike = {
+      search: async () => ({
+        count: 0,
+        hasMore: false,
+        cursor: 1760549543,
+        data: [],
+      }),
+    };
+
+    const upsertCalls: Array<{ searchRequestId: string; trip: unknown }> = [];
+    const updateProgressCalls: Array<{
+      id: string;
+      cursor: number | undefined;
+      hasMore: boolean | undefined;
+      processedCount: number | undefined;
+    }> = [];
+
+    const result = await paginateSeatsAeroSearch({
+      client,
+      env,
+      params,
+      searchRequest,
+      step,
+      upsertTrip: async (_env, payload) => {
+        upsertCalls.push(payload);
+      },
+      updateProgress: async (_env, payload) => {
+        updateProgressCalls.push(payload);
+      },
+    });
+
+    expect(result.totalProcessed).toBe(0);
+    expect(stepCalls).toEqual(["fetch-page-0"]);
+    expect(upsertCalls).toHaveLength(0);
+    expect(updateProgressCalls).toHaveLength(1);
+    expect(updateProgressCalls[0]).toMatchObject({
+      id: "sar-empty",
+      cursor: 1760549543,
+      hasMore: false,
+      processedCount: 0,
+    });
   });
 });

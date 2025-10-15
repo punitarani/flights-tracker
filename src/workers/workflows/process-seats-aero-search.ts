@@ -16,12 +16,11 @@ import {
   completeSearchRequest,
   failSearchRequest,
   getSearchRequest,
-  updateSearchRequestProgress,
-  upsertAvailabilityTrip,
 } from "../adapters/seats-aero.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
 import { addBreadcrumb, captureException } from "../utils/sentry";
+import { paginateSeatsAeroSearch } from "./process-seats-aero-search-pagination";
 
 class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
   WorkerEnv,
@@ -76,119 +75,54 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
       return search;
     });
 
-    // Step 2: Fetch data from seats.aero API with pagination
-    await step.do(
-      "fetch-and-store-data",
-      {
-        retries: {
-          limit: 3,
-          delay: "30 seconds",
-          backoff: "constant",
-        },
-        timeout: "10 minutes",
-      },
-      async () => {
-        try {
-          const client = createSeatsAeroClient({
-            apiKey: this.env.SEATS_AERO_API_KEY,
-          });
+    const client = createSeatsAeroClient({
+      apiKey: this.env.SEATS_AERO_API_KEY,
+    });
 
-          let cursor: number | undefined;
-          let totalProcessed = 0;
+    try {
+      const { totalProcessed } = await paginateSeatsAeroSearch({
+        client,
+        env: this.env,
+        params: event.payload,
+        searchRequest,
+        step,
+      });
 
-          workerLogger.info("Starting API pagination", {
-            searchRequestId: searchRequest.id,
-          });
+      await completeSearchRequest(this.env, searchRequest.id);
 
-          do {
-            // Fetch page from API
-            const response = await client.search({
-              origin_airport: originAirport,
-              destination_airport: destinationAirport,
-              start_date: searchStartDate,
-              end_date: searchEndDate,
-              include_trips: true,
-              take: 1000,
-              only_direct_flights: false,
-              include_filtered: false,
-              cursor,
-            });
+      workerLogger.info("Completed seats.aero search", {
+        searchRequestId: searchRequest.id,
+        totalProcessed,
+        instanceId: event.instanceId,
+      });
 
-            workerLogger.info("Fetched API page", {
-              count: response.count,
-              hasMore: response.hasMore,
-              cursor: response.cursor,
-            });
+      addBreadcrumb("Search completed", {
+        totalProcessed,
+      });
 
-            // Store each trip in database
-            for (const availability of response.data) {
-              for (const trip of availability.AvailabilityTrips ?? []) {
-                await upsertAvailabilityTrip(this.env, {
-                  searchRequestId: searchRequest.id,
-                  trip,
-                });
-              }
-            }
+      return { success: true, totalProcessed };
+    } catch (error) {
+      await failSearchRequest(
+        this.env,
+        searchRequest.id,
+        error instanceof Error ? error.message : "Unknown error",
+      );
 
-            totalProcessed += response.count;
+      workerLogger.error("Search failed", {
+        searchRequestId: searchRequest.id,
+        error: error instanceof Error ? error.message : String(error),
+        instanceId: event.instanceId,
+      });
 
-            // Update progress in search request
-            await updateSearchRequestProgress(this.env, {
-              id: searchRequest.id,
-              cursor: response.cursor,
-              hasMore: response.hasMore,
-              processedCount: totalProcessed,
-            });
+      captureException(error, {
+        workflow: "process-seats-aero-search",
+        searchRequestId: searchRequest.id,
+        route: `${originAirport}-${destinationAirport}`,
+        instanceId: event.instanceId,
+      });
 
-            addBreadcrumb("Processed API page", {
-              count: response.count,
-              totalProcessed,
-              hasMore: response.hasMore,
-            });
-
-            // Check if more pages exist
-            cursor = response.hasMore ? response.cursor : undefined;
-          } while (cursor !== undefined);
-
-          // Mark search as completed
-          await completeSearchRequest(this.env, searchRequest.id);
-
-          workerLogger.info("Completed seats.aero search", {
-            searchRequestId: searchRequest.id,
-            totalProcessed,
-            instanceId: event.instanceId,
-          });
-
-          addBreadcrumb("Search completed", {
-            totalProcessed,
-          });
-
-          return { success: true, totalProcessed };
-        } catch (error) {
-          // Mark search as failed
-          await failSearchRequest(
-            this.env,
-            searchRequest.id,
-            error instanceof Error ? error.message : "Unknown error",
-          );
-
-          workerLogger.error("Search failed", {
-            searchRequestId: searchRequest.id,
-            error: error instanceof Error ? error.message : String(error),
-            instanceId: event.instanceId,
-          });
-
-          captureException(error, {
-            workflow: "process-seats-aero-search",
-            searchRequestId: searchRequest.id,
-            route: `${originAirport}-${destinationAirport}`,
-            instanceId: event.instanceId,
-          });
-
-          throw error;
-        }
-      },
-    );
+      throw error;
+    }
   }
 }
 
