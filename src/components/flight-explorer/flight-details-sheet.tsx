@@ -51,15 +51,15 @@ function formatDuration(minutes: number) {
   return `${hours}h ${remaining}m`;
 }
 
-function formatCurrency(amountInCents: number, currency: string) {
-  const normalizedAmount = amountInCents / 100;
+function formatCurrency(amount: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
-  }).format(normalizedAmount);
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
-function parseAmountToCents(
+function _parseAmountToCents(
   value: number | string | null | undefined,
 ): number | null {
   if (value === null || value === undefined) {
@@ -806,17 +806,19 @@ export function FlightDetailsSheet({
                                     miles
                                   </p>
                                   {(() => {
-                                    const taxesCents = parseAmountToCents(
-                                      award.totalTaxes,
-                                    );
-                                    if (taxesCents === null) {
+                                    if (!award.totalTaxes) {
+                                      return null;
+                                    }
+                                    const taxesAmount =
+                                      Number.parseFloat(award.totalTaxes) / 100;
+                                    if (Number.isNaN(taxesAmount)) {
                                       return null;
                                     }
                                     return (
                                       <p className="text-xs text-muted-foreground">
                                         +{" "}
                                         {formatCurrency(
-                                          taxesCents,
+                                          taxesAmount,
                                           award.taxesCurrency ||
                                             flightOption.currency,
                                         )}{" "}

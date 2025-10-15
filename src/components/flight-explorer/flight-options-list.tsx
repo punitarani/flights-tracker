@@ -33,12 +33,12 @@ function formatDuration(minutes: number) {
   return `${hours}h ${remaining}m`;
 }
 
-function formatCurrency(amountInCents: number, currency: string) {
-  const normalizedAmount = amountInCents / 100;
+function formatCurrency(amount: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
-  }).format(normalizedAmount);
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 type AwardMatch = {
