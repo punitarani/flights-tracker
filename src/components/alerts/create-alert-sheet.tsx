@@ -35,7 +35,7 @@ import {
 } from "@/hooks/use-flight-explorer";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MaxStops, SeatType } from "@/lib/fli/models";
-import { trpc } from "@/lib/trpc/react";
+import { api } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
 
 interface CreateAlertSheetProps {
@@ -166,12 +166,20 @@ export function CreateAlertSheet({
     isOpen,
   ]);
 
-  const createAlertMutation = trpc.useMutation(["alerts.create"], {
+  const createAlertMutation = api.useMutation(["alerts.create"], {
     onSuccess: () => {
       toast.custom(renderAlertCreatedToast, { duration: 6000 });
       onOpenChange(false);
     },
     onError: (error) => {
+      // Silently handle AbortError - user cancelled request intentionally
+      if (
+        error?.message?.includes("AbortError") ||
+        error?.message?.includes("aborted")
+      ) {
+        return;
+      }
+
       const message =
         (error instanceof Error && error.message) ||
         (typeof error?.message === "string" && error.message) ||

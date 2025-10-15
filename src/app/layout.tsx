@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Footer } from "@/components/footer";
+import { GlobalErrorHandler } from "@/components/global-error-handler";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { TRPCProvider } from "@/lib/trpc/provider";
@@ -99,6 +100,7 @@ export default function RootLayout({
         >
           <NuqsAdapter>
             <TRPCProvider>
+              <GlobalErrorHandler />
               <div className="flex min-h-screen flex-col bg-background">
                 <main className="flex flex-1 flex-col">{children}</main>
                 <Footer />

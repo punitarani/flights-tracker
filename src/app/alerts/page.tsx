@@ -23,7 +23,7 @@ import {
 } from "@/core/alert-filter-utils";
 import type { AlertFiltersV1, SeatClass, Stops } from "@/core/filters";
 import type { Alert } from "@/db/schema";
-import { trpc } from "@/lib/trpc/react";
+import { api } from "@/lib/trpc/react";
 
 const STOP_LABELS: Record<Stops, string> = {
   ANY: "Any",
@@ -83,11 +83,35 @@ function toAlertRow(alert: Alert): AlertTableRow | null {
 }
 
 export default function AlertsPage() {
-  const { data, isLoading } = trpc.useQuery(["alerts.list"]);
-  const utils = trpc.useContext();
+  const alertsQuery = api.useQuery(["alerts.list"], {
+    retry: (failureCount, error) => {
+      // Don't retry on AbortError (user cancelled request)
+      if (
+        error?.message?.includes("AbortError") ||
+        error?.message?.includes("aborted")
+      ) {
+        return false;
+      }
+      // Standard retry logic for other errors
+      return failureCount < 3;
+    },
+    onError: (error) => {
+      // Silently handle AbortError - user cancelled request intentionally
+      if (
+        error?.message?.includes("AbortError") ||
+        error?.message?.includes("aborted")
+      ) {
+        return;
+      }
+      // Log other errors for debugging
+      console.error("Alerts query error:", error);
+    },
+  });
+
+  const utils = api.useContext();
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const deleteMutation = trpc.useMutation(["alerts.delete"], {
+  const deleteMutation = api.useMutation(["alerts.delete"], {
     onMutate: ({ id }) => {
       setPendingDeleteId(id);
     },
@@ -96,6 +120,14 @@ export default function AlertsPage() {
       void utils.invalidateQueries(["alerts.list"]);
     },
     onError: (error) => {
+      // Silently handle AbortError - user cancelled request intentionally
+      if (
+        error?.message?.includes("AbortError") ||
+        error?.message?.includes("aborted")
+      ) {
+        return;
+      }
+
       const message =
         (error instanceof Error && error.message) ||
         (typeof error?.message === "string" && error.message) ||
@@ -106,6 +138,8 @@ export default function AlertsPage() {
       setPendingDeleteId(null);
     },
   });
+
+  const { data, isLoading } = alertsQuery;
 
   const rows = useMemo(() => {
     if (!data) {

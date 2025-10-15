@@ -772,8 +772,34 @@ export function useFlightExplorer({
   const latestSearchRequestRef = useRef(0);
   const latestFlightOptionsRequestRef = useRef(0);
   const trpcContext = trpc.useContext();
-  const flightsDatesMutation = trpc.useMutation(["flights.dates"]);
-  const flightsSearchMutation = trpc.useMutation(["flights.search"]);
+  const flightsDatesMutation = trpc.useMutation(["flights.dates"], {
+    onError: (error) => {
+      // Silently handle AbortError - user cancelled request intentionally
+      if (
+        error?.message?.includes("AbortError") ||
+        error?.message?.includes("aborted")
+      ) {
+        return;
+      }
+      // Log other errors for debugging
+      console.error("Flight dates search error:", error);
+      setSearchError(error?.message ?? "Failed to search flight dates");
+    },
+  });
+  const flightsSearchMutation = trpc.useMutation(["flights.search"], {
+    onError: (error) => {
+      // Silently handle AbortError - user cancelled request intentionally
+      if (
+        error?.message?.includes("AbortError") ||
+        error?.message?.includes("aborted")
+      ) {
+        return;
+      }
+      // Log other errors for debugging
+      console.error("Flight search error:", error);
+      setFlightOptionsError(error?.message ?? "Failed to search flights");
+    },
+  });
 
   const clearSelectedDateAndOptions = useCallback(() => {
     latestFlightOptionsRequestRef.current += 1;
@@ -920,6 +946,13 @@ export function useFlightExplorer({
         }
       } catch (error) {
         if (latestNearbyRequestRef.current === requestId) {
+          // Silently handle AbortError - user cancelled request intentionally
+          if (
+            (error as any)?.message?.includes("AbortError") ||
+            (error as any)?.message?.includes("aborted")
+          ) {
+            return;
+          }
           logger.error("Failed to fetch nearby airports", {
             lat,
             lon,
