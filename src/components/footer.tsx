@@ -1,5 +1,4 @@
 import { Github } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import type { ComponentType, SVGProps } from "react";
 
@@ -30,14 +29,8 @@ export function Footer() {
           href="/"
           className="flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-primary"
         >
-          <span className="relative h-6 w-6 overflow-hidden rounded-full bg-muted/20 ring-1 ring-border/50">
-            <Image
-              src="/globe.svg"
-              alt="Graypane logo"
-              fill
-              sizes="24px"
-              className="object-contain object-center"
-            />
+          <span className="text-xl" role="img" aria-label="flight">
+            ✈️
           </span>
           <span className="tracking-tight">GrayPane</span>
         </Link>
