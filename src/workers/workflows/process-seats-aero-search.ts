@@ -121,7 +121,7 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
 
             // Store each trip in database
             for (const availability of response.data) {
-              for (const trip of availability.AvailabilityTrips) {
+              for (const trip of availability.AvailabilityTrips ?? []) {
                 await upsertAvailabilityTrip(this.env, {
                   searchRequestId: searchRequest.id,
                   trip,
