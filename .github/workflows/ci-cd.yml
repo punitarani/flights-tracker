@@ -10,9 +10,16 @@ jobs:
     name: Lint and Format
     uses: ./.github/workflows/lint-format.yml
 
+  build:
+    name: Build
+    needs: [lint_format]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "placeholder step to enable job fan-out" # GitHub requires at least one step
+
   worker_build:
     name: Worker Build (Dry Run)
-    needs: [lint_format]
+    needs: [build]
     uses: ./.github/workflows/worker-build.yml
     secrets:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -27,7 +34,7 @@ jobs:
 
   web_build:
     name: Web App Build
-    needs: [worker_build]
+    needs: [build]
     uses: ./.github/workflows/web-build.yml
     secrets:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -40,9 +47,16 @@ jobs:
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       NEXT_PUBLIC_MAPKIT_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPKIT_TOKEN }}
 
+  tests:
+    name: Tests
+    needs: [web_build, worker_build]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "placeholder step to enable job fan-out"
+
   app_tests:
     name: App Tests
-    needs: [web_build]
+    needs: [tests]
     uses: ./.github/workflows/app-tests.yml
     secrets:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -57,7 +71,7 @@ jobs:
 
   worker_tests:
     name: Worker Tests
-    needs: [app_tests]
+    needs: [tests]
     uses: ./.github/workflows/worker-tests.yml
     secrets:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -72,7 +86,7 @@ jobs:
 
   fli_tests:
     name: Fli Tests
-    needs: [worker_tests]
+    needs: [tests]
     uses: ./.github/workflows/fli-tests.yml
     secrets:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}

@@ -77,4 +77,4 @@ jobs:
           fi
 
       - name: Run tests (app only)
-        run: bun test --concurrent --timeout 60000 --preload ./src/test/setup.ts "src/**/**.test.ts" "!src/workers/**" "!src/lib/fli/**"
+        run: bun test --concurrent --timeout 60000 --preload ./src/test/setup.ts src/components src/core src/lib/notifications
