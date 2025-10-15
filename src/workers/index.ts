@@ -30,36 +30,36 @@ const handlers = {
     setTag("handler", "scheduled");
     setTag("cron", controller.cron);
 
-    // Notify Sentry cron job is starting
+    // Start monitor with proper configuration
     const checkInId = Sentry.captureCheckIn(
       {
         monitorSlug: "check-flight-alerts-cron",
         status: "in_progress",
       },
       {
-        schedule: {
-          type: "crontab",
-          value: "0 */6 * * *", // Every 6 hours
-        },
-        checkinMargin: 5, // 5 minutes grace period
-        maxRuntime: 30, // 30 minutes max runtime
+        schedule: { type: "crontab", value: "0 */6 * * *" },
+        checkinMargin: 5,
+        maxRuntime: 30,
         timezone: "UTC",
       },
     );
+
+    const finishMonitor = (status: "ok" | "error") => {
+      Sentry.captureCheckIn({
+        checkInId,
+        status,
+        monitorSlug: "check-flight-alerts-cron",
+      });
+    };
 
     try {
       workerLogger.info("Cron triggered", {
         scheduledTime: controller.scheduledTime,
       });
 
+      // Create unique workflow instance
       const now = new Date();
-      const date = now.toISOString().split("T")[0];
-      const time = now
-        .toISOString()
-        .split("T")[1]
-        .substring(0, 5)
-        .replace(":", "-"); // HH-MM format
-      const instanceId = `CheckFlightAlertsWorkflow_${date}_${time}`;
+      const instanceId = `CheckFlightAlertsWorkflow_${now.toISOString().split("T")[0]}_${now.toISOString().split("T")[1].substring(0, 5).replace(":", "-")}`;
 
       const instance = await env.CHECK_ALERTS_WORKFLOW.create({
         id: instanceId,
@@ -69,25 +69,14 @@ const handlers = {
       workerLogger.info("Started CheckFlightAlertsWorkflow", {
         instanceId: instance.id,
       });
-
-      // Notify Sentry cron job completed successfully
-      Sentry.captureCheckIn({
-        checkInId,
-        monitorSlug: "check-flight-alerts-cron",
-        status: "ok",
-      });
+      finishMonitor("ok");
     } catch (error) {
-      // Notify Sentry cron job failed
-      Sentry.captureCheckIn({
-        checkInId,
-        monitorSlug: "check-flight-alerts-cron",
-        status: "error",
+      workerLogger.error("Cron execution failed", {
+        error: error instanceof Error ? error.message : String(error),
       });
 
-      captureException(error, {
-        handler: "scheduled",
-        scheduledTime: controller.scheduledTime,
-      });
+      captureException(error, { handler: "scheduled" });
+      finishMonitor("error");
       throw error;
     }
   },
