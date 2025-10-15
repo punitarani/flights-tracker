@@ -1,0 +1,49 @@
+name: Worker Build (Dry Run)
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  worker-build:
+    name: Build Cloudflare Worker (dry run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Minimal env needed to parse env schema and worker build
+      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgres://user:pass@localhost:5432/db' }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || 'placeholder' }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || 'placeholder' }}
+      SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY || 'placeholder' }}
+      WORKER_URL: ${{ secrets.WORKER_URL || 'https://example.com' }}
+      WORKER_API_KEY: ${{ secrets.WORKER_API_KEY || 'placeholder' }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'placeholder' }}
+      NEXT_PUBLIC_MAPKIT_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPKIT_TOKEN || 'placeholder' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            ~/.cache/bun
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', 'bun.lock', 'bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Wrangler build (dry run)
+        run: bun run worker:deploy --dry-run
