@@ -17,6 +17,7 @@ interface AirportMapProps {
   // biome-ignore lint/suspicious/noExplicitAny: MapKit types are loaded at runtime
   onMapReady?: (map: any) => void;
   onAirportClick?: (airport: AirportData) => void;
+  waypoints?: AirportData[];
 }
 
 export type AirportMapPopularRoute = {
@@ -273,6 +274,7 @@ export function AirportMap({
   onRouteSelect,
   onMapReady,
   onAirportClick,
+  waypoints = [],
 }: AirportMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapKitMap | null>(null);
@@ -754,45 +756,60 @@ export function AirportMap({
     );
 
     if (shouldRenderDedicatedOverlay && originAirport && destinationAirport) {
-      const segments = buildGreatCircleSegments(
-        mapkit,
-        originAirport,
-        destinationAirport,
-      );
-
       const overlaysForRoute: unknown[] = [];
 
-      for (const coordinates of segments) {
-        if (coordinates.length < 2) {
-          continue;
-        }
+      // Build route segments including waypoints
+      const routePoints =
+        waypoints.length > 0
+          ? [originAirport, ...waypoints, destinationAirport]
+          : [originAirport, destinationAirport];
 
-        const overlay = new mapkit.PolylineOverlay(coordinates, {
-          lineCap: "round",
-          lineJoin: "round",
-          lineWidth: 4.6,
-          strokeColor: "#1e3a8a",
-          opacity: 0.9,
-        });
+      for (let i = 0; i < routePoints.length - 1; i++) {
+        const segmentOrigin = routePoints[i];
+        const segmentDestination = routePoints[i + 1];
 
-        try {
-          map.addOverlay(overlay);
-          overlaysForRoute.push(overlay);
-        } catch {
-          try {
-            map.removeOverlay(overlay as never);
-          } catch {
-            // ignore overlay cleanup errors
+        const segments = buildGreatCircleSegments(
+          mapkit,
+          segmentOrigin,
+          segmentDestination,
+        );
+
+        for (const coordinates of segments) {
+          if (coordinates.length < 2) {
+            continue;
           }
-          for (const added of overlaysForRoute) {
+
+          const overlay = new mapkit.PolylineOverlay(coordinates, {
+            lineCap: "round",
+            lineJoin: "round",
+            lineWidth: 4.6,
+            strokeColor: "#1e3a8a",
+            opacity: 0.9,
+          });
+
+          try {
+            map.addOverlay(overlay);
+            overlaysForRoute.push(overlay);
+          } catch {
             try {
-              map.removeOverlay(added as never);
+              map.removeOverlay(overlay as never);
             } catch {
               // ignore overlay cleanup errors
             }
+            for (const added of overlaysForRoute) {
+              try {
+                map.removeOverlay(added as never);
+              } catch {
+                // ignore overlay cleanup errors
+              }
+            }
+            overlaysForRoute.length = 0;
+            break;
           }
-          overlaysForRoute.length = 0;
-          break;
+        }
+
+        if (overlaysForRoute.length === 0) {
+          break; // Stop processing if we hit an error
         }
       }
 
@@ -875,6 +892,7 @@ export function AirportMap({
   }, [
     destinationAirport,
     originAirport,
+    waypoints,
     onAirportClick,
     isReady,
     activeRouteId,

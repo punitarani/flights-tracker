@@ -236,9 +236,9 @@ export function FlightDetailsSheet({
     return groupAwardsByProgram(flightOption, awardTrips);
   }, [flightOption, awardTrips]);
 
-  const { originAirport, destinationAirport } = useMemo(() => {
+  const { originAirport, destinationAirport, waypoints } = useMemo(() => {
     if (!flightOption || flightOption.slices.length === 0) {
-      return { originAirport: null, destinationAirport: null };
+      return { originAirport: null, destinationAirport: null, waypoints: [] };
     }
 
     const firstLeg = flightOption.slices[0].legs[0];
@@ -252,9 +252,40 @@ export function FlightDetailsSheet({
       (a) => a.iata === lastLeg.arrivalAirportCode,
     );
 
+    // Extract all intermediate airports as waypoints
+    const intermediateAirports: typeof airports = [];
+    const visitedAirports = new Set<string>();
+
+    if (origin) {
+      visitedAirports.add(origin.iata);
+    }
+
+    for (const slice of flightOption.slices) {
+      for (let i = 0; i < slice.legs.length; i++) {
+        const leg = slice.legs[i];
+        const departureCode = leg.departureAirportCode;
+        const arrivalCode = leg.arrivalAirportCode;
+
+        // Add arrival airport as waypoint (except if it's the final destination)
+        if (
+          !visitedAirports.has(arrivalCode) &&
+          arrivalCode !== lastLeg.arrivalAirportCode
+        ) {
+          const arrivalAirport = airports.find((a) => a.iata === arrivalCode);
+          if (arrivalAirport) {
+            intermediateAirports.push(arrivalAirport);
+            visitedAirports.add(arrivalCode);
+          }
+        }
+
+        visitedAirports.add(departureCode);
+      }
+    }
+
     return {
       originAirport: origin || null,
       destinationAirport: destination || null,
+      waypoints: intermediateAirports,
     };
   }, [flightOption, airports]);
 
@@ -483,6 +514,7 @@ export function FlightDetailsSheet({
                       originAirport={originAirport}
                       destinationAirport={destinationAirport}
                       showAllAirports={false}
+                      waypoints={waypoints}
                     />
                   </AspectRatio>
                   <div className="pointer-events-none absolute inset-x-5 bottom-5 flex flex-wrap items-center gap-3 text-[11px] font-medium">
