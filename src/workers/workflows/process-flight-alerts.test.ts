@@ -23,18 +23,18 @@ describe("ProcessFlightAlertsWorkflow", () => {
   test("validates retry configuration values", () => {
     const retryConfig = {
       limit: 5,
-      delay: "5 minutes",
+      delay: "1 minute",
       backoff: "exponential",
     };
 
     expect(retryConfig.limit).toBe(5);
-    expect(retryConfig.delay).toBe("5 minutes");
+    expect(retryConfig.delay).toBe("1 minute");
     expect(retryConfig.backoff).toBe("exponential");
   });
 
   test("validates timeout configuration", () => {
-    const timeout = "15 minutes";
-    expect(timeout).toBe("15 minutes");
+    const timeout = "10 minutes";
+    expect(timeout).toBe("10 minutes");
   });
 
   test("instance ID includes all required components", () => {

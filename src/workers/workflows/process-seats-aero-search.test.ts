@@ -61,18 +61,18 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
   test("validates retry configuration values", () => {
     const retryConfig = {
       limit: 3,
-      delay: "5 minutes",
-      backoff: "exponential",
+      delay: "30 seconds",
+      backoff: "constant",
     };
 
     expect(retryConfig.limit).toBe(3);
-    expect(retryConfig.delay).toBe("5 minutes");
-    expect(retryConfig.backoff).toBe("exponential");
+    expect(retryConfig.delay).toBe("30 seconds");
+    expect(retryConfig.backoff).toBe("constant");
   });
 
   test("validates timeout configuration", () => {
-    const timeout = "30 minutes";
-    expect(timeout).toBe("30 minutes");
+    const timeout = "15 minutes";
+    expect(timeout).toBe("15 minutes");
   });
 
   test("validates pagination configuration", () => {

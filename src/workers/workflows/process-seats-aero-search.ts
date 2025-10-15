@@ -81,10 +81,10 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
       {
         retries: {
           limit: 3,
-          delay: "5 minutes",
-          backoff: "exponential",
+          delay: "30 seconds",
+          backoff: "constant",
         },
-        timeout: "30 minutes",
+        timeout: "10 minutes",
       },
       async () => {
         try {

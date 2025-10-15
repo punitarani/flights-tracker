@@ -77,10 +77,10 @@ export class ProcessFlightAlertsWorkflow extends WorkflowEntrypoint<
       {
         retries: {
           limit: 5,
-          delay: "5 minutes",
+          delay: "1 minute",
           backoff: "exponential",
         },
-        timeout: "15 minutes",
+        timeout: "10 minutes",
       },
       async () => {
         try {
