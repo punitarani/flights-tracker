@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AlertType } from "./alert-types";
 import { AlertFiltersSchema } from "./filters";
 
-export const AlertTypeSchema = z.nativeEnum(AlertType);
+export const AlertTypeSchema = z.enum(AlertType);
 
 /**
  * Schema for creating a new alert

@@ -118,18 +118,18 @@ const DEFAULT_PASSENGERS = {
 
 export const FlightFiltersInputSchema = z
   .object({
-    tripType: z.nativeEnum(TripType).default(TripType.ONE_WAY),
+    tripType: z.enum(TripType).default(TripType.ONE_WAY),
     segments: z.array(segmentInputSchema).min(1).max(2),
     passengers: passengerInputSchema.optional(),
-    seatType: z.nativeEnum(SeatType).default(SeatType.ECONOMY),
-    stops: z.nativeEnum(MaxStops).default(MaxStops.ANY),
+    seatType: z.enum(SeatType).default(SeatType.ECONOMY),
+    stops: z.enum(MaxStops).default(MaxStops.ANY),
     dateRange: dateRangeSchema,
     airlines: z.array(airlineCodeSchema).max(16).optional(),
     daysOfWeek: z.array(dayOfWeekValueSchema).max(7).optional(),
     priceLimit: z
       .object({
         amount: z.number().positive(),
-        currency: z.nativeEnum(Currency).optional(),
+        currency: z.enum(Currency).optional(),
       })
       .optional(),
     maxDurationMinutes: z.number().int().positive().optional(),

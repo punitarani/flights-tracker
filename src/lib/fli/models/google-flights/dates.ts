@@ -19,13 +19,13 @@ import {
  */
 export const DateSearchFiltersSchema = z
   .object({
-    tripType: z.nativeEnum(TripType).default(TripType.ONE_WAY),
+    tripType: z.enum(TripType).default(TripType.ONE_WAY),
     passengerInfo: PassengerInfoSchema,
     flightSegments: z.array(FlightSegmentSchema),
-    stops: z.nativeEnum(MaxStops).default(MaxStops.ANY),
-    seatType: z.nativeEnum(SeatType).default(SeatType.ECONOMY),
+    stops: z.enum(MaxStops).default(MaxStops.ANY),
+    seatType: z.enum(SeatType).default(SeatType.ECONOMY),
     priceLimit: PriceLimitSchema.optional(),
-    airlines: z.array(z.nativeEnum(Airline)).optional(),
+    airlines: z.array(z.enum(Airline)).optional(),
     maxDuration: z.number().positive().optional(),
     layoverRestrictions: LayoverRestrictionsSchema.optional(),
     fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

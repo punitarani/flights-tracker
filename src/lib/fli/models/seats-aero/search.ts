@@ -28,7 +28,7 @@ export const RouteSchema = z.object({
   /** Distance between airports in miles */
   Distance: z.number(),
   /** Source program for this route */
-  Source: z.nativeEnum(Source),
+  Source: z.enum(Source),
 });
 
 export type Route = z.infer<typeof RouteSchema>;
@@ -57,7 +57,7 @@ export const AvailabilityTripSchema = z.object({
   /** Total taxes and fees */
   TotalTaxes: z.number(),
   /** Currency code for taxes (may be undefined for some trips) */
-  TaxesCurrency: z.nativeEnum(Currency).optional(),
+  TaxesCurrency: z.enum(Currency).optional(),
   /** Currency symbol for display (may be undefined for some trips) */
   TaxesCurrencySymbol: z.string().optional(),
   /** Total distance of all segments in miles */
@@ -73,7 +73,7 @@ export const AvailabilityTripSchema = z.object({
   /** Departure time (ISO 8601 UTC) */
   DepartsAt: z.string(),
   /** Cabin class for this trip */
-  Cabin: z.nativeEnum(CabinClass),
+  Cabin: z.enum(CabinClass),
   /** Arrival time (ISO 8601 UTC) */
   ArrivesAt: z.string(),
   /** Record creation timestamp */
@@ -81,7 +81,7 @@ export const AvailabilityTripSchema = z.object({
   /** Record last update timestamp */
   UpdatedAt: z.string(),
   /** Source program for this trip */
-  Source: z.nativeEnum(Source),
+  Source: z.enum(Source),
 });
 
 export type AvailabilityTrip = z.infer<typeof AvailabilityTripSchema>;
@@ -272,9 +272,9 @@ export const AvailabilitySchema = z.object({
 
   // Shared fields
   /** Currency code for all tax amounts */
-  TaxesCurrency: z.nativeEnum(Currency),
+  TaxesCurrency: z.enum(Currency),
   /** Source program for this availability */
-  Source: z.nativeEnum(Source),
+  Source: z.enum(Source),
   /** Record creation timestamp */
   CreatedAt: z.string(),
   /** Record last update timestamp */
