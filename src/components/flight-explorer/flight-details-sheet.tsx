@@ -739,9 +739,10 @@ export function FlightDetailsSheet({
 
               {programGroups.length > 0 ? (
                 <div className="space-y-4">
-                  {programGroups.map((program) => {
+                  {programGroups.map((program, programIndex) => {
                     const topAward = program.awards[0];
                     const programName = toTitleCase(program.source);
+                    const isTopPick = programIndex === 0;
 
                     return (
                       <Card
@@ -761,7 +762,7 @@ export function FlightDetailsSheet({
                               </p>
                             ) : null}
                           </div>
-                          {topAward ? (
+                          {isTopPick && topAward ? (
                             <Badge
                               variant="secondary"
                               className="rounded-full border-border/40 bg-muted/40 px-3 py-1 text-xs font-semibold"
