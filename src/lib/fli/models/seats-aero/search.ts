@@ -279,7 +279,7 @@ export const AvailabilitySchema = z.object({
   /** Record last update timestamp */
   UpdatedAt: z.string(),
   /** Array of specific trip/itinerary options */
-  AvailabilityTrips: z.array(AvailabilityTripSchema).nullable(),
+  AvailabilityTrips: z.array(AvailabilityTripSchema).nullish(),
 });
 
 export type Availability = z.infer<typeof AvailabilitySchema>;
