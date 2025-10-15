@@ -3,6 +3,10 @@ main = "src/workers/index.ts"
 compatibility_date = "2025-09-15"
 compatibility_flags = ["nodejs_compat", "nodejs_als", "nodejs_compat_populate_process_env"]
 
+# CPU time limit
+[limits]
+cpu_ms = 300000  # 5 minutes
+
 # Keep dashboard environment variables across deployments
 keep_vars = true
 
