@@ -1,6 +1,7 @@
 "use client";
 
-import { Loader2, MapPin, Search, X } from "lucide-react";
+import { ChevronDown, Loader2, MapPin, Search, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { AirportSearch } from "@/components/airport-search";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,9 +33,134 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
 
   const { displayMessage, isInitialLoading, isLoadingNearby } = header;
 
+  // Mobile collapse state
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Scroll detection for mobile collapse
+  useEffect(() => {
+    // Only set up scroll listener when we have search results
+    if (!shouldShowSearchAction) {
+      return;
+    }
+
+    let lastScrollY = 0;
+    const threshold = 50; // Collapse after scrolling 50px down
+    let scrollContainer: HTMLElement | null = null;
+
+    const handleScroll = (e: Event) => {
+      const target = e.target as HTMLElement;
+      const currentScrollY = target.scrollTop ?? window.scrollY;
+
+      // Only apply on mobile (will be handled by CSS visibility)
+      if (currentScrollY > threshold && currentScrollY > lastScrollY) {
+        // Scrolling down
+        setIsCollapsed(true);
+        setIsExpanded(false);
+      } else if (currentScrollY < threshold) {
+        // Near top
+        setIsCollapsed(false);
+        setIsExpanded(false);
+      }
+
+      lastScrollY = currentScrollY;
+    };
+
+    // Find and attach to the scroll container
+    // Use a small delay and retry logic to ensure FlightPricePanel has rendered
+    const setupScrollListener = () => {
+      scrollContainer = document.getElementById("flight-price-panel-scroll");
+
+      if (scrollContainer) {
+        scrollContainer.addEventListener("scroll", handleScroll, {
+          passive: true,
+        });
+        return true;
+      }
+      return false;
+    };
+
+    // Retry finding the container with increasing delays
+    const timeouts: NodeJS.Timeout[] = [];
+    const trySetup = (attempt = 0) => {
+      if (setupScrollListener()) {
+        return; // Successfully attached
+      }
+
+      // Retry up to 5 times with exponential backoff
+      if (attempt < 5) {
+        const delay = Math.min(100 * 2 ** attempt, 1000);
+        timeouts.push(setTimeout(() => trySetup(attempt + 1), delay));
+      }
+    };
+
+    trySetup();
+
+    return () => {
+      // Clear all timeouts
+      for (const timeout of timeouts) {
+        clearTimeout(timeout);
+      }
+
+      // Remove listener if attached
+      if (scrollContainer) {
+        scrollContainer.removeEventListener("scroll", handleScroll);
+      }
+    };
+  }, [shouldShowSearchAction]); // Re-run when search results appear
+
+  const handlePillClick = () => {
+    setIsExpanded(true);
+    setIsCollapsed(false);
+
+    // Scroll the container back to top when expanding
+    const scrollContainer = document.getElementById(
+      "flight-price-panel-scroll",
+    );
+    if (scrollContainer) {
+      scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const _handleCollapse = () => {
+    setIsExpanded(false);
+    setIsCollapsed(true);
+  };
+
   const showOriginSummary = Boolean(origin.selectedAirport && !origin.isActive);
   const showDestinationSummary = Boolean(
     destination.selectedAirport && !destination.isActive,
+  );
+
+  // Generate pill display text
+  const pillText = () => {
+    if (origin.selectedAirport && destination.selectedAirport) {
+      return `${origin.selectedAirport.iata} → ${destination.selectedAirport.iata}`;
+    }
+    if (origin.selectedAirport) {
+      return `From ${origin.selectedAirport.iata}`;
+    }
+    return "Search flights";
+  };
+
+  // Collapsed pill view for mobile
+  const renderCollapsedPill = () => (
+    <button
+      type="button"
+      onClick={handlePillClick}
+      className="flex w-full items-center justify-between gap-2 rounded-full bg-card/80 px-4 py-2.5 shadow-md backdrop-blur-sm transition-all hover:bg-card/90 active:scale-[0.98]"
+    >
+      <div className="flex items-center gap-2">
+        <Search className="h-4 w-4 text-primary" aria-hidden="true" />
+        <span className="text-sm font-medium">{pillText()}</span>
+      </div>
+      <ChevronDown
+        className="h-4 w-4 text-muted-foreground"
+        aria-hidden="true"
+      />
+    </button>
   );
 
   const renderSummaryButton = (
@@ -62,9 +188,33 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     </Button>
   );
 
+  const showCollapsed = isCollapsed && !isExpanded;
+  const showFullView = !isCollapsed || isExpanded;
+
   return (
-    <div className="flex-none border-b bg-card/50 backdrop-blur-sm z-10">
-      <div className="container mx-auto p-4 space-y-3">
+    <div className="sticky top-0 z-10 flex-none border-b bg-card/50 backdrop-blur-sm transition-all duration-300">
+      {/* Mobile collapsed pill - only visible on mobile when collapsed */}
+      <div
+        className={cn(
+          "container mx-auto px-4 py-2 transition-all duration-300 md:hidden",
+          showCollapsed
+            ? "opacity-100 max-h-16"
+            : "opacity-0 max-h-0 overflow-hidden pointer-events-none",
+        )}
+      >
+        {renderCollapsedPill()}
+      </div>
+
+      {/* Full search view */}
+      <div
+        className={cn(
+          "container mx-auto space-y-3 transition-all duration-300",
+          "md:p-4 md:opacity-100 md:max-h-none", // Always visible on desktop
+          showFullView
+            ? "p-4 opacity-100 max-h-[500px]"
+            : "max-h-0 overflow-hidden opacity-0 pointer-events-none p-0",
+        )}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-1 sm:items-stretch">
             <div

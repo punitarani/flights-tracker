@@ -126,7 +126,7 @@ export function AwardAvailabilityPanel({
     if (isSearching) {
       toastIdRef.current = toast.loading(
         "Live search in progress for points. Please wait 1-2 minutes.",
-        { duration: Infinity },
+        { duration: 3000 },
       );
     } else if (toastIdRef.current) {
       toast.dismiss(toastIdRef.current);

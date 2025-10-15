@@ -96,7 +96,10 @@ export function FlightPricePanel({
   }
 
   return (
-    <div className="h-full w-full overflow-auto bg-muted/10">
+    <div
+      id="flight-price-panel-scroll"
+      className="h-full w-full overflow-auto bg-muted/10"
+    >
       <div className="container mx-auto flex flex-col gap-4 p-4">
         <FlightFiltersPanel
           filters={filters}

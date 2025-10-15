@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays, addYears, format, startOfDay } from "date-fns";
-import { CalendarIcon, Loader2, X } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/popover";
 import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetFooter,
   SheetHeader,
@@ -353,10 +352,9 @@ export function CreateAlertSheet({
   const emailDisplay = userEmail;
   const createDisabled =
     !alertPayload || createAlertMutation.isLoading || !canOpenCreate;
-  const sheetCloseHiddenClass = "[&>[data-slot=sheet-close]]:hidden";
   const sheetClassName = isMobile
-    ? `flex h-[85vh] w-full flex-col ${sheetCloseHiddenClass}`
-    : `flex w-full flex-col sm:max-w-md ${sheetCloseHiddenClass}`;
+    ? "flex h-[85vh] w-full flex-col"
+    : "flex w-full flex-col sm:max-w-md";
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
@@ -365,21 +363,10 @@ export function CreateAlertSheet({
         side={isMobile ? "bottom" : "right"}
         className={sheetClassName}
       >
-        <SheetHeader className="flex-row items-center justify-between gap-2 px-4 pt-6">
+        <SheetHeader className="flex-col gap-2 px-4 pt-6">
           <SheetTitle className="text-base font-semibold">
             Create alert
           </SheetTitle>
-          <SheetClose asChild>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 rounded-full"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-              <span className="sr-only">Close</span>
-            </Button>
-          </SheetClose>
         </SheetHeader>
         <div className="flex flex-1 flex-col gap-4 overflow-auto px-4">
           <div className="space-y-2">

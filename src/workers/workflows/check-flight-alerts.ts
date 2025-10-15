@@ -9,12 +9,13 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
+import * as Sentry from "@sentry/cloudflare";
 import { getUserIdsWithActiveDailyAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
 import { addBreadcrumb, captureException } from "../utils/sentry";
 
-export class CheckFlightAlertsWorkflow extends WorkflowEntrypoint<
+class CheckFlightAlertsWorkflowBase extends WorkflowEntrypoint<
   WorkerEnv,
   Record<string, never>
 > {
@@ -87,3 +88,13 @@ export class CheckFlightAlertsWorkflow extends WorkflowEntrypoint<
     });
   }
 }
+
+// Export instrumented workflow
+export const CheckFlightAlertsWorkflow = Sentry.instrumentWorkflowWithSentry(
+  (env: WorkerEnv) => ({
+    dsn: env.SENTRY_DSN,
+    environment: env.SENTRY_ENVIRONMENT || "production",
+    tracesSampleRate: 1.0,
+  }),
+  CheckFlightAlertsWorkflowBase,
+);

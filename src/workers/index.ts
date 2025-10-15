@@ -30,6 +30,23 @@ const handlers = {
     setTag("handler", "scheduled");
     setTag("cron", controller.cron);
 
+    // Notify Sentry cron job is starting
+    const checkInId = Sentry.captureCheckIn(
+      {
+        monitorSlug: "check-flight-alerts-cron",
+        status: "in_progress",
+      },
+      {
+        schedule: {
+          type: "crontab",
+          value: "0 */6 * * *", // Every 6 hours
+        },
+        checkinMargin: 5, // 5 minutes grace period
+        maxRuntime: 30, // 30 minutes max runtime
+        timezone: "UTC",
+      },
+    );
+
     try {
       workerLogger.info("Cron triggered", {
         scheduledTime: controller.scheduledTime,
@@ -52,7 +69,21 @@ const handlers = {
       workerLogger.info("Started CheckFlightAlertsWorkflow", {
         instanceId: instance.id,
       });
+
+      // Notify Sentry cron job completed successfully
+      Sentry.captureCheckIn({
+        checkInId,
+        monitorSlug: "check-flight-alerts-cron",
+        status: "ok",
+      });
     } catch (error) {
+      // Notify Sentry cron job failed
+      Sentry.captureCheckIn({
+        checkInId,
+        monitorSlug: "check-flight-alerts-cron",
+        status: "error",
+      });
+
       captureException(error, {
         handler: "scheduled",
         scheduledTime: controller.scheduledTime,
