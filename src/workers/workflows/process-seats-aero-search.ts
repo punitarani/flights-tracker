@@ -63,7 +63,7 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
     });
 
     // Step 1: Validate search request exists (defensive check)
-    const searchRequest = await step.do("validate-search-request", async () => {
+    const searchRequest = await step.do("validate-search-request", {}, async () => {
       const search = await getSearchRequest(this.env, {
         originAirport,
         destinationAirport,
