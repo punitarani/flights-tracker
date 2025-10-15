@@ -100,7 +100,9 @@ export default function RootLayout({
           <NuqsAdapter>
             <TRPCProvider>
               <div className="flex min-h-screen flex-col bg-background">
-                <main className="flex flex-1 flex-col">{children}</main>
+                <main className="flex flex-1 flex-col min-h-0">
+                  <div className="flex flex-1 flex-col min-h-0">{children}</div>
+                </main>
                 <Footer />
               </div>
               <Analytics />
