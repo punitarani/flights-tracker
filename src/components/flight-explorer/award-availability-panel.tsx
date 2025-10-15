@@ -1,6 +1,6 @@
 "use client";
 
-import { format, parseISO } from "date-fns";
+import { addYears, format, parseISO, startOfToday } from "date-fns";
 import { Calendar, Loader2, Plane } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
@@ -102,13 +102,19 @@ export function AwardAvailabilityPanel({
   const toastIdRef = useRef<string | number | null>(null);
 
   // Trigger the search to populate cache
+  // Always search from today to 1 year from now for comprehensive award data
+  const seatsAeroStartDate = startOfToday().toISOString().split("T")[0];
+  const seatsAeroEndDate = addYears(startOfToday(), 1)
+    .toISOString()
+    .split("T")[0];
+
   const { isLoading: isSearching } = trpc.useQuery([
     "seatsAero.search",
     {
       originAirport: originAirport.iata,
       destinationAirport: destinationAirport.iata,
-      startDate,
-      endDate,
+      startDate: seatsAeroStartDate,
+      endDate: seatsAeroEndDate,
       useCache: true,
     },
   ]);
@@ -136,8 +142,8 @@ export function AwardAvailabilityPanel({
     {
       originAirport: originAirport.iata,
       destinationAirport: destinationAirport.iata,
-      searchStartDate: startDate,
-      searchEndDate: endDate,
+      searchStartDate: seatsAeroStartDate,
+      searchEndDate: seatsAeroEndDate,
       directOnly,
       maxStops,
       sources,
