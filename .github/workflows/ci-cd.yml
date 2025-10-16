@@ -77,7 +77,6 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - quality
-    if: ${{ always() }}
     strategy:
       fail-fast: false
       matrix:
@@ -123,7 +122,6 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build
-    if: ${{ always() }}
 
     steps:
       - name: Checkout repository
@@ -161,7 +159,6 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - db-migrate
-    if: ${{ always() }}
     strategy:
       fail-fast: false
       matrix:
@@ -213,7 +210,7 @@ jobs:
       - build
       - db-migrate
       - tests
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && success()
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -258,4 +255,4 @@ jobs:
       - name: notify vercel
         uses: vercel/repository-dispatch/actions/status@v1
         with:
-          name: Vercel - flights-tracker: build
+          name: 'Vercel - flights-tracker: build'
