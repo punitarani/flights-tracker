@@ -11,6 +11,7 @@ export function getSentryOptions(env: WorkerEnv) {
     dsn: env.SENTRY_DSN,
     environment: env.SENTRY_ENVIRONMENT || "production",
     tracesSampleRate: 1.0,
+    enableLogs: true,
   };
 }
 
