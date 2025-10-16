@@ -240,18 +240,29 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --name ${{ secrets.CLOUDFLARE_WORKER_NAME }} --env production
+          command: deploy --env production
           secrets: |
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
-            RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
-            RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}
-            SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-            SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-            NEXTJS_API_URL=${{ secrets.NEXTJS_API_URL }}
-            SEATS_AERO_API_KEY=${{ secrets.SEATS_AERO_API_KEY }}
-            WORKER_API_KEY=${{ secrets.WORKER_API_KEY }}
-            SENTRY_DSN=${{ secrets.SENTRY_DSN }}
-            SENTRY_ENVIRONMENT=${{ secrets.SENTRY_ENVIRONMENT }}
+            DATABASE_URL
+            RESEND_API_KEY
+            RESEND_FROM_EMAIL
+            SUPABASE_URL
+            SUPABASE_SERVICE_ROLE_KEY
+            NEXTJS_API_URL
+            SEATS_AERO_API_KEY
+            WORKER_API_KEY
+            SENTRY_DSN
+            SENTRY_ENVIRONMENT
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXTJS_API_URL: ${{ secrets.NEXTJS_API_URL }}
+          SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
+          WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_ENVIRONMENT: ${{ secrets.SENTRY_ENVIRONMENT }}
 
       - name: notify vercel
         uses: vercel/repository-dispatch/actions/status@v1
