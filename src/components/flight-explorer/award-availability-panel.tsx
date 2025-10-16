@@ -221,7 +221,8 @@ export function AwardAvailabilityPanel({
 
       if (
         selectionDate &&
-        (isBefore(selectionDate, rangeStart) || isAfter(selectionDate, rangeEnd))
+        (isBefore(selectionDate, rangeStart) ||
+          isAfter(selectionDate, rangeEnd))
       ) {
         return null;
       }
