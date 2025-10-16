@@ -6,6 +6,7 @@
  */
 
 import {
+  type ExecutionContext,
   WorkflowEntrypoint,
   type WorkflowEvent,
   type WorkflowStep,
@@ -46,7 +47,10 @@ export function withSentryMonitor<
   TEnv,
   TParams extends Record<string, unknown>,
 >(
-  WorkflowClass: new (ctx: any, env: TEnv) => WorkflowEntrypoint<TEnv, TParams>,
+  WorkflowClass: new (
+    ctx: ExecutionContext,
+    env: TEnv,
+  ) => WorkflowEntrypoint<TEnv, TParams>,
   defaultConfig?: MonitorConfig,
 ) {
   return class MonitoredWorkflow extends WorkflowEntrypoint<
@@ -55,7 +59,7 @@ export function withSentryMonitor<
   > {
     private workflow: WorkflowEntrypoint<TEnv, TParams>;
 
-    constructor(ctx: any, env: TEnv) {
+    constructor(ctx: ExecutionContext, env: TEnv) {
       super(ctx, env);
       this.workflow = new WorkflowClass(ctx, env);
     }
