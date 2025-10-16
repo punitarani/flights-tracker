@@ -2,11 +2,12 @@
 
 import { addYears, format, parseISO, startOfToday } from "date-fns";
 import { Calendar, Loader2 } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   type TooltipProps,
   XAxis,
   YAxis,
@@ -203,15 +204,66 @@ export function AwardAvailabilityPanel({
 
   const chartData = useMemo(() => {
     if (!dailyAvailability) return [];
-    return dailyAvailability.map((day) => ({
-      date: day.travelDate,
-      formattedDate: format(parseISO(day.travelDate), "MMM d"),
-      economy: day.economyMinMileage,
-      business: day.businessMinMileage,
-      first: day.firstMinMileage,
-      premiumEconomy: day.premiumEconomyMinMileage,
-    }));
+
+    return dailyAvailability
+      .slice()
+      .sort((a, b) => a.travelDate.localeCompare(b.travelDate))
+      .map((day) => {
+        let formattedDate = day.travelDate;
+        try {
+          const parsed = parseISO(day.travelDate);
+          if (!Number.isNaN(parsed.getTime())) {
+            formattedDate = format(parsed, "MMM d");
+          }
+        } catch {
+          // ignore formatting errors and fall back to ISO string
+        }
+
+        return {
+          date: day.travelDate,
+          formattedDate,
+          economy: day.economyMinMileage,
+          business: day.businessMinMileage,
+          first: day.firstMinMileage,
+          premiumEconomy: day.premiumEconomyMinMileage,
+        };
+      });
   }, [dailyAvailability]);
+
+  const handleSelectDate = useCallback(
+    (date: string | null) => {
+      if (!date) {
+        onSelectDate(null);
+        return;
+      }
+
+      const normalized = chartData.find((entry) => entry.date === date)?.date;
+
+      onSelectDate(normalized ?? date);
+    },
+    [chartData, onSelectDate],
+  );
+
+  const handleChartClick = useCallback<
+    NonNullable<React.ComponentProps<typeof LineChart>["onClick"]>
+  >(
+    (chartEvent) => {
+      const nextDate = chartEvent?.activePayload?.[0]?.payload?.date;
+
+      if (typeof nextDate === "string") {
+        handleSelectDate(nextDate);
+      }
+    },
+    [handleSelectDate],
+  );
+
+  const selectedPoint = useMemo(
+    () =>
+      selectedDate
+        ? (chartData.find((entry) => entry.date === selectedDate) ?? null)
+        : null,
+    [chartData, selectedDate],
+  );
 
   const error = dailyError;
 
@@ -226,15 +278,6 @@ export function AwardAvailabilityPanel({
   }, [startDate, endDate]);
 
   const isLoadingInitial = isSearching || isLoadingDaily;
-
-  const handleSelectDate = (date: string | null) => {
-    if (!date) {
-      onSelectDate(null);
-      return;
-    }
-
-    onSelectDate(selectedDate === date ? null : date);
-  };
 
   return (
     <Card className="space-y-4 p-4">
@@ -305,19 +348,29 @@ export function AwardAvailabilityPanel({
                 <LineChart
                   data={chartData}
                   margin={{ left: 12, right: 12 }}
-                  onClick={(data) => {
-                    if (data?.activePayload?.[0]?.payload?.date) {
-                      handleSelectDate(data.activePayload[0].payload.date);
-                    }
-                  }}
+                  onClick={handleChartClick}
                   className="cursor-pointer"
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis
-                    dataKey="formattedDate"
+                    dataKey="date"
                     tickLine={false}
                     axisLine={false}
                     minTickGap={16}
+                    tickFormatter={(value: string) => {
+                      try {
+                        const parsed = parseISO(value);
+                        if (!Number.isNaN(parsed.getTime())) {
+                          return format(parsed, "MMM d");
+                        }
+                      } catch {
+                        // ignore parse errors and fall back to raw value
+                      }
+                      return (
+                        chartData.find((entry) => entry.date === value)
+                          ?.formattedDate ?? value
+                      );
+                    }}
                   />
                   <YAxis
                     tickLine={false}
@@ -336,6 +389,14 @@ export function AwardAvailabilityPanel({
                     height={36}
                     content={<ChartLegendContent />}
                   />
+                  {selectedPoint ? (
+                    <ReferenceLine
+                      x={selectedPoint.date}
+                      stroke="hsl(var(--muted-foreground))"
+                      strokeDasharray="4 4"
+                      isFront
+                    />
+                  ) : null}
                   <Line
                     type="monotone"
                     dataKey="economy"
