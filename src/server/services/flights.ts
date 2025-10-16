@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 import {
   Airline,
   Airport,
@@ -8,6 +7,7 @@ import {
   type FlightResult,
 } from "@/lib/fli/models";
 import { SearchDates, SearchFlights } from "@/lib/fli/search";
+import { logger } from "@/lib/logger";
 
 import {
   type FlightFiltersInput,
@@ -190,7 +190,18 @@ function normalizeFlightResults(
 
   for (const entry of results) {
     if (Array.isArray(entry)) {
-      const slices = entry.map((slice) => normalizeFlightSlice(slice));
+      const slices = entry
+        .map((slice) => normalizeFlightSlice(slice))
+        .filter(notNull);
+
+      // Skip the itinerary if any slice couldn't be normalized
+      if (slices.length !== entry.length) {
+        logger.warn("Skipping round-trip itinerary due to invalid slice", {
+          reason: "slice_normalization_failed",
+        });
+        continue;
+      }
+
       const totalPrice = slices.reduce((sum, slice) => sum + slice.price, 0);
       options.push({
         totalPrice,
@@ -201,6 +212,12 @@ function normalizeFlightResults(
     }
 
     const slice = normalizeFlightSlice(entry);
+    if (!slice) {
+      logger.warn("Skipping itinerary due to invalid leg", {
+        reason: "leg_normalization_failed",
+      });
+      continue;
+    }
     options.push({
       totalPrice: slice.price,
       currency: currency ?? defaultCurrency,
@@ -211,42 +228,85 @@ function normalizeFlightResults(
   return options;
 }
 
-function normalizeFlightSlice(result: FlightResult): FlightSliceSummary {
+function normalizeFlightSlice(result: FlightResult): FlightSliceSummary | null {
+  const legs = result.legs
+    .map((leg) => normalizeFlightLeg(leg))
+    .filter(notNull);
+  if (legs.length !== result.legs.length) {
+    return null;
+  }
   return {
     durationMinutes: result.duration,
     stops: result.stops,
     price: result.price,
-    legs: result.legs.map((leg) => normalizeFlightLeg(leg)),
+    legs,
   };
 }
 
-function normalizeFlightLeg(leg: FlightLeg): FlightLegSummary {
+function normalizeFlightLeg(leg: FlightLeg): FlightLegSummary | null {
+  const airlineCode = tryLookupAirlineCode(leg.airline);
+  if (!airlineCode) {
+    logger.warn("Unknown airline while normalizing leg", {
+      airlineName: (leg as { airline?: string }).airline ?? null,
+      flightNumber: leg.flightNumber,
+      departureAirport: leg.departureAirport,
+      arrivalAirport: leg.arrivalAirport,
+    });
+    return null;
+  }
+
+  const departureAirportCode = tryLookupAirportCode(leg.departureAirport);
+  if (!departureAirportCode) {
+    logger.warn("Unknown departure airport while normalizing leg", {
+      airportName: leg.departureAirport,
+      airlineName: (leg as { airline?: string }).airline ?? null,
+      flightNumber: leg.flightNumber,
+    });
+    return null;
+  }
+
+  const arrivalAirportCode = tryLookupAirportCode(leg.arrivalAirport);
+  if (!arrivalAirportCode) {
+    logger.warn("Unknown arrival airport while normalizing leg", {
+      airportName: leg.arrivalAirport,
+      airlineName: (leg as { airline?: string }).airline ?? null,
+      flightNumber: leg.flightNumber,
+    });
+    return null;
+  }
+
   return {
-    airlineCode: lookupAirlineCode(leg.airline),
+    airlineCode,
     airlineName: leg.airline,
     flightNumber: leg.flightNumber,
-    departureAirportCode: lookupAirportCode(leg.departureAirport),
+    departureAirportCode,
     departureAirportName: leg.departureAirport,
     departureDateTime: leg.departureDateTime.toISOString(),
-    arrivalAirportCode: lookupAirportCode(leg.arrivalAirport),
+    arrivalAirportCode,
     arrivalAirportName: leg.arrivalAirport,
     arrivalDateTime: leg.arrivalDateTime.toISOString(),
     durationMinutes: leg.duration,
   };
 }
 
-function lookupAirportCode(airportName: string): string {
+function tryLookupAirportCode(airportName: string | undefined): string | null {
+  if (!airportName) return null;
   const code = airportReverseLookup.get(airportName);
   if (!code) {
-    throw new Error(`Unknown airport: ${airportName}`);
+    return null;
   }
   return code;
 }
 
-function lookupAirlineCode(airlineName: string): string {
+function tryLookupAirlineCode(airlineName: string | undefined): string | null {
+  if (!airlineName) return null;
   const code = airlineReverseLookup.get(airlineName);
   if (!code) {
-    throw new Error(`Unknown airline: ${airlineName}`);
+    return null;
   }
   return code.replace(/^_/, "");
+}
+
+function notNull<T>(value: T | null | undefined): value is T {
+  return value !== null && value !== undefined;
 }
