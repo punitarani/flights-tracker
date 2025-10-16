@@ -24,7 +24,7 @@ const socialLinks: SocialLink[] = [
 export function Footer() {
   return (
     <footer className="border-t border-border/50 bg-card/40 backdrop-blur">
-      <div className="container mx-auto flex flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="container mx-auto flex flex-row items-center justify-between gap-4 px-4 py-5">
         <Link
           href="/"
           className="flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-primary"
@@ -35,7 +35,7 @@ export function Footer() {
           <span className="tracking-tight">GrayPane</span>
         </Link>
 
-        <div className="flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-3">
           {socialLinks.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
