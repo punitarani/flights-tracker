@@ -36,13 +36,15 @@ export function getSentryOptions(env: WorkerEnv) {
     // Enhanced performance monitoring
     enableTracing: true,
     // Better error grouping
-    beforeSend(event: any) {
+    beforeSend(event: any, hint: any) {
       // Add worker-specific context
-      event.tags = {
-        ...event.tags,
-        platform: "cloudflare-workers",
-        component: event.tags?.component || "unknown",
-      };
+      if (event.tags) {
+        event.tags = {
+          ...event.tags,
+          platform: "cloudflare-workers",
+          component: event.tags?.component || "unknown",
+        };
+      }
       return event;
     },
   };
@@ -154,23 +156,31 @@ export function setTags(tags: Record<string, string | number>) {
 export function startTransaction(name: string, context?: ObservabilityContext) {
   // Add breadcrumb for transaction start
   addBreadcrumb(`Starting transaction: ${name}`, context, "transaction");
-  
+
   return {
     setStatus: (status: { code: number; message: string }) => {
-      addBreadcrumb(`Transaction status: ${status.message}`, { 
-        ...context, 
-        status: status.message,
-        code: status.code 
-      }, "transaction");
+      addBreadcrumb(
+        `Transaction status: ${status.message}`,
+        {
+          ...context,
+          status: status.message,
+          code: status.code,
+        },
+        "transaction",
+      );
     },
     end: () => {
       addBreadcrumb(`Ending transaction: ${name}`, context, "transaction");
     },
     setAttributes: (attrs: Record<string, unknown>) => {
-      addBreadcrumb(`Transaction attributes updated`, { 
-        ...context, 
-        ...attrs 
-      }, "transaction");
+      addBreadcrumb(
+        `Transaction attributes updated`,
+        {
+          ...context,
+          ...attrs,
+        },
+        "transaction",
+      );
     },
   };
 }
