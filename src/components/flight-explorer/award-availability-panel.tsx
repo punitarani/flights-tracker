@@ -1,7 +1,7 @@
 "use client";
 
 import { addYears, format, parseISO, startOfToday } from "date-fns";
-import { Calendar, Loader2, Plane } from "lucide-react";
+import { Calendar, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import {
   CartesianGrid,
@@ -12,7 +12,6 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -20,7 +19,6 @@ import {
   ChartLegendContent,
   ChartTooltip,
 } from "@/components/ui/chart";
-import type { SeatsAeroAvailabilityTripModel } from "@/lib/fli/models/seats-aero";
 import { trpc } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
 import { AWARD_CHART_CONFIG, MILEAGE_FORMATTER } from "./constants";
@@ -35,14 +33,6 @@ type AwardAvailabilityPanelProps = {
   sources?: string[];
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
-};
-
-type CabinSummary = {
-  cabin: "Economy" | "Premium Economy" | "Business" | "First";
-  cabinKey: "economy" | "premium_economy" | "business" | "first";
-  minMileage: number | null;
-  directMinMileage: number | null;
-  tripCount: number;
 };
 
 const CABIN_SORT_ORDER = [
@@ -124,60 +114,6 @@ function AwardTooltipContent({
         })}
       </div>
     </div>
-  );
-}
-
-function extractCabinSummaries(
-  trips: SeatsAeroAvailabilityTripModel[],
-): CabinSummary[] {
-  const cabinMap = new Map<string, CabinSummary>();
-
-  const cabinLabels: Record<
-    string,
-    "Economy" | "Premium Economy" | "Business" | "First"
-  > = {
-    economy: "Economy",
-    premium_economy: "Premium Economy",
-    business: "Business",
-    first: "First",
-  };
-
-  for (const trip of trips) {
-    const key = trip.cabinClass;
-    const existing = cabinMap.get(key);
-
-    if (!existing) {
-      cabinMap.set(key, {
-        cabin: cabinLabels[key] || "Economy",
-        cabinKey: key as "economy" | "premium_economy" | "business" | "first",
-        minMileage: trip.mileageCost,
-        directMinMileage: trip.stops === 0 ? trip.mileageCost : null,
-        tripCount: 1,
-      });
-    } else {
-      // Update min mileage
-      if (trip.mileageCost < (existing.minMileage ?? Infinity)) {
-        existing.minMileage = trip.mileageCost;
-      }
-
-      // Update direct min mileage
-      if (trip.stops === 0) {
-        if (
-          existing.directMinMileage === null ||
-          trip.mileageCost < existing.directMinMileage
-        ) {
-          existing.directMinMileage = trip.mileageCost;
-        }
-      }
-
-      existing.tripCount += 1;
-    }
-  }
-
-  // Sort by cabin order: Economy, Premium Economy, Business, First
-  const order = ["economy", "premium_economy", "business", "first"];
-  return Array.from(cabinMap.values()).sort(
-    (a, b) => order.indexOf(a.cabinKey) - order.indexOf(b.cabinKey),
   );
 }
 
@@ -265,37 +201,6 @@ export function AwardAvailabilityPanel({
     },
   );
 
-  const {
-    data: trips,
-    isLoading: isLoadingTrips,
-    error: tripsError,
-  } = trpc.useQuery(
-    [
-      "seatsAero.getTrips",
-      {
-        originAirport: originAirport.iata,
-        destinationAirport: destinationAirport.iata,
-        // biome-ignore lint/style/noNonNullAssertion: enabled by selectedDate guard
-        travelDate: selectedDate!,
-        directOnly,
-        maxStops,
-        sources,
-      },
-    ],
-    {
-      enabled: Boolean(selectedDate),
-      refetchInterval: selectedDate && isWorkflowActive ? 5000 : false,
-      refetchOnWindowFocus: false,
-    },
-  );
-
-  const cabinSummaries = useMemo(() => {
-    if (!trips) {
-      return [];
-    }
-    return extractCabinSummaries(trips);
-  }, [trips]);
-
   const chartData = useMemo(() => {
     if (!dailyAvailability) return [];
     return dailyAvailability.map((day) => ({
@@ -308,7 +213,7 @@ export function AwardAvailabilityPanel({
     }));
   }, [dailyAvailability]);
 
-  const error = dailyError || tripsError;
+  const error = dailyError;
 
   const dateRangeDisplay = useMemo(() => {
     try {
@@ -471,90 +376,8 @@ export function AwardAvailabilityPanel({
               </ChartContainer>
             </div>
 
-            <div className="space-y-2 rounded-md border bg-muted/40 p-3">
-              {selectedDate ? (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-semibold">
-                      {format(parseISO(selectedDate), "EEEE, MMM d, yyyy")}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Showing the lowest mileage by cabin for this date.
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSelectDate(null)}
-                    className="h-auto px-0 text-xs hover:bg-transparent"
-                  >
-                    Clear selection
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground">
-                  Select a date above to view cabin-level award details.
-                </div>
-              )}
-
-              {selectedDate ? (
-                <div className="space-y-2">
-                  {isLoadingTrips ? (
-                    <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Loading flights...</span>
-                    </div>
-                  ) : cabinSummaries.length > 0 ? (
-                    <div className="space-y-2">
-                      {cabinSummaries.map((cabin) => (
-                        <div
-                          key={cabin.cabinKey}
-                          className="flex items-center justify-between rounded-md border bg-background px-3 py-2"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Plane className="h-4 w-4 text-primary" />
-                            <div>
-                              <span className="text-sm font-medium">
-                                {cabin.cabin}
-                              </span>
-                              <p className="text-xs text-muted-foreground">
-                                {cabin.tripCount}{" "}
-                                {cabin.tripCount === 1 ? "option" : "options"}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            {cabin.minMileage !== null && (
-                              <div className="text-sm font-semibold">
-                                {MILEAGE_FORMATTER.format(cabin.minMileage)}{" "}
-                                miles
-                              </div>
-                            )}
-                            {cabin.directMinMileage !== null && (
-                              <div className="text-xs text-muted-foreground">
-                                Direct:{" "}
-                                {MILEAGE_FORMATTER.format(
-                                  cabin.directMinMileage,
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {trips && trips.length > 0 && (
-                        <p className="pt-1 text-xs text-muted-foreground">
-                          Showing lowest miles from {trips.length} flight
-                          {trips.length === 1 ? "" : "s"}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="py-2 text-sm text-muted-foreground">
-                      No award options found for this date.
-                    </p>
-                  )}
-                </div>
-              ) : null}
+            <div className="text-xs text-muted-foreground">
+              Select a date on the chart to load award details below.
             </div>
           </div>
         )}
