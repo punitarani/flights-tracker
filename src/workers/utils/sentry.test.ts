@@ -15,6 +15,7 @@ describe("Sentry utilities", () => {
       dsn: undefined as any,
       environment: "test",
       tracesSampleRate: 1.0,
+      enableLogs: true,
     });
   });
 
@@ -30,6 +31,7 @@ describe("Sentry utilities", () => {
     expect(options?.dsn).toBe("https://test@sentry.io/123");
     expect(options?.environment).toBe("staging");
     expect(options?.tracesSampleRate).toBe(1.0);
+    expect(options?.enableLogs).toBe(true);
   });
 
   test("getSentryOptions uses default environment", () => {
@@ -40,6 +42,7 @@ describe("Sentry utilities", () => {
 
     const options = getSentryOptions(env);
     expect(options?.environment).toBe("production");
+    expect(options?.enableLogs).toBe(true);
   });
 
   // Note: Testing Sentry wrapper functions (captureException, setUser, etc.)
