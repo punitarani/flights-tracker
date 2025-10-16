@@ -36,13 +36,14 @@ export function getSentryOptions(env: WorkerEnv) {
     // Enhanced performance monitoring
     enableTracing: true,
     // Better error grouping
-    beforeSend(event: any, hint: any) {
+    // biome-ignore lint/suspicious/noExplicitAny: Sentry beforeSend requires complex event types
+    beforeSend(event: any, _hint: any) {
       // Add worker-specific context
       if (event.tags) {
         event.tags = {
           ...event.tags,
           platform: "cloudflare-workers",
-          component: event.tags?.component || "unknown",
+          component: (event.tags?.component as string) || "unknown",
         };
       }
       return event;

@@ -3,13 +3,13 @@
  */
 
 import { describe, expect, it, mock } from "bun:test";
+// Ensure DOM is set up for this test
+import { GlobalWindow } from "happy-dom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { AirportData } from "@/server/services/airports";
 import { AirportSearch } from "./airport-search";
 
-// Ensure DOM is set up for this test
-import { GlobalWindow } from "happy-dom";
 if (typeof globalThis.document === "undefined") {
   const window = new GlobalWindow();
   globalThis.document = window.document;
@@ -24,7 +24,6 @@ if (typeof globalThis.document === "undefined") {
 // Mock ResizeObserver
 if (typeof globalThis.ResizeObserver === "undefined") {
   globalThis.ResizeObserver = class ResizeObserverMock {
-    constructor(callback: ResizeObserverCallback) {}
     observe() {}
     unobserve() {}
     disconnect() {}
