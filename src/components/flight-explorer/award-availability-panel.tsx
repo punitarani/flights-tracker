@@ -1,6 +1,14 @@
 "use client";
 
-import { addYears, format, parseISO, startOfToday } from "date-fns";
+import {
+  addYears,
+  format,
+  isAfter,
+  isBefore,
+  parseISO,
+  startOfDay,
+  startOfToday,
+} from "date-fns";
 import { Calendar, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
@@ -203,6 +211,27 @@ export function AwardAvailabilityPanel({
     },
   );
 
+  const normalizedSelection = useMemo(() => {
+    try {
+      const selectionDate = selectedDate
+        ? startOfDay(parseISO(selectedDate))
+        : null;
+      const rangeStart = startOfDay(parseISO(startDate));
+      const rangeEnd = startOfDay(parseISO(endDate));
+
+      if (
+        selectionDate &&
+        (isBefore(selectionDate, rangeStart) || isAfter(selectionDate, rangeEnd))
+      ) {
+        return null;
+      }
+
+      return selectionDate;
+    } catch {
+      return null;
+    }
+  }, [endDate, selectedDate, startDate]);
+
   const chartData = useMemo(() => {
     if (!dailyAvailability) return [];
 
@@ -224,12 +253,29 @@ export function AwardAvailabilityPanel({
           date: day.travelDate,
           formattedDate,
           economy: day.economyMinMileage,
+          premiumEconomy: day.premiumEconomyMinMileage,
           business: day.businessMinMileage,
           first: day.firstMinMileage,
-          premiumEconomy: day.premiumEconomyMinMileage,
         };
       });
   }, [dailyAvailability]);
+
+  const chartDateLookup = useMemo(() => {
+    return chartData.reduce<Record<string, string | undefined>>(
+      (acc, entry) => {
+        try {
+          const parsed = parseISO(entry.date);
+          if (!Number.isNaN(parsed.getTime())) {
+            acc[entry.date] = format(parsed, "yyyy-MM-dd");
+          }
+        } catch {
+          // ignore parse errors and leave undefined
+        }
+        return acc;
+      },
+      {},
+    );
+  }, [chartData]);
 
   const handleSelectDate = useCallback(
     (date: string | null) => {
@@ -238,11 +284,16 @@ export function AwardAvailabilityPanel({
         return;
       }
 
-      const normalized = chartData.find((entry) => entry.date === date)?.date;
+      const normalized = chartDateLookup[date];
+      if (normalized) {
+        onSelectDate(normalized);
+        return;
+      }
 
-      onSelectDate(normalized ?? date);
+      const fallback = chartData.find((entry) => entry.date === date)?.date;
+      onSelectDate(fallback ?? date ?? null);
     },
-    [chartData, onSelectDate],
+    [chartData, chartDateLookup, onSelectDate],
   );
 
   const handleChartClick = useCallback<
@@ -258,13 +309,24 @@ export function AwardAvailabilityPanel({
     [handleSelectDate],
   );
 
-  const selectedPoint = useMemo(
-    () =>
-      selectedDate
-        ? (chartData.find((entry) => entry.date === selectedDate) ?? null)
-        : null,
-    [chartData, selectedDate],
-  );
+  const selectedPoint = useMemo(() => {
+    if (!selectedDate || !normalizedSelection) {
+      return null;
+    }
+
+    const normalizedIso = format(normalizedSelection, "yyyy-MM-dd");
+
+    const directMatch = chartData.find((entry) => entry.date === normalizedIso);
+    if (directMatch) {
+      return directMatch;
+    }
+
+    return (
+      chartData.find(
+        (entry) => chartDateLookup[entry.date] === normalizedIso,
+      ) ?? null
+    );
+  }, [chartData, chartDateLookup, normalizedSelection, selectedDate]);
 
   const error = dailyError;
 
