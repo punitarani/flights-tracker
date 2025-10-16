@@ -232,6 +232,8 @@ export function FlightPricePanel({
                     ? 2
                     : undefined
             }
+            selectedDate={selectedDate}
+            onSelectDate={onSelectDate}
           />
         ) : null}
 

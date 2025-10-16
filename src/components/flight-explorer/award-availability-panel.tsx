@@ -1,8 +1,8 @@
 "use client";
 
 import { addYears, format, parseISO, startOfToday } from "date-fns";
-import { Calendar, Loader2, Plane } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Calendar, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   CartesianGrid,
   Line,
@@ -20,7 +20,6 @@ import {
   ChartLegendContent,
   ChartTooltip,
 } from "@/components/ui/chart";
-import type { SeatsAeroAvailabilityTripModel } from "@/lib/fli/models/seats-aero";
 import { trpc } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
 import { AWARD_CHART_CONFIG, MILEAGE_FORMATTER } from "./constants";
@@ -33,14 +32,8 @@ type AwardAvailabilityPanelProps = {
   directOnly?: boolean;
   maxStops?: number;
   sources?: string[];
-};
-
-type CabinSummary = {
-  cabin: "Economy" | "Premium Economy" | "Business" | "First";
-  cabinKey: "economy" | "premium_economy" | "business" | "first";
-  minMileage: number | null;
-  directMinMileage: number | null;
-  tripCount: number;
+  selectedDate: string | null;
+  onSelectDate: (date: string | null) => void;
 };
 
 const CABIN_SORT_ORDER = [
@@ -187,8 +180,9 @@ export function AwardAvailabilityPanel({
   directOnly,
   maxStops,
   sources,
+  selectedDate,
+  onSelectDate,
 }: AwardAvailabilityPanelProps) {
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const toastIdRef = useRef<string | number | null>(null);
 
   // Trigger the search to populate cache
@@ -262,7 +256,6 @@ export function AwardAvailabilityPanel({
     },
   );
 
-  // Query 2: Get detailed flights for selected day
   const {
     data: trips,
     isLoading: isLoadingTrips,
@@ -273,7 +266,7 @@ export function AwardAvailabilityPanel({
       {
         originAirport: originAirport.iata,
         destinationAirport: destinationAirport.iata,
-        // biome-ignore lint/style/noNonNullAssertion: selectedDate is guaranteed to be set
+        // biome-ignore lint/style/noNonNullAssertion: enabled by selectedDate guard
         travelDate: selectedDate!,
         directOnly,
         maxStops,
@@ -281,18 +274,19 @@ export function AwardAvailabilityPanel({
       },
     ],
     {
-      enabled: !!selectedDate,
+      enabled: Boolean(selectedDate),
       refetchInterval: selectedDate && isWorkflowActive ? 5000 : false,
       refetchOnWindowFocus: false,
     },
   );
 
   const cabinSummaries = useMemo(() => {
-    if (!trips) return [];
+    if (!trips) {
+      return [];
+    }
     return extractCabinSummaries(trips);
   }, [trips]);
 
-  // Transform daily availability data into chart format
   const chartData = useMemo(() => {
     if (!dailyAvailability) return [];
     return dailyAvailability.map((day) => ({
@@ -319,9 +313,13 @@ export function AwardAvailabilityPanel({
 
   const isLoadingInitial = isSearching || isLoadingDaily;
 
-  // Format selected date for display
   const handleSelectDate = (date: string | null) => {
-    setSelectedDate((current) => (current === date ? null : date));
+    if (!date) {
+      onSelectDate(null);
+      return;
+    }
+
+    onSelectDate(selectedDate === date ? null : date);
   };
 
   return (
