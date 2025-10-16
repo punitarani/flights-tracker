@@ -1,3 +1,4 @@
+import { sift } from "radash";
 import { z } from "zod";
 
 import {
@@ -190,7 +191,16 @@ function normalizeFlightResults(
 
   for (const entry of results) {
     if (Array.isArray(entry)) {
-      const slices = entry.map((slice) => normalizeFlightSlice(slice));
+      const slices = sift(entry.map((slice) => normalizeFlightSlice(slice)));
+
+      // Skip if no valid slices
+      if (slices.length === 0) {
+        console.warn(`Skipping flight option with no valid slices:`, {
+          originalSlicesCount: entry.length,
+        });
+        continue;
+      }
+
       const totalPrice = slices.reduce((sum, slice) => sum + slice.price, 0);
       options.push({
         totalPrice,
@@ -201,6 +211,14 @@ function normalizeFlightResults(
     }
 
     const slice = normalizeFlightSlice(entry);
+    if (!slice) {
+      console.warn(`Skipping single flight with no valid slice:`, {
+        price: entry.price,
+        legsCount: entry.legs.length,
+      });
+      continue;
+    }
+
     options.push({
       totalPrice: slice.price,
       currency: currency ?? defaultCurrency,
@@ -211,42 +229,85 @@ function normalizeFlightResults(
   return options;
 }
 
-function normalizeFlightSlice(result: FlightResult): FlightSliceSummary {
+function normalizeFlightSlice(result: FlightResult): FlightSliceSummary | null {
+  const validLegs = result.legs
+    .map((leg) => normalizeFlightLeg(leg))
+    .filter((leg): leg is FlightLegSummary => leg !== null);
+
+  // Skip slice if no valid legs
+  if (validLegs.length === 0) {
+    console.warn(`Skipping flight slice with no valid legs:`, {
+      originalLegsCount: result.legs.length,
+      price: result.price,
+    });
+    return null;
+  }
+
   return {
     durationMinutes: result.duration,
     stops: result.stops,
     price: result.price,
-    legs: result.legs.map((leg) => normalizeFlightLeg(leg)),
+    legs: validLegs,
   };
 }
 
-function normalizeFlightLeg(leg: FlightLeg): FlightLegSummary {
+function normalizeFlightLeg(leg: FlightLeg): FlightLegSummary | null {
+  const airlineCode = lookupAirlineCode(leg.airline);
+  const departureAirportCode = lookupAirportCode(leg.departureAirport);
+  const arrivalAirportCode = lookupAirportCode(leg.arrivalAirport);
+
+  // Skip leg if any required codes are missing
+  if (!airlineCode || !departureAirportCode || !arrivalAirportCode) {
+    console.warn(`Skipping flight leg with missing codes:`, {
+      airline: leg.airline,
+      airlineCode,
+      departureAirport: leg.departureAirport,
+      departureAirportCode,
+      arrivalAirport: leg.arrivalAirport,
+      arrivalAirportCode,
+      flightNumber: leg.flightNumber,
+    });
+    return null;
+  }
+
   return {
-    airlineCode: lookupAirlineCode(leg.airline),
+    airlineCode,
     airlineName: leg.airline,
     flightNumber: leg.flightNumber,
-    departureAirportCode: lookupAirportCode(leg.departureAirport),
+    departureAirportCode,
     departureAirportName: leg.departureAirport,
     departureDateTime: leg.departureDateTime.toISOString(),
-    arrivalAirportCode: lookupAirportCode(leg.arrivalAirport),
+    arrivalAirportCode,
     arrivalAirportName: leg.arrivalAirport,
     arrivalDateTime: leg.arrivalDateTime.toISOString(),
     durationMinutes: leg.duration,
   };
 }
 
-function lookupAirportCode(airportName: string): string {
+function lookupAirportCode(airportName: string | undefined): string | null {
+  if (!airportName) {
+    console.warn(`Airport name is undefined or empty`);
+    return null;
+  }
+
   const code = airportReverseLookup.get(airportName);
   if (!code) {
-    throw new Error(`Unknown airport: ${airportName}`);
+    console.warn(`Unknown airport: ${airportName}`);
+    return null;
   }
   return code;
 }
 
-function lookupAirlineCode(airlineName: string): string {
+function lookupAirlineCode(airlineName: string | undefined): string | null {
+  if (!airlineName) {
+    console.warn(`Airline name is undefined or empty`);
+    return null;
+  }
+
   const code = airlineReverseLookup.get(airlineName);
   if (!code) {
-    throw new Error(`Unknown airline: ${airlineName}`);
+    console.warn(`Unknown airline: ${airlineName}`);
+    return null;
   }
   return code.replace(/^_/, "");
 }

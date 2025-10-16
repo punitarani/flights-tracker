@@ -5,7 +5,7 @@
  * with Google Flights' API to find available flights and their details.
  */
 
-import { parallel } from "radash";
+import { sift, parallel } from "radash";
 
 import { Airline } from "../models/airline";
 import { Airport } from "../models/airport";
@@ -66,8 +66,8 @@ export class SearchFlights {
         }
       }
 
-      const flights = flightsData.map((flight) =>
-        this.parseFlightsData(flight),
+      const flights = sift(
+        flightsData.map((flight) => this.parseFlightsData(flight)),
       );
 
       if (
@@ -205,23 +205,74 @@ export class SearchFlights {
   private parseFlightsData(
     // biome-ignore lint/suspicious/noExplicitAny: we don't know the type
     data: any,
-  ): FlightResult {
-    const flight: FlightResult = {
-      price: data[1][0][data[1][0].length - 1],
-      duration: data[0][9],
-      stops: data[0][2].length - 1,
-      // biome-ignore lint/suspicious/noExplicitAny: we don't know the type
-      legs: data[0][2].map((fl: any) => ({
-        airline: this.parseAirline(fl[22][0]),
-        flightNumber: fl[22][1],
-        departureAirport: this.parseAirport(fl[3]),
-        arrivalAirport: this.parseAirport(fl[6]),
-        departureDateTime: this.parseDateTime(fl[20], fl[8]),
-        arrivalDateTime: this.parseDateTime(fl[21], fl[10]),
-        duration: fl[11],
-      })),
-    };
-    return flight;
+  ): FlightResult | null {
+    try {
+      const rawLegs = data[0][2] || [];
+      
+      // Parse and filter out invalid legs
+      const validLegs = rawLegs
+        .map((fl: any) => {
+          try {
+            const airline = this.parseAirline(fl[22][0]);
+            const departureAirport = this.parseAirport(fl[3]);
+            const arrivalAirport = this.parseAirport(fl[6]);
+
+            // Skip leg if airline is unknown
+            if (!airline) {
+              console.warn(
+                `Skipping flight leg with unknown airline: ${fl[22][0]}`,
+                {
+                  flightNumber: fl[22][1],
+                  departureAirport: fl[3],
+                  arrivalAirport: fl[6],
+                },
+              );
+              return null;
+            }
+
+            return {
+              airline,
+              flightNumber: fl[22][1],
+              departureAirport,
+              arrivalAirport,
+              departureDateTime: this.parseDateTime(fl[20], fl[8]),
+              arrivalDateTime: this.parseDateTime(fl[21], fl[10]),
+              duration: fl[11],
+            };
+          } catch (error) {
+            console.warn(`Failed to parse flight leg:`, {
+              error: error instanceof Error ? error.message : "Unknown error",
+              rawData: fl,
+            });
+            return null;
+          }
+        })
+        .filter((leg: any): leg is NonNullable<typeof leg> => leg !== null);
+
+      // Skip entire flight if no valid legs
+      if (validLegs.length === 0) {
+        console.warn(`Skipping flight with no valid legs`, {
+          rawLegsCount: rawLegs.length,
+          price: data[1][0][data[1][0].length - 1],
+        });
+        return null;
+      }
+
+      const flight: FlightResult = {
+        price: data[1][0][data[1][0].length - 1],
+        duration: data[0][9],
+        stops: validLegs.length - 1,
+        legs: validLegs,
+      };
+
+      return flight;
+    } catch (error) {
+      console.error(`Failed to parse flight data:`, {
+        error: error instanceof Error ? error.message : "Unknown error",
+        rawData: data,
+      });
+      return null;
+    }
   }
 
   /**
@@ -255,12 +306,24 @@ export class SearchFlights {
    * Convert airline code to Airline enum.
    *
    * @param airlineCode - Raw airline code from API
-   * @returns Corresponding Airline enum value
+   * @returns Corresponding Airline enum value or undefined if not found
    */
-  private parseAirline(airlineCode: string): Airline {
+  private parseAirline(airlineCode: string): Airline | undefined {
+    if (!airlineCode || typeof airlineCode !== "string") {
+      return undefined;
+    }
+
     // Handle codes that start with digits
     const code = /^\d/.test(airlineCode) ? `_${airlineCode}` : airlineCode;
-    return Airline[code as keyof typeof Airline];
+    const airline = Airline[code as keyof typeof Airline];
+
+    if (!airline) {
+      console.warn(
+        `Unknown airline code: ${airlineCode} (processed as: ${code})`,
+      );
+    }
+
+    return airline;
   }
 
   /**

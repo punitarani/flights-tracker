@@ -1,3 +1,4 @@
+import { sift, parallel } from "radash";
 import type { Alert } from "@/db/schema";
 import { Currency, MaxStops, SeatType, TripType } from "@/lib/fli/models";
 import { logger } from "@/lib/logger";
@@ -143,7 +144,8 @@ async function fetchFlightsForAlert(
   } catch (error) {
     logger.error("Failed to fetch flights for alert", {
       alertId: alert.id,
-      error,
+      error: error instanceof Error ? error.message : "Unknown error",
+      alertFilters: alert.filters,
     });
     return null;
   }
@@ -247,23 +249,25 @@ export async function fetchFlightDataForAlerts(
     routeCount: routeGroups.size,
   });
 
-  // Fetch flights for each alert in parallel
-  const fetchPromises = alerts.map((alert) =>
-    fetchFlightsForAlert(alert, maxFlights),
+  // Fetch flights for each alert in parallel using radash
+  const results = await parallel(
+    Math.min(10, alerts.length), // Limit concurrency to avoid overwhelming the API
+    alerts,
+    async (alert) => fetchFlightsForAlert(alert, maxFlights),
   );
 
-  // Wait for all fetches to complete
-  const results = await Promise.all(fetchPromises);
-
   // Filter out failed fetches and alerts with no flights
-  const successfulResults = results.filter(
-    (result): result is AlertWithFlights =>
-      result !== null && result.flights.length > 0,
+  const successfulResults = sift(
+    results.filter(
+      (result): result is AlertWithFlights =>
+        result !== null && result.flights.length > 0,
+    ),
   );
 
   logger.info("Fetched flights for alerts", {
     alertCount: alerts.length,
     successfulCount: successfulResults.length,
+    failedCount: alerts.length - successfulResults.length,
   });
 
   return successfulResults;
