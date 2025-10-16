@@ -198,47 +198,69 @@ export function AwardAvailabilityPanel({
     .toISOString()
     .split("T")[0];
 
-  const { isLoading: isSearching } = trpc.useQuery([
-    "seatsAero.search",
+  const { data: searchResult, isLoading: isSearching } = trpc.useQuery(
+    [
+      "seatsAero.search",
+      {
+        originAirport: originAirport.iata,
+        destinationAirport: destinationAirport.iata,
+        startDate: seatsAeroStartDate,
+        endDate: seatsAeroEndDate,
+        useCache: true,
+      },
+    ],
     {
-      originAirport: originAirport.iata,
-      destinationAirport: destinationAirport.iata,
-      startDate: seatsAeroStartDate,
-      endDate: seatsAeroEndDate,
-      useCache: true,
+      refetchInterval: (data) =>
+        data?.status === "completed" || data?.status === "failed"
+          ? false
+          : 5000,
+      refetchOnWindowFocus: false,
     },
-  ]);
+  );
+
+  const searchStatus = searchResult?.status;
+  const isWorkflowActive =
+    searchStatus === "pending" || searchStatus === "processing";
+  const shouldShowSearchToast = isWorkflowActive || isSearching;
 
   // Show toast notification when searching for award data
   useEffect(() => {
-    if (isSearching) {
+    if (shouldShowSearchToast && !toastIdRef.current) {
       toastIdRef.current = toast.loading(
         "Live search in progress for points. Please wait 1-2 minutes.",
         { duration: 3000 },
       );
-    } else if (toastIdRef.current) {
+    }
+
+    if (!shouldShowSearchToast && toastIdRef.current) {
       toast.dismiss(toastIdRef.current);
       toastIdRef.current = null;
     }
-  }, [isSearching]);
+  }, [shouldShowSearchToast]);
 
   // Query 1: Get daily aggregates (for calendar view)
   const {
     data: dailyAvailability,
     isLoading: isLoadingDaily,
     error: dailyError,
-  } = trpc.useQuery([
-    "seatsAero.getAvailabilityByDay",
+  } = trpc.useQuery(
+    [
+      "seatsAero.getAvailabilityByDay",
+      {
+        originAirport: originAirport.iata,
+        destinationAirport: destinationAirport.iata,
+        searchStartDate: seatsAeroStartDate,
+        searchEndDate: seatsAeroEndDate,
+        directOnly,
+        maxStops,
+        sources,
+      },
+    ],
     {
-      originAirport: originAirport.iata,
-      destinationAirport: destinationAirport.iata,
-      searchStartDate: seatsAeroStartDate,
-      searchEndDate: seatsAeroEndDate,
-      directOnly,
-      maxStops,
-      sources,
+      refetchInterval: isWorkflowActive ? 5000 : false,
+      refetchOnWindowFocus: false,
     },
-  ]);
+  );
 
   // Query 2: Get detailed flights for selected day
   const {
@@ -260,6 +282,8 @@ export function AwardAvailabilityPanel({
     ],
     {
       enabled: !!selectedDate,
+      refetchInterval: selectedDate && isWorkflowActive ? 5000 : false,
+      refetchOnWindowFocus: false,
     },
   );
 
@@ -333,13 +357,27 @@ export function AwardAvailabilityPanel({
       {!isLoadingInitial &&
         !error &&
         dailyAvailability &&
-        dailyAvailability.length === 0 && (
+        dailyAvailability.length === 0 &&
+        !isWorkflowActive && (
           <div className="py-2 text-sm text-muted-foreground">
             <p>No award availability found for this route.</p>
             <p className="mt-1 text-xs">
               Try searching the reverse route ({destinationAirport.iata} →{" "}
               {originAirport.iata}) or run a new search to populate award data.
             </p>
+          </div>
+        )}
+
+      {!isLoadingInitial &&
+        !error &&
+        isWorkflowActive &&
+        (!dailyAvailability || dailyAvailability.length === 0) && (
+          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>
+              Searching for award availability. Results will update as they are
+              found.
+            </span>
           </div>
         )}
 
