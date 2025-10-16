@@ -35,15 +35,16 @@ const handlers = {
         scheduledTime: controller.scheduledTime,
       });
 
-      // Create unique workflow instance with monitor info
+      // Create unique workflow instance
+      // Monitor tracking is handled by the workflow wrapper
       const now = new Date();
       const instanceId = `CheckFlightAlertsWorkflow_${now.toISOString().split("T")[0]}_${now.toISOString().split("T")[1].substring(0, 5).replace(":", "-")}`;
 
       const instance = await env.CHECK_ALERTS_WORKFLOW.create({
         id: instanceId,
         params: {
-          monitorSlug: "check-flight-alerts-cron",
-          scheduleType: "cron",
+          // Monitor config is applied by default from workflow definition
+          // Pass __monitorConfig to override if needed
         },
       });
 
