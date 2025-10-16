@@ -38,10 +38,8 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Scroll detection for mobile collapse
   useEffect(() => {
-    // Only set up scroll listener when we have search results
-    if (!shouldShowSearchAction) {
+    if (typeof window === "undefined") {
       return;
     }
 
@@ -50,6 +48,17 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     updateIsMobile();
     media.addEventListener("change", updateIsMobile);
 
+    return () => media.removeEventListener("change", updateIsMobile);
+  }, []);
+
+  // Scroll detection for mobile collapse
+  useEffect(() => {
+    if (!shouldShowSearchAction || !isMobile) {
+      setIsCollapsed(false);
+      setIsExpanded(false);
+      return;
+    }
+
     let lastScrollY = 0;
     const threshold = 50; // Collapse after scrolling 50px down
     let scrollContainer: HTMLElement | null = null;
@@ -57,13 +66,6 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     const handleScroll = (e: Event) => {
       const target = e.target as HTMLElement;
       const currentScrollY = target.scrollTop ?? window.scrollY;
-
-      if (!media.matches) {
-        setIsCollapsed(false);
-        setIsExpanded(false);
-        lastScrollY = currentScrollY;
-        return;
-      }
 
       // Only apply on mobile (will be handled by CSS visibility)
       if (currentScrollY > threshold && currentScrollY > lastScrollY) {
@@ -110,7 +112,6 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     trySetup();
 
     return () => {
-      media.removeEventListener("change", updateIsMobile);
       // Clear all timeouts
       for (const timeout of timeouts) {
         clearTimeout(timeout);
@@ -121,7 +122,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
         scrollContainer.removeEventListener("scroll", handleScroll);
       }
     };
-  }, [shouldShowSearchAction]); // Re-run when search results appear
+  }, [shouldShowSearchAction, isMobile]); // Re-run when search results appear
 
   const handlePillClick = () => {
     setIsExpanded(true);
@@ -202,8 +203,8 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     </Button>
   );
 
-  const showCollapsed = isCollapsed && !isExpanded;
-  const showFullView = !isCollapsed || isExpanded;
+  const showCollapsed = isMobile && isCollapsed && !isExpanded;
+  const showFullView = !isMobile || !isCollapsed || isExpanded;
 
   return (
     <div
@@ -220,13 +221,15 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
       {/* Mobile collapsed pill - only visible on mobile when collapsed */}
       <div
         className={cn(
-          "container mx-auto px-4 py-2 md:hidden",
+          "container mx-auto px-4 py-2",
           isMobile
-            ? "transition-[opacity,max-height,transform] duration-500 ease-in-out will-change-[opacity,transform]"
-            : "",
-          showCollapsed
-            ? "max-h-16 opacity-100 translate-y-0"
-            : "max-h-0 opacity-0 -translate-y-1 overflow-hidden pointer-events-none",
+            ? cn(
+                "transition-[opacity,max-height,transform] duration-500 ease-in-out will-change-[opacity,transform]",
+                showCollapsed
+                  ? "max-h-16 opacity-100 translate-y-0"
+                  : "max-h-0 opacity-0 -translate-y-1 overflow-hidden pointer-events-none",
+              )
+            : "hidden",
         )}
       >
         {renderCollapsedPill()}
