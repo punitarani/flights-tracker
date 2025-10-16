@@ -24,9 +24,6 @@ describe("SeatsAeroClient - search", () => {
       apiKey: "test-api-key",
       baseUrl: "https://api.seats.aero",
     });
-
-    // Clear all mocks
-    mock.restore();
   });
 
   it("should successfully search for cached availability", async () => {
@@ -78,9 +75,6 @@ describe("SeatsAeroClient - search", () => {
     expect(result).toHaveProperty("cursor");
     expect(Array.isArray(result.data)).toBe(true);
     expect(result.data.length).toBeGreaterThan(0);
-
-    // Clean up mock
-    mock.restore();
   });
 
   it("should handle pagination with cursor and skip", async () => {
@@ -107,9 +101,6 @@ describe("SeatsAeroClient - search", () => {
     const calledUrl = mockAxiosGet.mock.calls[0]?.[0] as string;
     expect(calledUrl).toContain("cursor=1234567890");
     expect(calledUrl).toContain("skip=500");
-
-    // Clean up mock
-    mock.restore();
   });
 
   it("should handle minimal search parameters", async () => {
@@ -139,9 +130,6 @@ describe("SeatsAeroClient - search", () => {
 
     expect(result).toHaveProperty("data");
     expect(Array.isArray(result.data)).toBe(true);
-
-    // Clean up mock
-    mock.restore();
   });
 
   it("should handle search with filters", async () => {
@@ -172,9 +160,6 @@ describe("SeatsAeroClient - search", () => {
     expect(calledUrl).toContain("sources=united%2Caeroplan");
     expect(calledUrl).toContain("cabins=business%2Cfirst");
     expect(calledUrl).toContain("only_direct_flights=true");
-
-    // Clean up mock
-    mock.restore();
   });
 
   it("should throw SeatsAeroAPIError on HTTP 400 error", async () => {
@@ -283,8 +268,5 @@ describe("SeatsAeroClient - search", () => {
     expect(firstAvailability?.Route.DestinationAirport).toBe("PHX");
     expect(firstAvailability?.AvailabilityTrips).toBeDefined();
     expect(Array.isArray(firstAvailability?.AvailabilityTrips)).toBe(true);
-
-    // Clean up mock
-    mock.restore();
   });
 });

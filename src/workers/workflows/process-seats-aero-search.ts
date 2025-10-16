@@ -63,31 +63,35 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
     });
 
     // Step 1: Validate search request exists (defensive check)
-    const searchRequest = await step.do("validate-search-request", {}, async () => {
-      const search = await getSearchRequest(this.env, {
-        originAirport,
-        destinationAirport,
-        searchStartDate,
-        searchEndDate,
-      });
-
-      if (!search) {
-        const error = new Error("Search request not found in database");
-        workerLogger.error("Search request validation failed", {
+    const searchRequest = await step.do(
+      "validate-search-request",
+      {},
+      async () => {
+        const search = await getSearchRequest(this.env, {
           originAirport,
           destinationAirport,
-          instanceId: event.instanceId,
+          searchStartDate,
+          searchEndDate,
         });
-        throw error;
-      }
 
-      workerLogger.info("Search request validated", {
-        searchRequestId: search.id,
-        status: search.status,
-      });
+        if (!search) {
+          const error = new Error("Search request not found in database");
+          workerLogger.error("Search request validation failed", {
+            originAirport,
+            destinationAirport,
+            instanceId: event.instanceId,
+          });
+          throw error;
+        }
 
-      return search;
-    });
+        workerLogger.info("Search request validated", {
+          searchRequestId: search.id,
+          status: search.status,
+        });
+
+        return search;
+      },
+    );
 
     const client = createSeatsAeroClient({
       apiKey: this.env.SEATS_AERO_API_KEY,

@@ -24,7 +24,19 @@ const mockDb = db as {
 
 describe("alerts-db", () => {
   beforeEach(() => {
-    mock.restore();
+    mockDb.insert = mock();
+    mockDb.select = mock();
+    mockDb.update = mock();
+    mockDb.delete = mock();
+    mockDb.execute = mock();
+    mockDb.transaction = mock(
+      async (
+        callback: (tx: { execute: ReturnType<typeof mock> }) => unknown,
+      ) => {
+        const txExecute = mock();
+        return await callback({ execute: txExecute });
+      },
+    );
   });
 
   describe("createAlert", () => {
