@@ -5,7 +5,7 @@
  * with Google Flights' API to find available flights and their details.
  */
 
-import { sift, parallel } from "radash";
+import { parallel, sift } from "radash";
 
 import { Airline } from "../models/airline";
 import { Airport } from "../models/airport";
@@ -208,7 +208,7 @@ export class SearchFlights {
   ): FlightResult | null {
     try {
       const rawLegs = data[0][2] || [];
-      
+
       // Parse and filter out invalid legs
       const validLegs = rawLegs
         .map((fl: any) => {
