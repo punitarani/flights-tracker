@@ -16,28 +16,27 @@ const mockSearchResponse: SearchResponse = JSON.parse(
 );
 
 describe("SeatsAeroClient - search", () => {
-  let client: SeatsAeroClient;
+  let mockFetch: ReturnType<typeof mock>;
 
   beforeEach(() => {
-    // Create client with test API key
-    client = new SeatsAeroClient({
-      apiKey: "test-api-key",
-      baseUrl: "https://api.seats.aero",
-    });
+    mockFetch = mock();
   });
 
   it("should successfully search for cached availability", async () => {
-    // Mock axios to return test data
-    const mockAxiosGet = mock().mockResolvedValue({
-      data: mockSearchResponse,
-      status: 200,
-      statusText: "OK",
-    });
+    // Mock fetch to return test data
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify(mockSearchResponse), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
-    // Mock axios module
-    mock.module("axios", () => ({
-      default: { get: mockAxiosGet, isAxiosError: mock(() => false) },
-    }));
+    const client = new SeatsAeroClient({
+      apiKey: "test-api-key",
+      baseUrl: "https://api.seats.aero",
+      fetchImpl: mockFetch as typeof fetch,
+    });
 
     const params: SearchRequestParams = {
       origin_airport: "SFO",
@@ -49,10 +48,11 @@ describe("SeatsAeroClient - search", () => {
 
     const result = await client.search(params);
 
-    // Verify axios was called correctly
-    expect(mockAxiosGet).toHaveBeenCalledWith(
+    // Verify fetch was called correctly
+    expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining("https://api.seats.aero/search?"),
       expect.objectContaining({
+        method: "GET",
         headers: expect.objectContaining({
           "Partner-Authorization": "test-api-key",
           Accept: "application/json",
@@ -61,7 +61,7 @@ describe("SeatsAeroClient - search", () => {
     );
 
     // Verify URL contains query parameters
-    const calledUrl = mockAxiosGet.mock.calls[0]?.[0] as string;
+    const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
     expect(calledUrl).toContain("origin_airport=SFO");
     expect(calledUrl).toContain("destination_airport=PHX");
     expect(calledUrl).toContain("start_date=2025-10-11");
@@ -78,16 +78,20 @@ describe("SeatsAeroClient - search", () => {
   });
 
   it("should handle pagination with cursor and skip", async () => {
-    // Mock axios
-    const mockAxiosGet = mock().mockResolvedValue({
-      data: mockSearchResponse,
-      status: 200,
-      statusText: "OK",
-    });
+    // Mock fetch
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify(mockSearchResponse), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
-    mock.module("axios", () => ({
-      default: { get: mockAxiosGet, isAxiosError: mock(() => false) },
-    }));
+    const client = new SeatsAeroClient({
+      apiKey: "test-api-key",
+      baseUrl: "https://api.seats.aero",
+      fetchImpl: mockFetch as typeof fetch,
+    });
 
     const params: SearchRequestParams = {
       origin_airport: "SFO",
@@ -98,22 +102,26 @@ describe("SeatsAeroClient - search", () => {
 
     await client.search(params);
 
-    const calledUrl = mockAxiosGet.mock.calls[0]?.[0] as string;
+    const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
     expect(calledUrl).toContain("cursor=1234567890");
     expect(calledUrl).toContain("skip=500");
   });
 
   it("should handle minimal search parameters", async () => {
-    // Mock axios
-    const mockAxiosGet = mock().mockResolvedValue({
-      data: mockSearchResponse,
-      status: 200,
-      statusText: "OK",
-    });
+    // Mock fetch
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify(mockSearchResponse), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
-    mock.module("axios", () => ({
-      default: { get: mockAxiosGet, isAxiosError: mock(() => false) },
-    }));
+    const client = new SeatsAeroClient({
+      apiKey: "test-api-key",
+      baseUrl: "https://api.seats.aero",
+      fetchImpl: mockFetch as typeof fetch,
+    });
 
     const params: SearchRequestParams = {
       origin_airport: "LAX",
@@ -123,7 +131,7 @@ describe("SeatsAeroClient - search", () => {
     const result = await client.search(params);
 
     // Verify default take parameter is applied
-    const calledUrl = mockAxiosGet.mock.calls[0]?.[0] as string;
+    const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
     expect(calledUrl).toContain("origin_airport=LAX");
     expect(calledUrl).toContain("destination_airport=JFK");
     expect(calledUrl).toContain("take=500"); // default value
@@ -133,16 +141,20 @@ describe("SeatsAeroClient - search", () => {
   });
 
   it("should handle search with filters", async () => {
-    // Mock axios
-    const mockAxiosGet = mock().mockResolvedValue({
-      data: mockSearchResponse,
-      status: 200,
-      statusText: "OK",
-    });
+    // Mock fetch
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify(mockSearchResponse), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
-    mock.module("axios", () => ({
-      default: { get: mockAxiosGet, isAxiosError: mock(() => false) },
-    }));
+    const client = new SeatsAeroClient({
+      apiKey: "test-api-key",
+      baseUrl: "https://api.seats.aero",
+      fetchImpl: mockFetch as typeof fetch,
+    });
 
     const params: SearchRequestParams = {
       origin_airport: "SFO",
@@ -156,27 +168,26 @@ describe("SeatsAeroClient - search", () => {
 
     await client.search(params);
 
-    const calledUrl = mockAxiosGet.mock.calls[0]?.[0] as string;
+    const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
     expect(calledUrl).toContain("sources=united%2Caeroplan");
     expect(calledUrl).toContain("cabins=business%2Cfirst");
     expect(calledUrl).toContain("only_direct_flights=true");
   });
 
   it("should throw SeatsAeroAPIError on HTTP 400 error", async () => {
-    const mockAxiosError = {
-      response: {
+    // Mock fetch to return 400 error
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Bad Request" }), {
         status: 400,
         statusText: "Bad Request",
-      },
-      isAxiosError: true,
-    };
+      }),
+    );
 
-    mock.module("axios", () => ({
-      default: {
-        get: mock().mockRejectedValue(mockAxiosError),
-        isAxiosError: mock(() => true),
-      },
-    }));
+    const client = new SeatsAeroClient({
+      apiKey: "test-api-key",
+      baseUrl: "https://api.seats.aero",
+      fetchImpl: mockFetch as typeof fetch,
+    });
 
     const params: SearchRequestParams = {
       origin_airport: "SFO",
@@ -190,20 +201,19 @@ describe("SeatsAeroClient - search", () => {
   });
 
   it("should throw SeatsAeroAPIError on HTTP 500 error", async () => {
-    const mockAxiosError = {
-      response: {
+    // Mock fetch to return 500 error
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Internal Server Error" }), {
         status: 500,
         statusText: "Internal Server Error",
-      },
-      isAxiosError: true,
-    };
+      }),
+    );
 
-    mock.module("axios", () => ({
-      default: {
-        get: mock().mockRejectedValue(mockAxiosError),
-        isAxiosError: mock(() => true),
-      },
-    }));
+    const client = new SeatsAeroClient({
+      apiKey: "test-api-key",
+      baseUrl: "https://api.seats.aero",
+      fetchImpl: mockFetch as typeof fetch,
+    });
 
     const params: SearchRequestParams = {
       origin_airport: "SFO",
@@ -217,6 +227,11 @@ describe("SeatsAeroClient - search", () => {
   });
 
   it("should validate request parameters - too short airport code", async () => {
+    const client = new SeatsAeroClient({
+      apiKey: "test-api-key",
+      baseUrl: "https://api.seats.aero",
+    });
+
     const invalidParams = {
       origin_airport: "SF", // Too short
       destination_airport: "PHX",
@@ -226,6 +241,11 @@ describe("SeatsAeroClient - search", () => {
   });
 
   it("should validate request parameters - invalid date format", async () => {
+    const client = new SeatsAeroClient({
+      apiKey: "test-api-key",
+      baseUrl: "https://api.seats.aero",
+    });
+
     const invalidParams = {
       origin_airport: "SFO",
       destination_airport: "PHX",
@@ -236,16 +256,20 @@ describe("SeatsAeroClient - search", () => {
   });
 
   it("should validate response matches schema", async () => {
-    // Mock axios
-    const mockAxiosGet = mock().mockResolvedValue({
-      data: mockSearchResponse,
-      status: 200,
-      statusText: "OK",
-    });
+    // Mock fetch
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify(mockSearchResponse), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
-    mock.module("axios", () => ({
-      default: { get: mockAxiosGet, isAxiosError: mock(() => false) },
-    }));
+    const client = new SeatsAeroClient({
+      apiKey: "test-api-key",
+      baseUrl: "https://api.seats.aero",
+      fetchImpl: mockFetch as typeof fetch,
+    });
 
     const params: SearchRequestParams = {
       origin_airport: "SFO",

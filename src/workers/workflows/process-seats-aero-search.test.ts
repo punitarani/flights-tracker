@@ -279,9 +279,14 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
     expect(searchArgs).toHaveLength(2);
     expect((searchArgs[0] as { cursor?: number }).cursor).toBeUndefined();
     expect((searchArgs[1] as { cursor?: number }).cursor).toBe(101);
-    expect(upsertCalls).toHaveLength(1);
-    expect(upsertCalls[0]?.trips).toHaveLength(3);
+
+    // Expect 2 upsert calls (one per page, batched within each page)
+    expect(upsertCalls).toHaveLength(2);
+    expect(upsertCalls[0]?.trips).toHaveLength(2); // Page 1: 2 trips
     expect(upsertCalls[0]?.searchRequestId).toBe(searchRequest.id);
+    expect(upsertCalls[1]?.trips).toHaveLength(1); // Page 2: 1 trip
+    expect(upsertCalls[1]?.searchRequestId).toBe(searchRequest.id);
+
     expect(updateProgressCalls.map((call) => call.processedCount)).toEqual([
       2, 3,
     ]);
