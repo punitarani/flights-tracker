@@ -41,7 +41,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
   const scheduleAttachTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const handleScrollRef = useRef<(event: Event) => void>();
+  const handleScrollRef = useRef<((event: Event) => void) | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
