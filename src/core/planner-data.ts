@@ -1,13 +1,14 @@
+import { addDays, format, parseISO, startOfDay } from "date-fns";
+import { Currency } from "@/lib/fli/models";
 import type { FlightFiltersInput } from "@/server/schemas/flight-filters";
-import type {
-  CalendarPriceEntry,
-  FlightOption,
-} from "@/server/services/flights";
 import type {
   PlanItineraryInput,
   PlannerFlightOption,
 } from "@/server/schemas/planner";
-import { addDays, format, parseISO, startOfDay } from "date-fns";
+import type {
+  CalendarPriceEntry,
+  FlightOption,
+} from "@/server/services/flights";
 
 /**
  * Pure helper functions for planner data transformation
@@ -59,7 +60,7 @@ export function deriveFlightFilters(
   if (input.filters?.maxPrice) {
     filters.priceLimit = {
       amount: input.filters.maxPrice,
-      currency: "USD",
+      currency: Currency.USD,
     };
   }
 

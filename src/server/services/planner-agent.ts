@@ -1,13 +1,14 @@
-import { streamUI } from "ai/rsc";
+import { generateText } from "ai";
 import { z } from "zod";
 import { DEFAULT_MODEL, GROQ_CONFIG } from "@/lib/groq/client";
 import { logger } from "@/lib/logger";
-import type { PlanItineraryInput } from "../schemas/planner";
+import type {
+  PlanItineraryInput,
+  PlanItineraryOutput,
+} from "../schemas/planner";
 import { searchAirports } from "./airports";
+import type { FlightOption } from "./flights";
 import { searchCalendarPrices, searchFlights } from "./flights";
-import { PlannerLoadingState } from "@/components/planner/planner-loading-state";
-import { PlannerResultCard } from "@/components/planner/planner-result-card";
-import { PlannerErrorState } from "@/components/planner/planner-error-state";
 
 /**
  * AI-powered flight planner agent using Vercel AI SDK
@@ -101,10 +102,17 @@ const tools = {
           tripType: "one-way",
           segments: [{ origin, destination, departureDate: dateFrom }],
           dateRange: { from: dateFrom, to: dateTo },
-          passengers: { adults: 1, children: 0, infantsInSeat: 0, infantsOnLap: 0 },
+          passengers: {
+            adults: 1,
+            children: 0,
+            infantsInSeat: 0,
+            infantsOnLap: 0,
+          },
           seatType: "economy",
           stops: "any",
-          ...(maxPrice ? { priceLimit: { amount: maxPrice, currency: "USD" } } : {}),
+          ...(maxPrice
+            ? { priceLimit: { amount: maxPrice, currency: "USD" } }
+            : {}),
         });
 
         // Return top 10 cheapest dates
@@ -126,7 +134,10 @@ const tools = {
       "Get detailed flight options for a specific date and route. Returns up to 5 flight options with full details.",
     parameters: z.object({
       origin: z.string().length(3).describe("Origin airport IATA code"),
-      destination: z.string().length(3).describe("Destination airport IATA code"),
+      destination: z
+        .string()
+        .length(3)
+        .describe("Destination airport IATA code"),
       departureDate: z
         .string()
         .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -152,7 +163,12 @@ const tools = {
           tripType: "one-way",
           segments: [{ origin, destination, departureDate }],
           dateRange: { from: departureDate, to: departureDate },
-          passengers: { adults: 1, children: 0, infantsInSeat: 0, infantsOnLap: 0 },
+          passengers: {
+            adults: 1,
+            children: 0,
+            infantsInSeat: 0,
+            infantsOnLap: 0,
+          },
           seatType: "economy",
           stops: "any",
         });
@@ -165,7 +181,9 @@ const tools = {
             stops: Math.max(...f.slices.map((s) => s.stops)),
             duration: f.slices.reduce((sum, s) => sum + s.durationMinutes, 0),
             airlines: [
-              ...new Set(f.slices.flatMap((s) => s.legs.map((l) => l.airlineCode))),
+              ...new Set(
+                f.slices.flatMap((s) => s.legs.map((l) => l.airlineCode)),
+              ),
             ],
           })),
         };
@@ -239,9 +257,12 @@ CONSTRAINTS:
 When you have enough information, provide your final recommendations with clear reasoning about why each option is suitable.`;
 
 /**
- * Main planner agent function using AI SDK's streamUI
+ * Main planner agent function using AI SDK with tool calling
+ * Returns structured JSON data (not RSCs) for TRPC compatibility
  */
-export async function planItinerary(input: PlanItineraryInput) {
+export async function planItinerary(
+  input: PlanItineraryInput,
+): Promise<PlanItineraryOutput> {
   const startTime = Date.now();
 
   logger.info("Planning itinerary", {
@@ -249,32 +270,98 @@ export async function planItinerary(input: PlanItineraryInput) {
     filters: input.filters,
   });
 
+  const transcript: PlanItineraryOutput["transcript"] = [];
+  let flightResults: FlightOption[] = [];
+
   try {
-    const result = await streamUI({
+    const result = await generateText({
       model: DEFAULT_MODEL,
       system: SYSTEM_PROMPT,
       prompt: input.prompt,
-      messages: [],
       temperature: GROQ_CONFIG.temperature,
       maxTokens: GROQ_CONFIG.maxTokens,
       tools,
-      text: ({ content, done }) => {
-        if (done) {
-          return <PlannerResultCard content={content} />;
+      maxToolRoundtrips: 5,
+      onStepFinish: ({ toolCalls, toolResults }) => {
+        // Log tool execution for transparency
+        if (toolCalls && toolResults) {
+          for (let i = 0; i < toolCalls.length; i++) {
+            const call = toolCalls[i];
+            const result = toolResults[i];
+            transcript.push({
+              step: transcript.length + 1,
+              tool: call?.toolName || "unknown",
+              input: call?.args as Record<string, unknown>,
+              output: result?.result,
+              timestamp: new Date().toISOString(),
+            });
+          }
         }
-        return <PlannerLoadingState message={content} />;
       },
     });
+
+    // Extract flight results from transcript if available
+    const flightDetailsSteps = transcript.filter(
+      (step) => step.tool === "searchFlightDetails",
+    );
+    if (flightDetailsSteps.length > 0) {
+      const lastFlightStep = flightDetailsSteps[flightDetailsSteps.length - 1];
+      const output = lastFlightStep.output as { flights?: FlightOption[] };
+      if (output?.flights) {
+        flightResults = output.flights;
+      }
+    }
 
     const executionTimeMs = Date.now() - startTime;
 
     logger.info("Itinerary planned successfully", {
       executionTimeMs,
+      toolCalls: transcript.length,
     });
 
-    return result.value;
+    // Convert flights to simplified format
+    const recommendations = flightResults.slice(0, 3).map((flight) => ({
+      origin: flight.slices[0]?.legs[0]?.departureAirportCode || "Unknown",
+      destination:
+        flight.slices[0]?.legs[flight.slices[0].legs.length - 1]
+          ?.arrivalAirportCode || "Unknown",
+      departureDate:
+        flight.slices[0]?.legs[0]?.departureDateTime.split("T")[0] ||
+        new Date().toISOString().split("T")[0],
+      returnDate:
+        flight.slices.length > 1
+          ? flight.slices[1]?.legs[0]?.departureDateTime.split("T")[0]
+          : null,
+      price: flight.totalPrice,
+      currency: flight.currency,
+      stops: Math.max(...flight.slices.map((s) => s.stops)),
+      duration: flight.slices.reduce((sum, s) => sum + s.durationMinutes, 0),
+      airlines: [
+        ...new Set(
+          flight.slices.flatMap((s) => s.legs.map((l) => l.airlineCode)),
+        ),
+      ],
+    }));
+
+    return {
+      transcript,
+      recommendations,
+      summary: result.text,
+      confidence: transcript.length > 0 ? 0.8 : 0.5,
+      notes: [],
+      executionTimeMs,
+    };
   } catch (error) {
     logger.error("Failed to plan itinerary", { error });
-    return <PlannerErrorState error={error instanceof Error ? error.message : "Unknown error"} />;
+    const executionTimeMs = Date.now() - startTime;
+
+    return {
+      transcript,
+      recommendations: [],
+      summary: `Failed to plan itinerary: ${error instanceof Error ? error.message : "Unknown error"}`,
+      confidence: 0,
+      notes: ["An error occurred during planning. Please try again."],
+      executionTimeMs,
+    };
   }
 }

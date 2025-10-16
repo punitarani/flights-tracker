@@ -13,8 +13,14 @@ export const PlanItineraryInputSchema = z.object({
     .object({
       origin: z.string().length(3).optional(),
       destination: z.string().length(3).optional(),
-      dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-      dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      dateFrom: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+      dateTo: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
       maxPrice: z.number().positive().optional(),
     })
     .optional(),

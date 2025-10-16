@@ -1,7 +1,7 @@
 "use client";
 
 import { addYears, format, parseISO, startOfToday } from "date-fns";
-import { Calendar, Loader2 } from "lucide-react";
+import { Calendar, Loader2, Plane } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import {
   CartesianGrid,
@@ -20,6 +20,7 @@ import {
   ChartLegendContent,
   ChartTooltip,
 } from "@/components/ui/chart";
+import type { SeatsAeroAvailabilityTripModel } from "@/lib/fli/models/seats-aero/availability-trip";
 import { trpc } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
 import { AWARD_CHART_CONFIG, MILEAGE_FORMATTER } from "./constants";
@@ -117,6 +118,14 @@ function AwardTooltipContent({
     </div>
   );
 }
+
+type CabinSummary = {
+  cabin: string;
+  cabinKey: "economy" | "premium_economy" | "business" | "first";
+  minMileage: number;
+  directMinMileage: number | null;
+  tripCount: number;
+};
 
 function extractCabinSummaries(
   trips: SeatsAeroAvailabilityTripModel[],

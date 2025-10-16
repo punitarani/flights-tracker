@@ -1,11 +1,11 @@
 import { describe, expect, it } from "bun:test";
+import type { PlanItineraryInput } from "@/server/schemas/planner";
 import {
   deriveFlightFilters,
   extractPromptIntent,
   generateSearchCacheKey,
   PlannerCache,
 } from "./planner-data";
-import type { PlanItineraryInput } from "@/server/schemas/planner";
 
 describe("planner-data", () => {
   describe("deriveFlightFilters", () => {
@@ -137,12 +137,16 @@ describe("planner-data", () => {
   describe("generateSearchCacheKey", () => {
     it("should generate consistent keys for same filters", () => {
       const filters1 = {
-        segments: [{ origin: "JFK", destination: "LAX", departureDate: "2025-03-01" }],
+        segments: [
+          { origin: "JFK", destination: "LAX", departureDate: "2025-03-01" },
+        ],
         dateRange: { from: "2025-03-01", to: "2025-03-07" },
       };
 
       const filters2 = {
-        segments: [{ origin: "JFK", destination: "LAX", departureDate: "2025-03-01" }],
+        segments: [
+          { origin: "JFK", destination: "LAX", departureDate: "2025-03-01" },
+        ],
         dateRange: { from: "2025-03-01", to: "2025-03-07" },
       };
 
@@ -154,11 +158,15 @@ describe("planner-data", () => {
 
     it("should generate different keys for different filters", () => {
       const filters1 = {
-        segments: [{ origin: "JFK", destination: "LAX", departureDate: "2025-03-01" }],
+        segments: [
+          { origin: "JFK", destination: "LAX", departureDate: "2025-03-01" },
+        ],
       };
 
       const filters2 = {
-        segments: [{ origin: "LAX", destination: "JFK", departureDate: "2025-03-01" }],
+        segments: [
+          { origin: "LAX", destination: "JFK", departureDate: "2025-03-01" },
+        ],
       };
 
       const key1 = generateSearchCacheKey(filters1);

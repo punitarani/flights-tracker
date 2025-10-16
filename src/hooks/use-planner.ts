@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import { api } from "@/lib/trpc/react";
-import type { PlanItineraryInput } from "@/server/schemas/planner";
+import type {
+  PlanItineraryInput,
+  PlanItineraryOutput,
+} from "@/server/schemas/planner";
 
 /**
  * Hook for managing planner state and interactions
@@ -14,7 +17,7 @@ export type PlannerStatus = "idle" | "planning" | "success" | "error";
 export interface UsePlannerState {
   prompt: string;
   status: PlannerStatus;
-  result: React.ReactNode | null;
+  result: PlanItineraryOutput | null;
   error: string | null;
 }
 
@@ -32,10 +35,10 @@ export interface UsePlannerReturn extends UsePlannerState, UsePlannerActions {
 export function usePlanner(): UsePlannerReturn {
   const [prompt, setPrompt] = useState("");
   const [status, setStatus] = useState<PlannerStatus>("idle");
-  const [result, setResult] = useState<React.ReactNode | null>(null);
+  const [result, setResult] = useState<PlanItineraryOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const planMutation = api.planner.plan.useMutation({
+  const planMutation = api.useMutation(["planner.plan"], {
     onSuccess: (data) => {
       setResult(data);
       setStatus("success");
