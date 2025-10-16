@@ -320,14 +320,9 @@ export function AwardAvailabilityPanel({
   const isLoadingInitial = isSearching || isLoadingDaily;
 
   // Format selected date for display
-  const selectedDateDisplay = useMemo(() => {
-    if (!selectedDate) return null;
-    try {
-      return format(parseISO(selectedDate), "EEEE, MMM d, yyyy");
-    } catch {
-      return selectedDate;
-    }
-  }, [selectedDate]);
+  const handleSelectDate = (date: string | null) => {
+    setSelectedDate((current) => (current === date ? null : date));
+  };
 
   return (
     <Card className="space-y-4 p-4">
@@ -386,168 +381,174 @@ export function AwardAvailabilityPanel({
         dailyAvailability &&
         dailyAvailability.length > 0 && (
           <div className="space-y-3">
-            {/* Award availability chart */}
-            {!selectedDate && chartData.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  <Calendar className="h-3 w-3" />
-                  <span>Click a date to see flight details</span>
-                </div>
-                <ChartContainer
-                  config={AWARD_CHART_CONFIG}
-                  className="h-64 w-full"
-                >
-                  <LineChart
-                    data={chartData}
-                    margin={{ left: 12, right: 12 }}
-                    onClick={(data) => {
-                      if (data?.activePayload?.[0]?.payload?.date) {
-                        setSelectedDate(data.activePayload[0].payload.date);
-                      }
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="formattedDate"
-                      tickLine={false}
-                      axisLine={false}
-                      minTickGap={16}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      width={56}
-                      tickFormatter={(value: number) =>
-                        `${MILEAGE_FORMATTER.format(value / 1000)}k`
-                      }
-                    />
-                    <ChartTooltip
-                      cursor={{ strokeDasharray: "4 4" }}
-                      content={<AwardTooltipContent />}
-                    />
-                    <ChartLegend
-                      verticalAlign="bottom"
-                      height={36}
-                      content={<ChartLegendContent />}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="economy"
-                      stroke="var(--color-economy)"
-                      strokeWidth={2}
-                      dot={{ r: 2, cursor: "pointer" }}
-                      activeDot={{ r: 5, cursor: "pointer" }}
-                      connectNulls
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="business"
-                      stroke="var(--color-business)"
-                      strokeWidth={2}
-                      dot={{ r: 2, cursor: "pointer" }}
-                      activeDot={{ r: 5, cursor: "pointer" }}
-                      connectNulls
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="first"
-                      stroke="var(--color-first)"
-                      strokeWidth={2}
-                      dot={{ r: 2, cursor: "pointer" }}
-                      activeDot={{ r: 5, cursor: "pointer" }}
-                      connectNulls
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="premiumEconomy"
-                      stroke="var(--color-premiumEconomy)"
-                      strokeWidth={2}
-                      dot={{ r: 2, cursor: "pointer" }}
-                      activeDot={{ r: 5, cursor: "pointer" }}
-                      connectNulls
-                    />
-                  </LineChart>
-                </ChartContainer>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <Calendar className="h-3 w-3" />
+                <span>Click a date to see flight details</span>
               </div>
-            )}
+              <ChartContainer
+                config={AWARD_CHART_CONFIG}
+                className="h-64 w-full"
+              >
+                <LineChart
+                  data={chartData}
+                  margin={{ left: 12, right: 12 }}
+                  onClick={(data) => {
+                    if (data?.activePayload?.[0]?.payload?.date) {
+                      handleSelectDate(data.activePayload[0].payload.date);
+                    }
+                  }}
+                  className="cursor-pointer"
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="formattedDate"
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={16}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={56}
+                    tickFormatter={(value: number) =>
+                      `${MILEAGE_FORMATTER.format(value / 1000)}k`
+                    }
+                  />
+                  <ChartTooltip
+                    cursor={{ strokeDasharray: "4 4" }}
+                    content={<AwardTooltipContent />}
+                  />
+                  <ChartLegend
+                    verticalAlign="bottom"
+                    height={36}
+                    content={<ChartLegendContent />}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="economy"
+                    stroke="var(--color-economy)"
+                    strokeWidth={2}
+                    dot={{ r: 2, cursor: "pointer" }}
+                    activeDot={{ r: 5, cursor: "pointer" }}
+                    connectNulls
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="business"
+                    stroke="var(--color-business)"
+                    strokeWidth={2}
+                    dot={{ r: 2, cursor: "pointer" }}
+                    activeDot={{ r: 5, cursor: "pointer" }}
+                    connectNulls
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="first"
+                    stroke="var(--color-first)"
+                    strokeWidth={2}
+                    dot={{ r: 2, cursor: "pointer" }}
+                    activeDot={{ r: 5, cursor: "pointer" }}
+                    connectNulls
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="premiumEconomy"
+                    stroke="var(--color-premiumEconomy)"
+                    strokeWidth={2}
+                    dot={{ r: 2, cursor: "pointer" }}
+                    activeDot={{ r: 5, cursor: "pointer" }}
+                    connectNulls
+                  />
+                </LineChart>
+              </ChartContainer>
+            </div>
 
-            {/* Detailed flight list for selected date */}
-            {selectedDate && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedDate(null)}
-                      className="h-auto px-0 text-xs hover:bg-transparent"
-                    >
-                      ← Back to calendar
-                    </Button>
-                    <p className="mt-1 text-sm font-medium">
-                      {selectedDateDisplay}
+            <div className="space-y-2 rounded-md border bg-muted/40 p-3">
+              {selectedDate ? (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-semibold">
+                      {format(parseISO(selectedDate), "EEEE, MMM d, yyyy")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Showing the lowest mileage by cabin for this date.
                     </p>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSelectDate(null)}
+                    className="h-auto px-0 text-xs hover:bg-transparent"
+                  >
+                    Clear selection
+                  </Button>
                 </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  Select a date above to view cabin-level award details.
+                </div>
+              )}
 
-                {isLoadingTrips && (
-                  <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Loading flights...</span>
-                  </div>
-                )}
-
-                {!isLoadingTrips && cabinSummaries.length === 0 && (
-                  <p className="py-2 text-sm text-muted-foreground">
-                    No flights found for this date.
-                  </p>
-                )}
-
-                {!isLoadingTrips && cabinSummaries.length > 0 && (
-                  <div className="space-y-2">
-                    {cabinSummaries.map((cabin) => (
-                      <div
-                        key={cabin.cabinKey}
-                        className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Plane className="h-4 w-4 text-primary" />
-                          <div>
-                            <span className="text-sm font-medium">
-                              {cabin.cabin}
-                            </span>
-                            <p className="text-xs text-muted-foreground">
-                              {cabin.tripCount}{" "}
-                              {cabin.tripCount === 1 ? "option" : "options"}
-                            </p>
+              {selectedDate ? (
+                <div className="space-y-2">
+                  {isLoadingTrips ? (
+                    <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Loading flights...</span>
+                    </div>
+                  ) : cabinSummaries.length > 0 ? (
+                    <div className="space-y-2">
+                      {cabinSummaries.map((cabin) => (
+                        <div
+                          key={cabin.cabinKey}
+                          className="flex items-center justify-between rounded-md border bg-background px-3 py-2"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Plane className="h-4 w-4 text-primary" />
+                            <div>
+                              <span className="text-sm font-medium">
+                                {cabin.cabin}
+                              </span>
+                              <p className="text-xs text-muted-foreground">
+                                {cabin.tripCount}{" "}
+                                {cabin.tripCount === 1 ? "option" : "options"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {cabin.minMileage !== null && (
+                              <div className="text-sm font-semibold">
+                                {MILEAGE_FORMATTER.format(cabin.minMileage)}{" "}
+                                miles
+                              </div>
+                            )}
+                            {cabin.directMinMileage !== null && (
+                              <div className="text-xs text-muted-foreground">
+                                Direct:{" "}
+                                {MILEAGE_FORMATTER.format(
+                                  cabin.directMinMileage,
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <div className="text-right">
-                          {cabin.minMileage !== null && (
-                            <div className="text-sm font-semibold">
-                              {MILEAGE_FORMATTER.format(cabin.minMileage)} miles
-                            </div>
-                          )}
-                          {cabin.directMinMileage !== null && (
-                            <div className="text-xs text-muted-foreground">
-                              Direct:{" "}
-                              {MILEAGE_FORMATTER.format(cabin.directMinMileage)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {trips && trips.length > 0 && (
-                      <p className="pt-1 text-xs text-muted-foreground">
-                        Showing lowest miles from {trips.length} flight
-                        {trips.length === 1 ? "" : "s"}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                      ))}
+                      {trips && trips.length > 0 && (
+                        <p className="pt-1 text-xs text-muted-foreground">
+                          Showing lowest miles from {trips.length} flight
+                          {trips.length === 1 ? "" : "s"}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="py-2 text-sm text-muted-foreground">
+                      No award options found for this date.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
         )}
     </Card>
