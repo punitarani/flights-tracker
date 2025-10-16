@@ -46,10 +46,48 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     const media = window.matchMedia("(max-width: 767px)");
     const updateIsMobile = () => setIsMobile(media.matches);
     updateIsMobile();
-    media.addEventListener("change", updateIsMobile);
 
-    return () => media.removeEventListener("change", updateIsMobile);
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", updateIsMobile);
+      return () => media.removeEventListener("change", updateIsMobile);
+    }
+
+    media.addListener(updateIsMobile);
+    return () => media.removeListener(updateIsMobile);
   }, []);
+
+  useEffect(() => {
+    if (!isMobile) {
+      if (isCollapsed) setIsCollapsed(false);
+      if (isExpanded) setIsExpanded(false);
+      return;
+    }
+
+    const isFieldActive = origin.isActive || destination.isActive;
+
+    if (isFieldActive) {
+      if (!isExpanded) setIsExpanded(true);
+      if (isCollapsed) setIsCollapsed(false);
+      return;
+    }
+
+    if (!shouldShowSearchAction) {
+      if (isCollapsed) setIsCollapsed(false);
+      if (isExpanded) setIsExpanded(false);
+      return;
+    }
+
+    if (!isCollapsed && !isExpanded) {
+      setIsCollapsed(true);
+    }
+  }, [
+    destination.isActive,
+    isCollapsed,
+    isExpanded,
+    isMobile,
+    origin.isActive,
+    shouldShowSearchAction,
+  ]);
 
   // Scroll detection for mobile collapse
   useEffect(() => {
@@ -137,11 +175,6 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     } else {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  };
-
-  const _handleCollapse = () => {
-    setIsExpanded(false);
-    setIsCollapsed(true);
   };
 
   const showOriginSummary = Boolean(origin.selectedAirport && !origin.isActive);
@@ -245,6 +278,25 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
             : "max-h-0 -translate-y-3 overflow-hidden p-0 opacity-0 pointer-events-none",
         )}
       >
+        {isMobile &&
+        showFullView &&
+        shouldShowSearchAction &&
+        !origin.isActive &&
+        !destination.isActive ? (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setIsExpanded(false);
+                setIsCollapsed(true);
+              }}
+              className="flex items-center gap-1 rounded-full bg-card/70 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm transition-colors duration-200 hover:bg-card/80 md:hidden"
+            >
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+              Hide search
+            </button>
+          </div>
+        ) : null}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-1 sm:items-stretch">
             <div
