@@ -19,7 +19,7 @@ import { addBreadcrumb, captureException } from "../utils/sentry";
  * CheckFlightAlertsWorkflow
  * Triggered by cron every 6 hours
  * Fetches all user IDs with active daily alerts and queues them
- * 
+ *
  * Note: Sentry instrumentation via instrumentWorkflowWithSentry was removed
  * as it interfered with Cloudflare's workflow step execution causing timeouts.
  * Error tracking is preserved through captureException calls within the workflow.

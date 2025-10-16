@@ -22,7 +22,7 @@ interface ProcessAlertsParams {
 /**
  * ProcessFlightAlertsWorkflow
  * Processes all alerts for a single user
- * 
+ *
  * Note: Sentry instrumentation via instrumentWorkflowWithSentry was removed
  * as it interfered with Cloudflare's workflow step execution causing timeouts.
  * Error tracking is preserved through captureException calls within the workflow.

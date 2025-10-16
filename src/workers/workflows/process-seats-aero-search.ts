@@ -23,7 +23,7 @@ import { paginateSeatsAeroSearch } from "./process-seats-aero-search-pagination"
 
 /**
  * ProcessSeatsAeroSearchWorkflow
- * 
+ *
  * Note: Sentry instrumentation via instrumentWorkflowWithSentry was removed
  * as it interfered with Cloudflare's workflow step execution causing timeouts.
  * Error tracking is preserved through captureException calls within the workflow.
