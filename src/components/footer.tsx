@@ -35,7 +35,7 @@ export function Footer() {
           <span className="tracking-tight">GrayPane</span>
         </Link>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 self-end sm:self-auto">
           {socialLinks.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
