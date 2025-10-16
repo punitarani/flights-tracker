@@ -36,6 +36,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
   // Mobile collapse state
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Scroll detection for mobile collapse
   useEffect(() => {
@@ -44,6 +45,11 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
       return;
     }
 
+    const media = window.matchMedia("(max-width: 767px)");
+    const updateIsMobile = () => setIsMobile(media.matches);
+    updateIsMobile();
+    media.addEventListener("change", updateIsMobile);
+
     let lastScrollY = 0;
     const threshold = 50; // Collapse after scrolling 50px down
     let scrollContainer: HTMLElement | null = null;
@@ -51,6 +57,13 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     const handleScroll = (e: Event) => {
       const target = e.target as HTMLElement;
       const currentScrollY = target.scrollTop ?? window.scrollY;
+
+      if (!media.matches) {
+        setIsCollapsed(false);
+        setIsExpanded(false);
+        lastScrollY = currentScrollY;
+        return;
+      }
 
       // Only apply on mobile (will be handled by CSS visibility)
       if (currentScrollY > threshold && currentScrollY > lastScrollY) {
@@ -97,6 +110,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     trySetup();
 
     return () => {
+      media.removeEventListener("change", updateIsMobile);
       // Clear all timeouts
       for (const timeout of timeouts) {
         clearTimeout(timeout);
@@ -194,14 +208,22 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
   return (
     <div
       className={cn(
-        "sticky top-0 z-10 flex-none border-b bg-card/50 backdrop-blur-sm transition-[background-color,backdrop-filter,padding] duration-500 ease-in-out",
-        showCollapsed ? "pt-2" : "pt-0",
+        "sticky top-0 z-10 flex-none border-b bg-card/50 backdrop-blur-sm",
+        isMobile
+          ? cn(
+              "transition-[background-color,backdrop-filter,padding] duration-500 ease-in-out",
+              showCollapsed ? "pt-2" : "pt-0",
+            )
+          : "pt-0",
       )}
     >
       {/* Mobile collapsed pill - only visible on mobile when collapsed */}
       <div
         className={cn(
-          "container mx-auto px-4 py-2 transition-[opacity,max-height,transform] duration-500 ease-in-out will-change-[opacity,transform] md:hidden",
+          "container mx-auto px-4 py-2 md:hidden",
+          isMobile
+            ? "transition-[opacity,max-height,transform] duration-500 ease-in-out will-change-[opacity,transform]"
+            : "",
           showCollapsed
             ? "max-h-16 opacity-100 translate-y-0"
             : "max-h-0 opacity-0 -translate-y-1 overflow-hidden pointer-events-none",

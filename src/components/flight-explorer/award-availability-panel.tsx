@@ -221,7 +221,7 @@ export function AwardAvailabilityPanel({
   const searchStatus = searchResult?.status;
   const isWorkflowActive =
     searchStatus === "pending" || searchStatus === "processing";
-  const shouldShowSearchToast = isWorkflowActive || isSearching;
+  const shouldShowSearchToast = isWorkflowActive;
 
   // Show toast notification when searching for award data
   useEffect(() => {
