@@ -3,7 +3,14 @@
 import { addYears, format, parseISO, startOfToday } from "date-fns";
 import { Calendar, Loader2, Plane } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  type TooltipProps,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,7 +19,6 @@ import {
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
-  ChartTooltipContent,
 } from "@/components/ui/chart";
 import type { SeatsAeroAvailabilityTripModel } from "@/lib/fli/models/seats-aero";
 import { trpc } from "@/lib/trpc/react";
@@ -36,6 +42,88 @@ type CabinSummary = {
   directMinMileage: number | null;
   tripCount: number;
 };
+
+const CABIN_SORT_ORDER = [
+  "economy",
+  "premiumEconomy",
+  "business",
+  "first",
+] as const;
+
+type CabinDataKey = (typeof CABIN_SORT_ORDER)[number];
+
+function AwardTooltipContent({
+  active,
+  payload,
+}: TooltipProps<number, string>) {
+  if (!active || !payload?.length) {
+    return null;
+  }
+
+  const items = payload
+    .filter((item): item is NonNullable<typeof item> =>
+      Boolean(item && item.value !== undefined),
+    )
+    .sort((a, b) => {
+      const aKey = String(a.dataKey) as CabinDataKey;
+      const bKey = String(b.dataKey) as CabinDataKey;
+      return CABIN_SORT_ORDER.indexOf(aKey) - CABIN_SORT_ORDER.indexOf(bKey);
+    });
+
+  if (!items.length) {
+    return null;
+  }
+
+  const isoDate = items[0]?.payload?.date;
+  const fallbackLabel = items[0]?.payload?.formattedDate;
+
+  let labelText = typeof fallbackLabel === "string" ? fallbackLabel : "";
+  if (typeof isoDate === "string") {
+    try {
+      const parsed = parseISO(isoDate);
+      if (!Number.isNaN(parsed.getTime())) {
+        labelText = format(parsed, "EEE, MMM d");
+      }
+    } catch {
+      // ignore parse errors and use fallback label
+    }
+  }
+
+  return (
+    <div className="border-border/50 bg-background grid min-w-[8rem] items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl">
+      <div className="font-medium">{labelText}</div>
+      <div className="grid gap-1.5">
+        {items.map((item) => {
+          const dataKey = String(item.dataKey) as CabinDataKey;
+          const config =
+            AWARD_CHART_CONFIG[dataKey as keyof typeof AWARD_CHART_CONFIG];
+          const color =
+            item.color || `var(--color-${dataKey as string})` || "currentColor";
+
+          return (
+            <div
+              key={dataKey}
+              className="flex items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <div
+                  className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
+                  style={{ backgroundColor: color }}
+                />
+                <span>{config?.label ?? item.name ?? dataKey}</span>
+              </div>
+              <span className="text-foreground font-mono font-medium tabular-nums">
+                {typeof item.value === "number"
+                  ? `${MILEAGE_FORMATTER.format(item.value)} miles`
+                  : item.value}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function extractCabinSummaries(
   trips: SeatsAeroAvailabilityTripModel[],
@@ -298,26 +386,7 @@ export function AwardAvailabilityPanel({
                     />
                     <ChartTooltip
                       cursor={{ strokeDasharray: "4 4" }}
-                      content={
-                        <ChartTooltipContent
-                          labelFormatter={(_, items) => {
-                            const isoDate = items?.[0]?.payload?.date;
-                            if (typeof isoDate === "string") {
-                              const parsed = parseISO(isoDate);
-                              if (!Number.isNaN(parsed.getTime())) {
-                                return format(parsed, "EEE, MMM d");
-                              }
-                            }
-                            const fallback = items?.[0]?.payload?.formattedDate;
-                            return typeof fallback === "string" ? fallback : "";
-                          }}
-                          formatter={(value) =>
-                            typeof value === "number"
-                              ? `${MILEAGE_FORMATTER.format(value)} miles`
-                              : (value ?? "N/A")
-                          }
-                        />
-                      }
+                      content={<AwardTooltipContent />}
                     />
                     <ChartLegend
                       verticalAlign="bottom"
