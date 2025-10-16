@@ -9,7 +9,6 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
-import * as Sentry from "@sentry/cloudflare";
 import type { SearchRequestParams } from "@/core/seats-aero.db";
 import { createSeatsAeroClient } from "@/lib/fli/seats-aero/client";
 import {
@@ -173,13 +172,7 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
   }
 }
 
-// Export instrumented workflow
-export const ProcessSeatsAeroSearchWorkflow =
-  Sentry.instrumentWorkflowWithSentry(
-    (env: WorkerEnv) => ({
-      dsn: env.SENTRY_DSN,
-      environment: env.SENTRY_ENVIRONMENT || "production",
-      tracesSampleRate: 1.0,
-    }),
-    ProcessSeatsAeroSearchWorkflowBase,
-  );
+// Export workflow without Sentry instrumentation to avoid timeout issues
+// Sentry instrumentation can interfere with workflow step execution timing
+// Error tracking is handled via captureException calls within the workflow
+export const ProcessSeatsAeroSearchWorkflow = ProcessSeatsAeroSearchWorkflowBase;

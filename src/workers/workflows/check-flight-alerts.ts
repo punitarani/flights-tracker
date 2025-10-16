@@ -97,19 +97,11 @@ class CheckFlightAlertsWorkflowBase extends WorkflowEntrypoint<
   }
 }
 
-// Export with Sentry instrumentation
-const InstrumentedWorkflow = Sentry.instrumentWorkflowWithSentry(
-  (env: WorkerEnv) => ({
-    dsn: env.SENTRY_DSN,
-    environment: env.SENTRY_ENVIRONMENT || "workers-production",
-    tracesSampleRate: 1.0,
-  }),
-  CheckFlightAlertsWorkflowBase,
-);
-
 // Export with monitor wrapper for cron monitoring
+// Removed Sentry instrumentation to avoid timeout issues with workflow steps
+// Error tracking is handled via captureException calls within the workflow
 export const CheckFlightAlertsWorkflow = withSentryMonitor(
-  InstrumentedWorkflow,
+  CheckFlightAlertsWorkflowBase,
   {
     slug: "check-flight-alerts-cron",
     schedule: "0 */6 * * *",
