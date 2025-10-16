@@ -13,7 +13,7 @@ import { getUserIdsWithActiveDailyAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
 import { withSentryMonitor } from "../utils/monitor-wrapper";
-import { addBreadcrumb, captureException } from "../utils/sentry";
+import { addBreadcrumb, captureException } from "../utils/observability";
 
 /**
  * Base workflow that handles the core business logic
