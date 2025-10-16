@@ -3,14 +3,12 @@
  * Wraps DB operations with worker DB instance
  */
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type {
   SearchRequestParams,
   UpdateSearchRequestProgressInput,
-  UpsertAvailabilityTripInput,
 } from "@/core/seats-aero.db";
 import {
-  type SeatsAeroAvailabilityTrip,
   type SeatsAeroSearchRequest,
   seatsAeroAvailabilityTrip,
   seatsAeroSearchRequest,
@@ -120,35 +118,42 @@ export async function failSearchRequest(
     .where(eq(seatsAeroSearchRequest.id, id));
 }
 
+const cabinClassMap: Record<
+  string,
+  "economy" | "business" | "first" | "premium_economy"
+> = {
+  economy: "economy",
+  business: "business",
+  first: "first",
+  premium_economy: "premium_economy",
+};
+
+type UpsertAvailabilityTripsInput = {
+  searchRequestId: string;
+  trips: AvailabilityTrip[];
+};
+
 /**
- * Upserts an availability trip (inserts or updates on conflict)
+ * Bulk upserts availability trips to minimize database round-trips.
  */
-export async function upsertAvailabilityTrip(
+export async function upsertAvailabilityTrips(
   env: WorkerEnv,
-  input: UpsertAvailabilityTripInput,
-): Promise<SeatsAeroAvailabilityTrip> {
+  input: UpsertAvailabilityTripsInput,
+): Promise<void> {
   const db = getWorkerDb(env);
-  const trip: AvailabilityTrip = input.trip;
 
-  // Map cabin class from API enum to our schema
-  const cabinClassMap: Record<
-    string,
-    "economy" | "business" | "first" | "premium_economy"
-  > = {
-    economy: "economy",
-    business: "business",
-    first: "first",
-    premium_economy: "premium_economy",
-  };
+  if (input.trips.length === 0) {
+    return;
+  }
 
-  const values = {
+  const values = input.trips.map((trip) => ({
     searchRequestId: input.searchRequestId,
     apiTripId: trip.ID,
     apiRouteId: trip.RouteID,
     apiAvailabilityId: trip.AvailabilityID,
     originAirport: trip.OriginAirport.toUpperCase(),
     destinationAirport: trip.DestinationAirport.toUpperCase(),
-    travelDate: trip.DepartsAt.split("T")[0], // Extract date from ISO timestamp
+    travelDate: trip.DepartsAt.split("T")[0],
     flightNumbers: parseFlightNumbers(trip.FlightNumbers),
     carriers: trip.Carriers,
     aircraftTypes: trip.Aircraft ?? null,
@@ -167,17 +172,38 @@ export async function upsertAvailabilityTrip(
     apiCreatedAt: trip.CreatedAt,
     apiUpdatedAt: trip.UpdatedAt,
     rawData: trip,
-  };
+  }));
 
-  // Upsert using ON CONFLICT
-  const result = await db
+  await db
     .insert(seatsAeroAvailabilityTrip)
     .values(values)
     .onConflictDoUpdate({
       target: seatsAeroAvailabilityTrip.apiTripId,
-      set: values,
-    })
-    .returning();
-
-  return result[0];
+      set: {
+        searchRequestId: sql`${sql.raw("excluded.search_request_id")}`,
+        apiRouteId: sql`${sql.raw("excluded.api_route_id")}`,
+        apiAvailabilityId: sql`${sql.raw("excluded.api_availability_id")}`,
+        originAirport: sql`${sql.raw("excluded.origin_airport")}`,
+        destinationAirport: sql`${sql.raw("excluded.destination_airport")}`,
+        travelDate: sql`${sql.raw("excluded.travel_date")}`,
+        flightNumbers: sql`${sql.raw("excluded.flight_numbers")}`,
+        carriers: sql`${sql.raw("excluded.carriers")}`,
+        aircraftTypes: sql`${sql.raw("excluded.aircraft_types")}`,
+        departureTime: sql`${sql.raw("excluded.departure_time")}`,
+        arrivalTime: sql`${sql.raw("excluded.arrival_time")}`,
+        durationMinutes: sql`${sql.raw("excluded.duration_minutes")}`,
+        stops: sql`${sql.raw("excluded.stops")}`,
+        totalDistanceMiles: sql`${sql.raw("excluded.total_distance_miles")}`,
+        cabinClass: sql`${sql.raw("excluded.cabin_class")}`,
+        mileageCost: sql`${sql.raw("excluded.mileage_cost")}`,
+        remainingSeats: sql`${sql.raw("excluded.remaining_seats")}`,
+        totalTaxes: sql`${sql.raw("excluded.total_taxes")}`,
+        taxesCurrency: sql`${sql.raw("excluded.taxes_currency")}`,
+        taxesCurrencySymbol: sql`${sql.raw("excluded.taxes_currency_symbol")}`,
+        source: sql`${sql.raw("excluded.source")}`,
+        apiCreatedAt: sql`${sql.raw("excluded.api_created_at")}`,
+        apiUpdatedAt: sql`${sql.raw("excluded.api_updated_at")}`,
+        rawData: sql`${sql.raw("excluded.raw_data")}`,
+      },
+    });
 }

@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "bun:test";
+import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seatsAeroAvailabilityTrip, seatsAeroSearchRequest } from "@/db/schema";
 import type { AvailabilityTrip } from "@/lib/fli/models/seats-aero";
@@ -194,18 +195,24 @@ describe("seats-aero.db", () => {
         UpdatedAt: "2025-01-01T00:00:00Z",
       };
 
-      const trip = await upsertAvailabilityTrip({
+      await upsertAvailabilityTrip({
         searchRequestId: searchRequest.id,
         trip: mockTrip,
       });
 
+      const [trip] = await db
+        .select()
+        .from(seatsAeroAvailabilityTrip)
+        .where(eq(seatsAeroAvailabilityTrip.apiTripId, "trip-123"))
+        .limit(1);
+
       expect(trip).toBeDefined();
-      expect(trip.id).toStartWith("saat_");
-      expect(trip.apiTripId).toBe("trip-123");
-      expect(trip.originAirport).toBe("SFO");
-      expect(trip.destinationAirport).toBe("LAX");
-      expect(trip.mileageCost).toBe(12500);
-      expect(trip.cabinClass).toBe("economy");
+      expect(trip?.id).toStartWith("saat_");
+      expect(trip?.apiTripId).toBe("trip-123");
+      expect(trip?.originAirport).toBe("SFO");
+      expect(trip?.destinationAirport).toBe("LAX");
+      expect(trip?.mileageCost).toBe(12500);
+      expect(trip?.cabinClass).toBe("economy");
     });
 
     it.skipIf(isDbMocked)(
@@ -244,20 +251,25 @@ describe("seats-aero.db", () => {
         };
 
         // First insert
-        const trip1 = await upsertAvailabilityTrip({
+        await upsertAvailabilityTrip({
           searchRequestId: searchRequest.id,
           trip: mockTrip,
         });
 
         // Update with new remaining seats
         const updatedMockTrip = { ...mockTrip, RemainingSeats: 1 };
-        const trip2 = await upsertAvailabilityTrip({
+        await upsertAvailabilityTrip({
           searchRequestId: searchRequest.id,
           trip: updatedMockTrip,
         });
 
-        expect(trip1.id).toBe(trip2.id);
-        expect(trip2.remainingSeats).toBe(1);
+        const rows = await db
+          .select()
+          .from(seatsAeroAvailabilityTrip)
+          .where(eq(seatsAeroAvailabilityTrip.apiTripId, "trip-unique-456"));
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.remainingSeats).toBe(1);
       },
     );
 

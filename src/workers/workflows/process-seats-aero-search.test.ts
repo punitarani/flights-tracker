@@ -249,7 +249,10 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
       },
     };
 
-    const upsertCalls: Array<{ searchRequestId: string; trip: unknown }> = [];
+    const upsertCalls: Array<{
+      searchRequestId: string;
+      trips: AvailabilityTrip[];
+    }> = [];
     const updateProgressCalls: Array<{
       id: string;
       cursor: number | undefined;
@@ -263,7 +266,7 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
       params,
       searchRequest,
       step,
-      upsertTrip: async (_env, payload) => {
+      upsertTrips: async (_env, payload) => {
         upsertCalls.push(payload);
       },
       updateProgress: async (_env, payload) => {
@@ -276,7 +279,9 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
     expect(searchArgs).toHaveLength(2);
     expect((searchArgs[0] as { cursor?: number }).cursor).toBeUndefined();
     expect((searchArgs[1] as { cursor?: number }).cursor).toBe(101);
-    expect(upsertCalls).toHaveLength(3);
+    expect(upsertCalls).toHaveLength(1);
+    expect(upsertCalls[0]?.trips).toHaveLength(3);
+    expect(upsertCalls[0]?.searchRequestId).toBe(searchRequest.id);
     expect(updateProgressCalls.map((call) => call.processedCount)).toEqual([
       2, 3,
     ]);
@@ -333,7 +338,10 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
       }),
     };
 
-    const upsertCalls: Array<{ searchRequestId: string; trip: unknown }> = [];
+    const upsertCalls: Array<{
+      searchRequestId: string;
+      trips: AvailabilityTrip[];
+    }> = [];
     const updateProgressCalls: Array<{
       id: string;
       cursor: number | undefined;
@@ -347,7 +355,7 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
       params,
       searchRequest,
       step,
-      upsertTrip: async (_env, payload) => {
+      upsertTrips: async (_env, payload) => {
         upsertCalls.push(payload);
       },
       updateProgress: async (_env, payload) => {

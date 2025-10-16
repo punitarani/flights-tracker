@@ -3,7 +3,7 @@ import type { SeatsAeroSearchRequest } from "@/db/schema";
 import type { AvailabilityTrip } from "@/lib/fli/models/seats-aero";
 import {
   updateSearchRequestProgress,
-  upsertAvailabilityTrip,
+  upsertAvailabilityTrips,
 } from "../adapters/seats-aero.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
@@ -46,7 +46,7 @@ interface PaginationDependencies {
   params: SearchRequestParams;
   searchRequest: SeatsAeroSearchRequest;
   step: WorkflowStepLike;
-  upsertTrip?: typeof upsertAvailabilityTrip;
+  upsertTrips?: typeof upsertAvailabilityTrips;
   updateProgress?: typeof updateSearchRequestProgress;
 }
 
@@ -60,7 +60,7 @@ export async function paginateSeatsAeroSearch({
   params,
   searchRequest,
   step,
-  upsertTrip = upsertAvailabilityTrip,
+  upsertTrips = upsertAvailabilityTrips,
   updateProgress = updateSearchRequestProgress,
 }: PaginationDependencies): Promise<PaginationResult> {
   let cursor = searchRequest.cursor ?? undefined;
@@ -104,13 +104,20 @@ export async function paginateSeatsAeroSearch({
           searchRequestId: searchRequest.id,
         });
 
+        const uniqueTrips = new Map<string, AvailabilityTrip>();
         for (const availability of response.data) {
           for (const trip of availability.AvailabilityTrips ?? []) {
-            await upsertTrip(env, {
-              searchRequestId: searchRequest.id,
-              trip,
-            });
+            uniqueTrips.set(trip.ID, trip);
           }
+        }
+
+        const trips = [...uniqueTrips.values()];
+        for (let start = 0; start < trips.length; start += 100) {
+          const batch = trips.slice(start, start + 100);
+          await upsertTrips(env, {
+            searchRequestId: searchRequest.id,
+            trips: batch,
+          });
         }
 
         const processedThisPage = response.count;

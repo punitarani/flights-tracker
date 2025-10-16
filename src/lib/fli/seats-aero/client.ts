@@ -3,8 +3,6 @@
  * Supports both cached search and pagination.
  */
 
-import axios, { type AxiosError } from "axios";
-import { env } from "@/env";
 import type { SearchRequestParams, SearchResponse } from "../models/seats-aero";
 import {
   SearchRequestParamsSchema,
@@ -14,6 +12,7 @@ import {
 export type SeatsAeroClientConfig = {
   apiKey: string;
   baseUrl?: string;
+  fetchImpl?: typeof fetch;
 };
 
 /**
@@ -41,10 +40,12 @@ export class SeatsAeroAPIError extends Error {
 export class SeatsAeroClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
+  private readonly fetchImpl: typeof fetch;
 
   constructor(config: SeatsAeroClientConfig) {
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl ?? "https://seats.aero/partnerapi";
+    this.fetchImpl = config.fetchImpl ?? fetch;
   }
 
   /**
@@ -61,39 +62,24 @@ export class SeatsAeroClient {
 
     const url = `${this.baseUrl}/search?${queryParams.toString()}`;
 
-    try {
-      const response = await axios.get(url, {
-        headers: {
-          "Partner-Authorization": this.apiKey,
-          Accept: "application/json",
-        },
-      });
+    const response = await this.fetchImpl(url, {
+      method: "GET",
+      headers: {
+        "Partner-Authorization": this.apiKey,
+        Accept: "application/json",
+      },
+    });
 
-      return SearchResponseSchema.parse(response.data);
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const axiosError = error as AxiosError;
-        if (axiosError.response) {
-          throw new SeatsAeroAPIError(
-            `Search request failed: ${axiosError.response.statusText}`,
-            axiosError.response.status,
-            axiosError.response.statusText || "Unknown Error",
-          );
-        } else if (axiosError.request) {
-          throw new SeatsAeroAPIError(
-            "Search request failed: No response received",
-            0,
-            "Network Error",
-          );
-        }
-      }
-
+    if (!response.ok) {
       throw new SeatsAeroAPIError(
-        `Search request failed: ${(error as Error).message}`,
-        0,
-        "Unknown Error",
+        `Search request failed: ${response.statusText}`,
+        response.status,
+        response.statusText,
       );
     }
+
+    const data = await response.json();
+    return SearchResponseSchema.parse(data);
   }
 
   /**
@@ -136,10 +122,7 @@ export class SeatsAeroClient {
  * Uses env.SEATS_AERO_API_KEY as the default API key if not provided.
  */
 export function createSeatsAeroClient(
-  config?: Partial<SeatsAeroClientConfig>,
+  config: SeatsAeroClientConfig,
 ): SeatsAeroClient {
-  return new SeatsAeroClient({
-    apiKey: config?.apiKey ?? env.SEATS_AERO_API_KEY,
-    baseUrl: config?.baseUrl,
-  });
+  return new SeatsAeroClient(config);
 }
