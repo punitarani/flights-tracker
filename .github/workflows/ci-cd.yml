@@ -213,7 +213,7 @@ jobs:
       - build
       - db-migrate
       - tests
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && success()
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -237,15 +237,21 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: notify vercel
+        uses: vercel/repository-dispatch/actions/status@v1
+        with:
+          name: Vercel - flights-tracker: build
+
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
+          command: deploy --name ${{ secrets.CLOUDFLARE_WORKER_NAME }} --env production
           secrets: |
             DATABASE_URL=${{ secrets.DATABASE_URL }}
             RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
+            RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
             NEXTJS_API_URL=${{ secrets.NEXTJS_API_URL }}
