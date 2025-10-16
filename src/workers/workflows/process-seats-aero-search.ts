@@ -9,7 +9,6 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
-import * as Sentry from "@sentry/cloudflare";
 import type { SearchRequestParams } from "@/core/seats-aero.db";
 import { createSeatsAeroClient } from "@/lib/fli/seats-aero/client";
 import {
@@ -22,7 +21,19 @@ import { workerLogger } from "../utils/logger";
 import { addBreadcrumb, captureException } from "../utils/sentry";
 import { paginateSeatsAeroSearch } from "./process-seats-aero-search-pagination";
 
-class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
+/**
+ * ProcessSeatsAeroSearchWorkflow
+ *
+ * Note: This workflow is NOT wrapped with Sentry's instrumentWorkflowWithSentry
+ * to avoid interference with Cloudflare's workflow hibernation/resumption mechanism.
+ *
+ * Error tracking is preserved through:
+ * - captureException() calls within workflow logic
+ * - addBreadcrumb() for execution trails
+ * - workerLogger for structured logging
+ * - withSentry wrapper at the handler level (index.ts)
+ */
+export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
   WorkerEnv,
   SearchRequestParams
 > {
@@ -172,14 +183,3 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
     });
   }
 }
-
-// Export instrumented workflow
-export const ProcessSeatsAeroSearchWorkflow =
-  Sentry.instrumentWorkflowWithSentry(
-    (env: WorkerEnv) => ({
-      dsn: env.SENTRY_DSN,
-      environment: env.SENTRY_ENVIRONMENT || "production",
-      tracesSampleRate: 1.0,
-    }),
-    ProcessSeatsAeroSearchWorkflowBase,
-  );
