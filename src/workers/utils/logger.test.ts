@@ -4,7 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mockConsole } from "../test/setup";
-import { workerLogger } from "./logger";
+import { setSentryLogger, workerLogger } from "./logger";
 
 describe("workerLogger", () => {
   let consoleMock: ReturnType<typeof mockConsole>;
@@ -75,20 +75,29 @@ describe("workerLogger", () => {
     ).toBe(true);
   });
 
-  test("logs with context information", () => {
-    const context = {
-      workflow: "TestWorkflow",
-      userId: "user-123",
-      component: "test",
-    };
+  test("forwards logs to Sentry logger when available", () => {
+    const sentryInfoCalls: Array<{
+      message: string;
+      attributes?: Record<string, unknown>;
+    }> = [];
 
-    workerLogger.info("Test with context", { requestId: "req-123" }, context);
+    setSentryLogger({
+      info: (message: string, attributes?: Record<string, unknown>) => {
+        sentryInfoCalls.push({ message, attributes });
+      },
+    });
 
-    expect(consoleMock.logs).toHaveLength(1);
-    const logEntry = JSON.parse(consoleMock.logs[0]);
-    expect(logEntry.level).toBe("info");
-    expect(logEntry.message).toBe("Test with context");
-    expect(logEntry.requestId).toBe("req-123");
-    expect(logEntry.component).toBe("test");
+    try {
+      workerLogger.info("Sentry test", { requestId: "req-123" });
+
+      expect(sentryInfoCalls).toHaveLength(1);
+      const [{ message, attributes }] = sentryInfoCalls;
+      expect(message).toBe("Sentry test");
+      expect(attributes).toBeDefined();
+      expect(attributes?.requestId).toBe("req-123");
+      expect(attributes?.timestamp).toBeDefined();
+    } finally {
+      setSentryLogger(undefined);
+    }
   });
 });

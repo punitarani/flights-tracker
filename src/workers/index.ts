@@ -7,11 +7,7 @@ import * as Sentry from "@sentry/cloudflare";
 import type { QueueMessage, WorkerEnv } from "./env";
 import { getClientIp, getUserAgent, validateApiKey } from "./utils/auth";
 import { workerLogger } from "./utils/logger";
-import {
-  captureException,
-  getSentryOptions,
-  setTag,
-} from "./utils/observability";
+import { captureException, getSentryOptions, setTag } from "./utils/sentry";
 import { CheckFlightAlertsWorkflow } from "./workflows/check-flight-alerts";
 import { ProcessFlightAlertsWorkflow } from "./workflows/process-flight-alerts";
 import { ProcessSeatsAeroSearchWorkflow } from "./workflows/process-seats-aero-search";

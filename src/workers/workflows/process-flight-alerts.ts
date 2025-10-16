@@ -9,18 +9,12 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
+import * as Sentry from "@sentry/cloudflare";
 import { processDailyAlertsForUser } from "../adapters/alert-processing";
 import { userHasActiveAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
-import {
-  addBreadcrumb,
-  captureException,
-  type ObservabilityContext,
-  setUser,
-  traceWorkflowLifecycle,
-  withStepTracing,
-} from "../utils/observability";
+import { addBreadcrumb, captureException, setUser } from "../utils/sentry";
 
 interface ProcessAlertsParams {
   userId: string;
@@ -33,59 +27,35 @@ class ProcessFlightAlertsWorkflowBase extends WorkflowEntrypoint<
   async run(event: WorkflowEvent<ProcessAlertsParams>, step: WorkflowStep) {
     const { userId } = event.payload;
 
-    const context: ObservabilityContext = {
-      workflow: "ProcessFlightAlertsWorkflow",
+    // Set Sentry user context
+    setUser(userId);
+    addBreadcrumb("ProcessFlightAlertsWorkflow started", {
       userId,
       instanceId: event.instanceId,
-    };
+    });
 
-    // Set Sentry user context
-    setUser(userId, { workflow: "ProcessFlightAlertsWorkflow" });
-
-    const lifecycle = traceWorkflowLifecycle(
-      "ProcessFlightAlertsWorkflow",
-      event.instanceId,
-      context,
-    );
-    lifecycle.start();
-
-    workerLogger.workflow.start(
-      "ProcessFlightAlertsWorkflow",
-      event.instanceId,
-      context,
-    );
+    workerLogger.info("Starting ProcessFlightAlertsWorkflow", {
+      userId,
+      instanceId: event.instanceId,
+    });
 
     // Validate user has active alerts (defense-in-depth)
-    const hasActiveAlerts = await withStepTracing(
+    const hasActiveAlerts = await step.do(
       "validate-user-has-active-alerts",
-      context,
+      {},
       async () => {
-        return await step.do(
-          "validate-user-has-active-alerts",
-          {},
-          async () => {
-            const hasAlerts = await userHasActiveAlerts(this.env, userId);
+        const hasAlerts = await userHasActiveAlerts(this.env, userId);
 
-            if (!hasAlerts) {
-              workerLogger.warn(
-                "User has no active alerts",
-                {
-                  userId,
-                  instanceId: event.instanceId,
-                },
-                context,
-              );
+        if (!hasAlerts) {
+          workerLogger.warn("User has no active alerts", {
+            userId,
+            instanceId: event.instanceId,
+          });
 
-              addBreadcrumb(
-                "Validation failed: no active alerts",
-                { userId },
-                "validation",
-              );
-            }
+          addBreadcrumb("Validation failed: no active alerts", { userId });
+        }
 
-            return hasAlerts;
-          },
-        );
+        return hasAlerts;
       },
     );
 
@@ -96,17 +66,11 @@ class ProcessFlightAlertsWorkflowBase extends WorkflowEntrypoint<
         reason: "User has no active daily alerts",
       };
 
-      workerLogger.workflow.complete(
-        "ProcessFlightAlertsWorkflow",
-        event.instanceId,
-        result,
-        {
-          ...context,
-          reason: "no_active_alerts",
-        },
-      );
+      workerLogger.info("Skipping workflow - no active alerts", {
+        userId,
+        instanceId: event.instanceId,
+      });
 
-      lifecycle.complete(result);
       return result;
     }
 
@@ -153,7 +117,12 @@ class ProcessFlightAlertsWorkflowBase extends WorkflowEntrypoint<
   }
 }
 
-// Export workflow without Sentry instrumentation to avoid timeout issues
-// Sentry instrumentation can interfere with workflow step execution timing
-// Error tracking is handled via captureException calls within the workflow
-export const ProcessFlightAlertsWorkflow = ProcessFlightAlertsWorkflowBase;
+// Export instrumented workflow
+export const ProcessFlightAlertsWorkflow = Sentry.instrumentWorkflowWithSentry(
+  (env: WorkerEnv) => ({
+    dsn: env.SENTRY_DSN,
+    environment: env.SENTRY_ENVIRONMENT || "production",
+    tracesSampleRate: 1.0,
+  }),
+  ProcessFlightAlertsWorkflowBase,
+);

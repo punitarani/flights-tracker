@@ -9,11 +9,12 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
+import * as Sentry from "@sentry/cloudflare";
 import { getUserIdsWithActiveDailyAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
 import { withSentryMonitor } from "../utils/monitor-wrapper";
-import { addBreadcrumb, captureException } from "../utils/observability";
+import { addBreadcrumb, captureException } from "../utils/sentry";
 
 /**
  * Base workflow that handles the core business logic
@@ -96,11 +97,19 @@ class CheckFlightAlertsWorkflowBase extends WorkflowEntrypoint<
   }
 }
 
-// Export with monitor wrapper for cron monitoring
-// Removed Sentry instrumentation to avoid timeout issues with workflow steps
-// Error tracking is handled via captureException calls within the workflow
-export const CheckFlightAlertsWorkflow = withSentryMonitor(
+// Export with Sentry instrumentation
+const InstrumentedWorkflow = Sentry.instrumentWorkflowWithSentry(
+  (env: WorkerEnv) => ({
+    dsn: env.SENTRY_DSN,
+    environment: env.SENTRY_ENVIRONMENT || "workers-production",
+    tracesSampleRate: 1.0,
+  }),
   CheckFlightAlertsWorkflowBase,
+);
+
+// Export with monitor wrapper for cron monitoring
+export const CheckFlightAlertsWorkflow = withSentryMonitor(
+  InstrumentedWorkflow,
   {
     slug: "check-flight-alerts-cron",
     schedule: "0 */6 * * *",
