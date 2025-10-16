@@ -19,7 +19,7 @@ A Next.js 15 application for tracking flight alerts with Supabase authentication
 * `bun test` - Run all tests concurrently with Bun's built-in test runner
 * `bun run test:watch` - Run tests in watch mode
 * `bun run test:fli` - Run fli integration tests with extended timeout (60s)
-* `bun run test:workers` - Run Cloudflare Worker tests (37 tests)
+* `bun run test:workers` - Run Cloudflare Worker tests (43 tests)
 * `bun run test:workers:watch` - Run worker tests in watch mode
 * Test files: `*.test.ts` files alongside source code
 * Test setup: `src/test/setup.ts` (mocks env, db client, console) - preloaded automatically
@@ -124,8 +124,8 @@ A Next.js 15 application for tracking flight alerts with Supabase authentication
 * **Utils**: `src/workers/utils/` - Worker-specific utilities
   * `logger.ts` - Structured logging with context
   * `sentry.ts` - Error tracking and performance monitoring
-  * `user.ts` - User data fetching from Supabase
-  * `flights-search.ts` - Flight data API calls with parallelization
+  * `user.ts` - User data fetching from Supabase service client
+  * `flights-search.ts` - Flight search via shared core logic (no Next.js API dependency)
 
 ### Environment Variables
 
@@ -149,7 +149,6 @@ Reference `.env.example` for required variables.
 * `RESEND_API_KEY` - Resend email service API key
 * `SUPABASE_URL` - Supabase project URL
 * `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key
-* `NEXTJS_API_URL` - Production Next.js app URL
 * `SEATS_AERO_API_KEY` - Seats.aero API key
 * `WORKER_API_KEY` - API key for authenticating manual triggers
 * `SENTRY_DSN` - Sentry project DSN (optional but recommended)
@@ -238,7 +237,7 @@ All database IDs use prefixed ULIDs for type safety and debuggability:
 
 **Workflow structure:**
 
-* All workers import from `src/core/`, `src/db/`, and `src/lib/` for code reuse
+* All workers import from `src/core/`, `src/db/`, and `src/lib/` for code reuse—no calls back into the Next.js app
 * Use structured logging via `src/workers/utils/logger.ts`
 * Sentry integration for error tracking and performance monitoring
 * Parallel async operations for optimal performance

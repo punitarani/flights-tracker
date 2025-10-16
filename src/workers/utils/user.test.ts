@@ -2,78 +2,110 @@
  * Unit tests for user utilities
  */
 
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { createMockSupabaseUserResponse } from "../test/fixtures";
-import { createMockEnv, mockFetchResponse } from "../test/setup";
+import { createMockEnv } from "../test/setup";
 import { getUserEmail } from "./user";
 
 describe("getUserEmail", () => {
   const env = createMockEnv();
-  const originalFetch = globalThis.fetch;
-
-  beforeEach(() => {
-    // Reset fetch mock before each test
-    globalThis.fetch = originalFetch;
-  });
 
   test("fetches user email successfully", async () => {
     const userId = "user-123";
     const mockUser = createMockSupabaseUserResponse(userId, "test@example.com");
+    const createClientMock = mock(() => ({
+      auth: {
+        admin: {
+          getUserById: mock(() =>
+            Promise.resolve({ data: { user: mockUser }, error: null }),
+          ),
+        },
+      },
+    }));
 
-    globalThis.fetch = mock(() => Promise.resolve(mockFetchResponse(mockUser)));
-
-    const email = await getUserEmail(env, userId);
+    const email = await getUserEmail(env, userId, createClientMock as never);
 
     expect(email).toBe("test@example.com");
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      `${env.SUPABASE_URL}/auth/v1/admin/users/${userId}`,
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-          "Content-Type": "application/json",
-        }),
-      }),
-    );
+    expect(createClientMock).toHaveBeenCalledWith(env);
   });
 
   test("returns null when user not found", async () => {
-    globalThis.fetch = mock(() =>
-      Promise.resolve(
-        mockFetchResponse({ error: "User not found" }, 404, false),
-      ),
-    );
+    const createClientMock = mock(() => ({
+      auth: {
+        admin: {
+          getUserById: mock(() =>
+            Promise.resolve({ data: { user: null }, error: null }),
+          ),
+        },
+      },
+    }));
 
-    const email = await getUserEmail(env, "nonexistent-user");
+    const email = await getUserEmail(
+      env,
+      "nonexistent-user",
+      createClientMock as never,
+    );
 
     expect(email).toBeNull();
   });
 
   test("returns null when response has no email", async () => {
-    globalThis.fetch = mock(() =>
-      Promise.resolve(mockFetchResponse({ id: "user-123" })),
-    );
+    const createClientMock = mock(() => ({
+      auth: {
+        admin: {
+          getUserById: mock(() =>
+            Promise.resolve({
+              data: { user: { id: "user-123" } },
+              error: null,
+            }),
+          ),
+        },
+      },
+    }));
 
-    const email = await getUserEmail(env, "user-123");
+    const email = await getUserEmail(
+      env,
+      "user-123",
+      createClientMock as never,
+    );
 
     expect(email).toBeNull();
   });
 
   test("handles fetch errors gracefully", async () => {
-    globalThis.fetch = mock(() => Promise.reject(new Error("Network error")));
+    const createClientMock = mock(() => ({
+      auth: {
+        admin: {
+          getUserById: mock(() => Promise.reject(new Error("Network error"))),
+        },
+      },
+    }));
 
-    const email = await getUserEmail(env, "user-123");
+    const email = await getUserEmail(
+      env,
+      "user-123",
+      createClientMock as never,
+    );
 
     expect(email).toBeNull();
   });
 
   test("handles non-ok responses", async () => {
-    globalThis.fetch = mock(() =>
-      Promise.resolve(mockFetchResponse({ error: "Server error" }, 500, false)),
-    );
+    const createClientMock = mock(() => ({
+      auth: {
+        admin: {
+          getUserById: mock(() =>
+            Promise.resolve({ data: null, error: new Error("Server error") }),
+          ),
+        },
+      },
+    }));
 
-    const email = await getUserEmail(env, "user-123");
+    const email = await getUserEmail(
+      env,
+      "user-123",
+      createClientMock as never,
+    );
 
     expect(email).toBeNull();
   });

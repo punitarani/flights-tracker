@@ -22,7 +22,7 @@ GrayPane helps travelers check available flights, monitor price trends, plan upc
 
 * **Frontend:** Next.js 15, React 19, Tailwind CSS, Radix UI primitives, next-themes, Sonner, tRPC.
 * **Backend:** Next.js Server Actions, tRPC API layer, Supabase SSR client, Drizzle ORM.
-* **Workers:** Cloudflare Workers with Workflows and Queues for alert processing.
+* **Workers:** Cloudflare Workers with Workflows and Queues for alert processing, fully decoupled from the Next.js app.
 * **Database:** PostgreSQL with prefixed ULID identifiers.
 * **Notifications:** Resend for email delivery, custom templates.
 * **Monitoring:** Sentry for error tracking and performance monitoring.
@@ -52,7 +52,7 @@ GrayPane helps travelers check available flights, monitor price trends, plan upc
 * `bun test` – Execute all tests with Bun's built-in test runner.
 * `bun run test:watch` – Run tests in watch mode.
 * `bun run test:fli` – Run fli integration tests with extended timeout.
-* `bun run test:workers` – Run Cloudflare Worker tests (37 tests).
+* `bun run test:workers` – Run Cloudflare Worker tests (43 tests).
 * `bun run test:workers:watch` – Run worker tests in watch mode.
 
 ### Code Quality
@@ -115,7 +115,7 @@ Supabase handles authentication with SSR support. Middleware in `src/middleware.
 **Worker Adapters**:
 
 * `src/workers/adapters/` - Thin wrappers around core services
-* `src/workers/utils/` - Worker-specific utilities (logger, Sentry)
+* `src/workers/utils/` - Worker-specific utilities (logger, Sentry, Supabase client wrappers)
 
 ### Alert Processing (Cloudflare Workers)
 
@@ -126,7 +126,7 @@ Automated alert processing runs on Cloudflare Workers with:
 * **Queues**: Process up to 10 users concurrently with auto-scaling
 * **Email Scheduling**: Sends daily emails between 6-9 PM UTC, max once per 24 hours
 * **Monitoring**: Full Sentry integration for error tracking and performance monitoring
-* **Testing**: Comprehensive test suite with 37 passing tests
+* **Testing**: Comprehensive test suite with 43 passing tests
 * **Performance**: Optimized with parallel async operations throughout
 
 See `docs/workflows.md` for complete deployment and monitoring guide.
@@ -153,7 +153,6 @@ Reusable components reside in `src/components/ui`, while custom features like `a
 * `RESEND_API_KEY` – Resend email service API key.
 * `SUPABASE_URL` – Supabase project URL.
 * `SUPABASE_SERVICE_ROLE_KEY` – Supabase service role key.
-* `NEXTJS_API_URL` – Production Next.js app URL.
 * `SEATS_AERO_API_KEY` – Seats.aero API key.
 * `WORKER_API_KEY` – API key for authenticating manual triggers.
 * `SENTRY_DSN` – Sentry project DSN (optional but recommended).
@@ -166,7 +165,7 @@ Tests run with Bun's built-in test runner in a happy-dom environment. Global set
 
 ### Worker Tests
 
-Comprehensive test suite for Cloudflare Workers with 37 passing tests covering:
+Comprehensive test suite for Cloudflare Workers with 43 passing tests covering:
 
 * Utils (logger, user fetching, flights search, sentry)
 * Adapters (alerts-db, alert-processing)

@@ -16,7 +16,6 @@ export interface WorkerEnv {
   RESEND_API_KEY: string;
   RESEND_FROM_EMAIL?: string;
   SEATS_AERO_API_KEY: string;
-  NEXTJS_API_URL: string; // URL to the Next.js app for fetching flights
 
   // Supabase (for fetching user emails)
   SUPABASE_URL: string;

@@ -9,20 +9,29 @@ on:
       - main
 
 env:
+  APP_URL: ${{ secrets.APP_URL }}
+  WORKER_URL: ${{ secrets.WORKER_URL }}
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+  RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+  SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
+  WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
+  SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+  SENTRY_ENVIRONMENT: workers-production
+  PROXY_ENABLED: ${{ secrets.PROXY_ENABLED }}
+  PROXY_PROTOCOL: ${{ secrets.PROXY_PROTOCOL }}
+  PROXY_HOST: ${{ secrets.PROXY_HOST }}
+  PROXY_PORT: ${{ secrets.PROXY_PORT }}
+  PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
+  PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
   NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-  SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
   NEXT_PUBLIC_MAPKIT_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPKIT_TOKEN }}
-  WORKER_URL: ${{ secrets.WORKER_URL }}
-  WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
-  RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-  NEXTJS_API_URL: ${{ secrets.NEXTJS_API_URL }}
-  SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
-  SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-  SENTRY_ENVIRONMENT: ${{ secrets.SENTRY_ENVIRONMENT }}
   NEXT_TELEMETRY_DISABLED: "1"
   CI: "1"
 
@@ -241,27 +250,45 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           secrets: |
+            APP_URL
             DATABASE_URL
             RESEND_API_KEY
             RESEND_FROM_EMAIL
             SUPABASE_URL
+            SUPABASE_PUBLISHABLE_KEY
+            SUPABASE_SECRET_KEY
             SUPABASE_SERVICE_ROLE_KEY
-            NEXTJS_API_URL
             SEATS_AERO_API_KEY
             WORKER_API_KEY
             SENTRY_DSN
+            SENTRY_AUTH_TOKEN
             SENTRY_ENVIRONMENT
+            PROXY_ENABLED
+            PROXY_PROTOCOL
+            PROXY_HOST
+            PROXY_PORT
+            PROXY_USERNAME
+            PROXY_PASSWORD
         env:
+          APP_URL: ${{ secrets.APP_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          NEXTJS_API_URL: ${{ secrets.NEXTJS_API_URL }}
           SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
           WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ENVIRONMENT: workers-production
+          PROXY_ENABLED: ${{ secrets.PROXY_ENABLED }}
+          PROXY_PROTOCOL: ${{ secrets.PROXY_PROTOCOL }}
+          PROXY_HOST: ${{ secrets.PROXY_HOST }}
+          PROXY_PORT: ${{ secrets.PROXY_PORT }}
+          PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
+          PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
 
       - name: Notify Vercel
         uses: vercel/repository-dispatch/actions/status@v1

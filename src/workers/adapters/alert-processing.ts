@@ -26,7 +26,7 @@ import type {
 import type { FlightOption } from "@/server/services/flights";
 import { getWorkerDb } from "../db";
 import type { WorkerEnv } from "../env";
-import { fetchFlightDataFromAPI } from "../utils/flights-search";
+import { fetchFlightDataForAlerts } from "../utils/flights-search";
 import { workerLogger } from "../utils/logger";
 import { addBreadcrumb, captureException } from "../utils/sentry";
 import { getUserEmail } from "../utils/user";
@@ -325,13 +325,13 @@ export async function processDailyAlertsForUser(
       return { success: true, reason: "all-recently-processed" };
     }
 
-    // 6. Fetch flight data via Next.js API
+    // 6. Fetch flight data using shared core search utilities
     workerLogger.info("Fetching flight data", {
       userId,
       alertsCount: alertsToProcess.length,
     });
 
-    const alertsWithFlights = await fetchFlightDataFromAPI(
+    const alertsWithFlights = await fetchFlightDataForAlerts(
       env,
       alertsToProcess,
       MAX_FLIGHTS_PER_ALERT,

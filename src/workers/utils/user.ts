@@ -1,37 +1,25 @@
-/**
- * Supabase utilities for Cloudflare Workers
- * Fetches user information from Supabase Auth API
- */
-
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "./logger";
+import { createSupabaseServiceClient } from "./supabase";
 
 export async function getUserEmail(
   env: WorkerEnv,
   userId: string,
+  getClient = createSupabaseServiceClient,
 ): Promise<string | null> {
   try {
-    const response = await fetch(
-      `${env.SUPABASE_URL}/auth/v1/admin/users/${userId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-          "Content-Type": "application/json",
-        },
-      },
-    );
+    const supabase = getClient(env);
+    const { data, error } = await supabase.auth.admin.getUserById(userId);
 
-    if (!response.ok) {
+    if (error) {
       workerLogger.error("Failed to fetch user from Supabase", {
         userId,
-        status: response.status,
+        error: error.message,
       });
       return null;
     }
 
-    const data = (await response.json()) as { email?: string };
-    return data.email || null;
+    return data.user?.email ?? null;
   } catch (error) {
     workerLogger.error("Error fetching user email", {
       userId,

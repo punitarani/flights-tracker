@@ -53,7 +53,6 @@ export const createMockEnv = (overrides?: Partial<WorkerEnv>): WorkerEnv => ({
   RESEND_API_KEY: "re_test_key",
   RESEND_FROM_EMAIL: "test@example.com",
   SEATS_AERO_API_KEY: "test_seats_key",
-  NEXTJS_API_URL: "http://localhost:3000",
   SUPABASE_URL: "https://test.supabase.co",
   SUPABASE_SERVICE_ROLE_KEY: "test_service_role_key",
   SENTRY_DSN: "test_sentry_dsn",
