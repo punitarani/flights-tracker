@@ -6,7 +6,6 @@
  */
 
 import {
-  type ExecutionContext,
   WorkflowEntrypoint,
   type WorkflowEvent,
   type WorkflowStep,
@@ -48,7 +47,7 @@ export function withSentryMonitor<
   TParams extends Record<string, unknown>,
 >(
   WorkflowClass: new (
-    ctx: ExecutionContext,
+    ctx: unknown,
     env: TEnv,
   ) => WorkflowEntrypoint<TEnv, TParams>,
   defaultConfig?: MonitorConfig,
@@ -59,9 +58,11 @@ export function withSentryMonitor<
   > {
     private workflow: WorkflowEntrypoint<TEnv, TParams>;
 
-    constructor(ctx: ExecutionContext, env: TEnv) {
-      super(ctx, env);
-      this.workflow = new WorkflowClass(ctx, env);
+    constructor(ctx: unknown, env: TEnv) {
+      // biome-ignore lint/suspicious/noExplicitAny: ctx is internal Cloudflare Workers context, type varies by runtime
+      super(ctx as any, env);
+      // biome-ignore lint/suspicious/noExplicitAny: ctx is internal Cloudflare Workers context, type varies by runtime
+      this.workflow = new WorkflowClass(ctx as any, env);
     }
 
     async run(
