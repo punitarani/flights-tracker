@@ -46,10 +46,8 @@ export function withSentryMonitor<
   TEnv,
   TParams extends Record<string, unknown>,
 >(
-  WorkflowClass: new (
-    ctx: unknown,
-    env: TEnv,
-  ) => WorkflowEntrypoint<TEnv, TParams>,
+  // biome-ignore lint/suspicious/noExplicitAny: ctx type varies by runtime and Sentry instrumentation
+  WorkflowClass: new (ctx: any, env: TEnv) => WorkflowEntrypoint<TEnv, TParams>,
   defaultConfig?: MonitorConfig,
 ) {
   return class MonitoredWorkflow extends WorkflowEntrypoint<
@@ -58,11 +56,10 @@ export function withSentryMonitor<
   > {
     private workflow: WorkflowEntrypoint<TEnv, TParams>;
 
-    constructor(ctx: unknown, env: TEnv) {
-      // biome-ignore lint/suspicious/noExplicitAny: ctx is internal Cloudflare Workers context, type varies by runtime
-      super(ctx as any, env);
-      // biome-ignore lint/suspicious/noExplicitAny: ctx is internal Cloudflare Workers context, type varies by runtime
-      this.workflow = new WorkflowClass(ctx as any, env);
+    // biome-ignore lint/suspicious/noExplicitAny: ctx is internal Cloudflare Workers context, type varies by runtime
+    constructor(ctx: any, env: TEnv) {
+      super(ctx, env);
+      this.workflow = new WorkflowClass(ctx, env);
     }
 
     async run(
