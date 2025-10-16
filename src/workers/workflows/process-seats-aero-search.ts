@@ -175,4 +175,5 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
 // Export workflow without Sentry instrumentation to avoid timeout issues
 // Sentry instrumentation can interfere with workflow step execution timing
 // Error tracking is handled via captureException calls within the workflow
-export const ProcessSeatsAeroSearchWorkflow = ProcessSeatsAeroSearchWorkflowBase;
+export const ProcessSeatsAeroSearchWorkflow =
+  ProcessSeatsAeroSearchWorkflowBase;

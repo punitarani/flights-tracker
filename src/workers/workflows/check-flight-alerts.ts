@@ -9,7 +9,6 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
-import * as Sentry from "@sentry/cloudflare";
 import { getUserIdsWithActiveDailyAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
