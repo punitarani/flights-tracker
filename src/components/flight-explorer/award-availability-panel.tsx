@@ -166,10 +166,11 @@ export function AwardAvailabilityPanel({
   // Show toast notification when searching for award data
   useEffect(() => {
     if (shouldShowSearchToast && !toastIdRef.current) {
-      toastIdRef.current = toast.loading(
-        "Live search in progress for points. Please wait 1-2 minutes.",
-        { duration: 3000 },
-      );
+      toastIdRef.current = toast("Live search in progress for points", {
+        description: "Please wait 1-2 minutes.",
+        duration: 3000,
+        icon: <Loader2 className="h-4 w-4 animate-spin text-primary" />,
+      });
     }
 
     if (!shouldShowSearchToast && toastIdRef.current) {
