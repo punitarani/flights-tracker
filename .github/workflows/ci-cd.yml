@@ -262,7 +262,7 @@ jobs:
           SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
           WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          SENTRY_ENVIRONMENT: ${{ secrets.SENTRY_ENVIRONMENT }}
+          SENTRY_ENVIRONMENT: workers-production
 
       - name: notify vercel
         uses: vercel/repository-dispatch/actions/status@v1
