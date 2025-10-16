@@ -95,6 +95,8 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
 
     const client = createSeatsAeroClient({
       apiKey: this.env.SEATS_AERO_API_KEY,
+      // Use lighter response validation to avoid CPU-bound stalls
+      validationMode: "light",
     });
 
     const { totalProcessed } = await paginateSeatsAeroSearch({

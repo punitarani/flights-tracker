@@ -28,6 +28,7 @@ export interface SeatsAeroClientLike {
     take: number;
     only_direct_flights: boolean;
     include_filtered: boolean;
+    minify_trips?: boolean;
     cursor?: number;
   }) => Promise<SeatsAeroSearchResponse>;
 }
@@ -73,6 +74,8 @@ export async function paginateSeatsAeroSearch({
       delay: "30 seconds" as const,
       backoff: "constant" as const,
     },
+    // Reduce risk of step-level timeouts; API responses are fast,
+    // but JSON parsing + DB upserts can be heavy. Keep ample time.
     timeout: "10 minutes" as const,
   };
 
@@ -90,9 +93,12 @@ export async function paginateSeatsAeroSearch({
           start_date: params.searchStartDate,
           end_date: params.searchEndDate,
           include_trips: true,
-          take: 1000,
+          // Use smaller page size to cut payload and parsing time
+          take: 500,
           only_direct_flights: false,
           include_filtered: false,
+          // Ask API to reduce per-trip fields when supported
+          minify_trips: true,
           cursor: currentCursor,
         });
 
