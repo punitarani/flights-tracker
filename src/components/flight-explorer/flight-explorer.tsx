@@ -152,7 +152,7 @@ export function FlightExplorer({
           ) : (
             <div className="container mx-auto flex flex-1 min-h-0 w-full flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8 lg:pb-10">
               <div className="flex flex-1 min-h-0 w-full">
-                <div className="relative flex flex-1 min-h-[360px] w-full overflow-hidden rounded-3xl border border-border/40 bg-card/40 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.55)] backdrop-blur-xl">
+                <div className="relative flex flex-1 min-h-[70vh] w-full overflow-hidden rounded-3xl border border-border/40 bg-card/40 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.55)] backdrop-blur-xl">
                   <AirportMapView
                     state={mapState}
                     popularRoutes={popularRoutesWithAirports}
