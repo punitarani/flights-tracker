@@ -109,8 +109,7 @@ declare global {
   }
 }
 
-const MAPKIT_SCRIPT_URL =
-  "https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.core.js";
+const MAPKIT_SCRIPT_URL = "https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js";
 const REQUIRED_LIBRARIES: MapKitLibrary[] = ["map", "annotations", "overlays"];
 const SCRIPT_SELECTOR = "script[data-mapkit-loader='true']";
 
@@ -202,24 +201,40 @@ class MapKitLoader {
 
   private ensureScriptLoaded(): Promise<void> {
     return new Promise((resolve, reject) => {
-      // Check if MapKit is already loaded
-      if (
-        window.mapkit?.loadedLibraries &&
-        window.mapkit.loadedLibraries.length > 0
-      ) {
+      // Resolve immediately if mapkit is already present
+      if (window.mapkit) {
         resolve();
         return;
       }
 
       let script = document.querySelector<HTMLScriptElement>(SCRIPT_SELECTOR);
 
+      const onLoad = () => {
+        if (document && script) {
+          script.dataset.mapkitLoaded = "true";
+        }
+        if (window.mapkit) {
+          resolve();
+        } else {
+          // Give a microtask for mapkit to attach
+          queueMicrotask(() => {
+            if (window.mapkit) {
+              resolve();
+            } else {
+              reject(
+                new Error("MapKit JS loaded but window.mapkit is undefined"),
+              );
+            }
+          });
+        }
+      };
+
       if (script) {
-        if (script.dataset.mapkitLoaded === "true") {
+        if (script.dataset.mapkitLoaded === "true" || window.mapkit) {
           resolve();
           return;
         }
-
-        script.addEventListener("load", () => resolve(), { once: true });
+        script.addEventListener("load", onLoad, { once: true });
         script.addEventListener(
           "error",
           () => reject(new Error("Failed to load MapKit JS")),
@@ -228,26 +243,16 @@ class MapKitLoader {
         return;
       }
 
-      // Setup the global callback first
-      window.initMapKit = () => {
-        resolve();
-        delete window.initMapKit;
-      };
-
       script = document.createElement("script");
       script.src = MAPKIT_SCRIPT_URL;
       script.crossOrigin = "anonymous";
       script.async = true;
       script.dataset.mapkitLoader = "true";
-      script.dataset.callback = "initMapKit";
-      script.dataset.libraries = REQUIRED_LIBRARIES.join(",");
 
+      script.addEventListener("load", onLoad, { once: true });
       script.addEventListener(
         "error",
-        () => {
-          delete window.initMapKit;
-          reject(new Error("Failed to load MapKit JS"));
-        },
+        () => reject(new Error("Failed to load MapKit JS")),
         { once: true },
       );
 
