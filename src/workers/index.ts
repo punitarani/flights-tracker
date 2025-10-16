@@ -374,8 +374,8 @@ const handlers = {
   },
 };
 
-// Wrap handlers with Sentry
+// Wrap handlers with Sentry (handlers first, then options)
 export default Sentry.withSentry(
-  (env: WorkerEnv) => getSentryOptions(env),
   handlers,
+  (env: WorkerEnv) => getSentryOptions(env),
 );
