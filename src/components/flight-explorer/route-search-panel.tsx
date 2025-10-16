@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Loader2, MapPin, Search, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AirportSearch } from "@/components/airport-search";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,11 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const scrollContainerRef = useRef<HTMLElement | null>(null);
+  const scheduleAttachTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const handleScrollRef = useRef<(event: Event) => void>();
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -94,24 +99,38 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     if (!shouldShowSearchAction || !isMobile) {
       setIsCollapsed(false);
       setIsExpanded(false);
+
+      if (scheduleAttachTimeoutRef.current) {
+        clearTimeout(scheduleAttachTimeoutRef.current);
+        scheduleAttachTimeoutRef.current = null;
+      }
+
+      if (scrollContainerRef.current && handleScrollRef.current) {
+        scrollContainerRef.current.removeEventListener(
+          "scroll",
+          handleScrollRef.current,
+        );
+        scrollContainerRef.current = null;
+      }
+
+      if (handleScrollRef.current) {
+        window.removeEventListener("scroll", handleScrollRef.current, true);
+      }
+
       return;
     }
 
+    const threshold = 50;
     let lastScrollY = 0;
-    const threshold = 50; // Collapse after scrolling 50px down
-    let scrollContainer: HTMLElement | null = null;
 
-    const handleScroll = (e: Event) => {
-      const target = e.target as HTMLElement;
-      const currentScrollY = target.scrollTop ?? window.scrollY;
+    const handleScroll = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      const currentScrollY = target?.scrollTop ?? window.scrollY;
 
-      // Only apply on mobile (will be handled by CSS visibility)
       if (currentScrollY > threshold && currentScrollY > lastScrollY) {
-        // Scrolling down
         setIsCollapsed(true);
         setIsExpanded(false);
       } else if (currentScrollY < threshold) {
-        // Near top
         setIsCollapsed(false);
         setIsExpanded(false);
       }
@@ -119,48 +138,80 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
       lastScrollY = currentScrollY;
     };
 
-    // Find and attach to the scroll container
-    // Use a small delay and retry logic to ensure FlightPricePanel has rendered
-    const setupScrollListener = () => {
-      scrollContainer = document.getElementById("flight-price-panel-scroll");
+    handleScrollRef.current = handleScroll;
 
-      if (scrollContainer) {
-        scrollContainer.addEventListener("scroll", handleScroll, {
-          passive: true,
-        });
-        return true;
+    const attachToContainer = () => {
+      if (scheduleAttachTimeoutRef.current) {
+        clearTimeout(scheduleAttachTimeoutRef.current);
+        scheduleAttachTimeoutRef.current = null;
       }
-      return false;
+
+      const container = document.getElementById("flight-price-panel-scroll");
+      if (!container) {
+        return false;
+      }
+
+      if (
+        scrollContainerRef.current &&
+        scrollContainerRef.current !== container &&
+        handleScrollRef.current
+      ) {
+        scrollContainerRef.current.removeEventListener(
+          "scroll",
+          handleScrollRef.current,
+        );
+      }
+
+      container.addEventListener("scroll", handleScroll, { passive: true });
+      scrollContainerRef.current = container;
+
+      if (handleScrollRef.current) {
+        window.removeEventListener("scroll", handleScrollRef.current, true);
+      }
+
+      return true;
     };
 
-    // Retry finding the container with increasing delays
-    const timeouts: NodeJS.Timeout[] = [];
-    const trySetup = (attempt = 0) => {
-      if (setupScrollListener()) {
-        return; // Successfully attached
-      }
+    if (!attachToContainer()) {
+      window.addEventListener("scroll", handleScroll, true);
 
-      // Retry up to 5 times with exponential backoff
-      if (attempt < 5) {
-        const delay = Math.min(100 * 2 ** attempt, 1000);
-        timeouts.push(setTimeout(() => trySetup(attempt + 1), delay));
-      }
-    };
+      const retry = (attempt: number) => {
+        if (attachToContainer()) {
+          return;
+        }
 
-    trySetup();
+        if (attempt >= 5) {
+          return;
+        }
+
+        scheduleAttachTimeoutRef.current = setTimeout(
+          () => retry(attempt + 1),
+          Math.min(100 * 2 ** attempt, 1000),
+        );
+      };
+
+      retry(0);
+    }
 
     return () => {
-      // Clear all timeouts
-      for (const timeout of timeouts) {
-        clearTimeout(timeout);
+      if (scheduleAttachTimeoutRef.current) {
+        clearTimeout(scheduleAttachTimeoutRef.current);
+        scheduleAttachTimeoutRef.current = null;
       }
 
-      // Remove listener if attached
-      if (scrollContainer) {
-        scrollContainer.removeEventListener("scroll", handleScroll);
+      if (scrollContainerRef.current && handleScrollRef.current) {
+        scrollContainerRef.current.removeEventListener(
+          "scroll",
+          handleScrollRef.current,
+        );
+        scrollContainerRef.current = null;
+      }
+
+      if (handleScrollRef.current) {
+        window.removeEventListener("scroll", handleScrollRef.current, true);
       }
     };
-  }, [shouldShowSearchAction, isMobile]); // Re-run when search results appear
+  }, [shouldShowSearchAction, isMobile]);
 
   const handlePillClick = () => {
     setIsExpanded(true);
