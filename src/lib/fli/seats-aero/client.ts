@@ -7,12 +7,20 @@ import type { SearchRequestParams, SearchResponse } from "../models/seats-aero";
 import {
   SearchRequestParamsSchema,
   SearchResponseSchema,
+  AvailabilityTripSchema,
 } from "../models/seats-aero";
+import { z } from "zod";
 
 export type SeatsAeroClientConfig = {
   apiKey: string;
   baseUrl?: string;
   fetchImpl?: typeof fetch;
+  /**
+   * Controls how strictly responses are validated.
+   * - "full" (default): validate entire response with deep schemas
+   * - "light": validate only top-level fields and AvailabilityTrips to reduce CPU
+   */
+  validationMode?: "full" | "light";
 };
 
 /**
@@ -41,11 +49,13 @@ export class SeatsAeroClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly validationMode: "full" | "light";
 
   constructor(config: SeatsAeroClientConfig) {
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl ?? "https://seats.aero/partnerapi";
     this.fetchImpl = config.fetchImpl ?? fetch;
+    this.validationMode = config.validationMode ?? "full";
   }
 
   /**
@@ -79,6 +89,25 @@ export class SeatsAeroClient {
     }
 
     const data = await response.json();
+
+    if (this.validationMode === "light") {
+      // Validate only the fields we actually consume downstream to reduce CPU cost
+      const LightAvailabilitySchema = z
+        .object({
+          AvailabilityTrips: z.array(AvailabilityTripSchema).nullable(),
+        })
+        .passthrough();
+
+      const LightSearchResponseSchema = z.object({
+        data: z.array(LightAvailabilitySchema),
+        count: z.number(),
+        hasMore: z.boolean(),
+        cursor: z.number(),
+      });
+
+      return LightSearchResponseSchema.parse(data) as SearchResponse;
+    }
+
     return SearchResponseSchema.parse(data);
   }
 
