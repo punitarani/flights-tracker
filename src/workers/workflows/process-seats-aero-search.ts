@@ -9,7 +9,6 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
-import * as Sentry from "@sentry/cloudflare";
 import type { SearchRequestParams } from "@/core/seats-aero.db";
 import { createSeatsAeroClient } from "@/lib/fli/seats-aero/client";
 import {
@@ -19,7 +18,12 @@ import {
 } from "../adapters/seats-aero.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
-import { addBreadcrumb, captureException } from "../utils/sentry";
+import {
+  captureException,
+  type ObservabilityContext,
+  traceWorkflowLifecycle,
+  withStepTracing,
+} from "../utils/observability";
 import { paginateSeatsAeroSearch } from "./process-seats-aero-search-pagination";
 
 class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
@@ -48,48 +52,63 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
       searchEndDate,
     } = event.payload;
 
-    addBreadcrumb("ProcessSeatsAeroSearchWorkflow started", {
-      route: `${originAirport}-${destinationAirport}`,
-      dates: `${searchStartDate} to ${searchEndDate}`,
+    const context: ObservabilityContext = {
+      workflow: "ProcessSeatsAeroSearchWorkflow",
       instanceId: event.instanceId,
-    });
-
-    workerLogger.info("Starting ProcessSeatsAeroSearchWorkflow", {
+      route: `${originAirport}-${destinationAirport}`,
       originAirport,
       destinationAirport,
       searchStartDate,
       searchEndDate,
-      instanceId: event.instanceId,
-    });
+    };
+
+    const lifecycle = traceWorkflowLifecycle(
+      "ProcessSeatsAeroSearchWorkflow",
+      event.instanceId,
+      context,
+    );
+    lifecycle.start();
+
+    workerLogger.workflow.start(
+      "ProcessSeatsAeroSearchWorkflow",
+      event.instanceId,
+      context,
+    );
 
     // Step 1: Validate search request exists (defensive check)
-    const searchRequest = await step.do(
+    const searchRequest = await withStepTracing(
       "validate-search-request",
-      {},
+      context,
       async () => {
-        const search = await getSearchRequest(this.env, {
-          originAirport,
-          destinationAirport,
-          searchStartDate,
-          searchEndDate,
-        });
-
-        if (!search) {
-          const error = new Error("Search request not found in database");
-          workerLogger.error("Search request validation failed", {
+        return await step.do("validate-search-request", {}, async () => {
+          const search = await getSearchRequest(this.env, {
             originAirport,
             destinationAirport,
-            instanceId: event.instanceId,
+            searchStartDate,
+            searchEndDate,
           });
-          throw error;
-        }
 
-        workerLogger.info("Search request validated", {
-          searchRequestId: search.id,
-          status: search.status,
+          if (!search) {
+            const error = new Error("Search request not found in database");
+            workerLogger.error(
+              "Search request validation failed",
+              {
+                originAirport,
+                destinationAirport,
+                instanceId: event.instanceId,
+              },
+              context,
+            );
+            throw error;
+          }
+
+          workerLogger.step.complete("validate-search-request", undefined, {
+            ...context,
+            searchRequestId: search.id,
+          });
+
+          return search;
         });
-
-        return search;
       },
     );
 
@@ -97,27 +116,44 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
       apiKey: this.env.SEATS_AERO_API_KEY,
     });
 
-    const { totalProcessed } = await paginateSeatsAeroSearch({
-      client,
-      env: this.env,
-      params: event.payload,
-      searchRequest,
-      step,
-    });
+    const { totalProcessed } = await withStepTracing(
+      "paginate-search",
+      { ...context, searchRequestId: searchRequest.id },
+      async () => {
+        return await paginateSeatsAeroSearch({
+          client,
+          env: this.env,
+          params: event.payload,
+          searchRequest,
+          step,
+        });
+      },
+    );
 
-    await completeSearchRequest(this.env, searchRequest.id);
+    await withStepTracing(
+      "complete-search",
+      { ...context, searchRequestId: searchRequest.id },
+      async () => {
+        await completeSearchRequest(this.env, searchRequest.id);
+      },
+    );
 
-    workerLogger.info("Completed seats.aero search", {
-      searchRequestId: searchRequest.id,
-      totalProcessed,
-      instanceId: event.instanceId,
-    });
+    const result = { success: true, totalProcessed };
 
-    addBreadcrumb("Search completed", {
-      totalProcessed,
-    });
+    workerLogger.workflow.complete(
+      "ProcessSeatsAeroSearchWorkflow",
+      event.instanceId,
+      result,
+      {
+        ...context,
+        searchRequestId: searchRequest.id,
+        totalProcessed,
+      },
+    );
 
-    return { success: true, totalProcessed };
+    lifecycle.complete(result);
+
+    return result;
   }
 
   private async handleWorkflowFailure(
@@ -125,6 +161,21 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
     error: unknown,
   ) {
     const { originAirport, destinationAirport } = event.payload;
+
+    const context: ObservabilityContext = {
+      workflow: "ProcessSeatsAeroSearchWorkflow",
+      instanceId: event.instanceId,
+      route: `${originAirport}-${destinationAirport}`,
+      originAirport,
+      destinationAirport,
+    };
+
+    const lifecycle = traceWorkflowLifecycle(
+      "ProcessSeatsAeroSearchWorkflow",
+      event.instanceId,
+      context,
+    );
+    lifecycle.fail(error);
 
     // Get the search request ID to mark it as failed
     const searchRequest = await getSearchRequest(this.env, event.payload);
@@ -135,6 +186,7 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
           route: `${originAirport}-${destinationAirport}`,
           instanceId: event.instanceId,
         },
+        context,
       );
       return;
     }
@@ -148,38 +200,28 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
         : "Workflow failed after all retries",
     );
 
-    workerLogger.error(
-      "Workflow permanently failed - marked search as failed",
+    workerLogger.workflow.fail(
+      "ProcessSeatsAeroSearchWorkflow",
+      event.instanceId,
+      error,
       {
+        ...context,
         searchRequestId: searchRequest.id,
-        error: error instanceof Error ? error.message : String(error),
-        route: `${originAirport}-${destinationAirport}`,
-        instanceId: event.instanceId,
       },
     );
 
     captureException(error, {
-      workflow: "process-seats-aero-search",
+      ...context,
       searchRequestId: searchRequest.id,
-      route: `${originAirport}-${destinationAirport}`,
-      instanceId: event.instanceId,
-      level: "final_failure",
-    });
-
-    addBreadcrumb("Workflow permanently failed", {
-      searchRequestId: searchRequest.id,
-      error: error instanceof Error ? error.message : String(error),
+      component: "workflow",
+      level: "error",
+      retryable: false,
     });
   }
 }
 
-// Export instrumented workflow
+// Export workflow without Sentry instrumentation to avoid timeout issues
+// Sentry instrumentation can interfere with workflow step execution timing
+// Error tracking is handled via captureException calls within the workflow
 export const ProcessSeatsAeroSearchWorkflow =
-  Sentry.instrumentWorkflowWithSentry(
-    (env: WorkerEnv) => ({
-      dsn: env.SENTRY_DSN,
-      environment: env.SENTRY_ENVIRONMENT || "production",
-      tracesSampleRate: 1.0,
-    }),
-    ProcessSeatsAeroSearchWorkflowBase,
-  );
+  ProcessSeatsAeroSearchWorkflowBase;
