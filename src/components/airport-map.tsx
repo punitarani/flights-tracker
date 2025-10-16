@@ -820,17 +820,42 @@ export function AirportMap({
             continue;
           }
 
-          const overlay = new mapkit.PolylineOverlay(coordinates, {
-            lineCap: "round",
-            lineJoin: "round",
-            lineWidth: 4.6,
-            strokeColor: "#1e3a8a",
-            opacity: 0.9,
-          });
+          let overlay: unknown;
+          const StyleCtor = (
+            mapkit as unknown as {
+              Style?: new (options: Record<string, unknown>) => unknown;
+            }
+          ).Style;
 
           try {
-            map.addOverlay(overlay);
-            overlaysForRoute.push(overlay);
+            if (StyleCtor && typeof StyleCtor === "function") {
+              overlay = new mapkit.PolylineOverlay(coordinates, {
+                style: new StyleCtor({
+                  lineCap: "round",
+                  lineJoin: "round",
+                  lineWidth: 4.6,
+                  strokeColor: "rgba(30,58,138,0.9)",
+                }),
+              });
+            } else {
+              overlay = new mapkit.PolylineOverlay(coordinates, {
+                lineCap: "round",
+                lineJoin: "round",
+                lineWidth: 4.6,
+                strokeColor: "#1e3a8a",
+              });
+            }
+          } catch {
+            // Fallback to minimal options if style application fails
+            overlay = new mapkit.PolylineOverlay(coordinates, {
+              lineWidth: 4.6,
+              strokeColor: "#1e3a8a",
+            });
+          }
+
+          try {
+            map.addOverlay(overlay as never);
+            overlaysForRoute.push(overlay as never);
           } catch {
             try {
               map.removeOverlay(overlay as never);
@@ -1041,13 +1066,38 @@ export function AirportMap({
           continue;
         }
 
-        const overlay = new mapkit.PolylineOverlay(coordinates, {
-          lineCap: "round",
-          lineJoin: "round",
-          lineWidth: 2.1,
-          strokeColor: "#0f172a",
-          opacity: 0.32,
-        }) as unknown;
+        let overlay: unknown;
+        const StyleCtor = (
+          mapkit as unknown as {
+            Style?: new (options: Record<string, unknown>) => unknown;
+          }
+        ).Style;
+
+        try {
+          if (StyleCtor && typeof StyleCtor === "function") {
+            overlay = new mapkit.PolylineOverlay(coordinates, {
+              style: new StyleCtor({
+                lineCap: "round",
+                lineJoin: "round",
+                lineWidth: 2.1,
+                strokeColor: "rgba(15,23,42,0.32)",
+              }),
+            });
+          } else {
+            overlay = new mapkit.PolylineOverlay(coordinates, {
+              lineCap: "round",
+              lineJoin: "round",
+              lineWidth: 2.1,
+              strokeColor: "#0f172a",
+            });
+          }
+        } catch {
+          // Fallback to minimal options if style application fails
+          overlay = new mapkit.PolylineOverlay(coordinates, {
+            lineWidth: 2.1,
+            strokeColor: "#0f172a",
+          });
+        }
 
         const overlayWithMeta = overlay as {
           data?: unknown;
