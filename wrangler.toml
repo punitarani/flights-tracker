@@ -2,16 +2,14 @@ name = "flights-tracker-worker"
 main = "src/workers/index.ts"
 compatibility_date = "2025-09-15"
 compatibility_flags = ["nodejs_compat", "nodejs_als", "nodejs_compat_populate_process_env"]
+upload_source_maps = true
 
 # CPU time limit
 [limits]
 cpu_ms = 300000  # 5 minutes
 
-# Keep dashboard environment variables across deployments
-keep_vars = true
-
-# Keep workers.dev subdomain
-workers_dev = true
+# Disable workers.dev subdomain
+workers_dev = false
 
 # Custom domain routing
 [[routes]]
@@ -22,7 +20,6 @@ custom_domain = true
 [observability]
 enabled = true
 head_sampling_rate = 1
-upload_source_maps = true
 
 # Cron trigger - every 6 hours
 [triggers]
@@ -37,19 +34,16 @@ binding = "CF_VERSION_METADATA"
 name = "check-flight-alerts"
 binding = "CHECK_ALERTS_WORKFLOW"
 class_name = "CheckFlightAlertsWorkflow"
-max_concurrency = 1
 
 [[workflows]]
 name = "process-flight-alerts"
 binding = "PROCESS_ALERTS_WORKFLOW"
 class_name = "ProcessFlightAlertsWorkflow"
-max_concurrency = 100
 
 [[workflows]]
 name = "seats-aero-search"
 binding = "SEATS_AERO_SEARCH_WORKFLOW"
 class_name = "ProcessSeatsAeroSearchWorkflow"
-max_concurrency = 10
 
 # Queue configuration
 [[queues.producers]]

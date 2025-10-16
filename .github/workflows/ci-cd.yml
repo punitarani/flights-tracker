@@ -263,7 +263,7 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_ENVIRONMENT: workers-production
 
-      - name: notify vercel
+      - name: Notify Vercel
         uses: vercel/repository-dispatch/actions/status@v1
         with:
           name: 'Vercel - flights-tracker: build'
