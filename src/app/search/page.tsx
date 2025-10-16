@@ -43,7 +43,7 @@ export default function SearchPage() {
   const isLoadingAirports = airportSearchQuery.isLoading;
 
   return (
-    <div className="flex flex-col h-screen w-full bg-background">
+    <div className="flex flex-1 flex-col min-h-0 bg-background">
       <Header />
       <Suspense fallback={null}>
         <FlightExplorer

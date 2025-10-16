@@ -23,7 +23,7 @@ export default async function ProfilePage() {
   const email = user.email ?? "Unknown user";
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex flex-1 flex-col min-h-0 bg-background">
       <Header />
       <main className="flex flex-1 items-start justify-center px-4 py-12">
         <div className="w-full max-w-md space-y-6">

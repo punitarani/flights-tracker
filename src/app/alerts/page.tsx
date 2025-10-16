@@ -162,9 +162,9 @@ export default function AlertsPage() {
   const showEmptyState = !isLoading && rows.length === 0;
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex flex-1 flex-col min-h-0 bg-background">
       <Header />
-      <main className="container mx-auto flex-1 overflow-y-auto px-4 py-6">
+      <main className="container mx-auto flex-1 overflow-y-auto px-4 py-6 min-h-0">
         <div className="space-y-6">
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight">Alerts</h1>

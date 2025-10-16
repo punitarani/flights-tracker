@@ -102,9 +102,7 @@ export default function RootLayout({
             <TRPCProvider>
               <GlobalErrorHandler />
               <div className="flex min-h-screen flex-col bg-background">
-                <main className="flex flex-1 flex-col min-h-0">
-                  <div className="flex flex-1 flex-col min-h-0">{children}</div>
-                </main>
+                <main className="flex flex-1 flex-col min-h-0">{children}</main>
                 <Footer />
               </div>
               <Analytics />

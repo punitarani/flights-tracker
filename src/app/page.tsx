@@ -28,7 +28,7 @@ export default async function Home() {
   const { airports, total } = await getCachedAirports();
 
   return (
-    <div className="flex flex-1 flex-col min-h-screen w-full">
+    <div className="flex flex-1 flex-col min-h-0">
       <Header />
       <Suspense fallback={<FlightExplorerFallback />}>
         <FlightExplorer
