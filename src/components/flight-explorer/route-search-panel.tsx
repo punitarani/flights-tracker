@@ -150,7 +150,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
     <button
       type="button"
       onClick={handlePillClick}
-      className="flex w-full items-center justify-between gap-2 rounded-full bg-card/80 px-4 py-2.5 shadow-md backdrop-blur-sm transition-all hover:bg-card/90 active:scale-[0.98]"
+      className="flex w-full items-center justify-between gap-2 rounded-full bg-card/80 px-4 py-2.5 shadow-md backdrop-blur-sm transition-transform duration-300 ease-out hover:bg-card/90 hover:translate-y-[-1px] active:scale-[0.98]"
     >
       <div className="flex items-center gap-2">
         <Search className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -192,14 +192,19 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
   const showFullView = !isCollapsed || isExpanded;
 
   return (
-    <div className="sticky top-0 z-10 flex-none border-b bg-card/50 backdrop-blur-sm transition-all duration-300">
+    <div
+      className={cn(
+        "sticky top-0 z-10 flex-none border-b bg-card/50 backdrop-blur-sm transition-[background-color,backdrop-filter,padding] duration-500 ease-in-out",
+        showCollapsed ? "pt-2" : "pt-0",
+      )}
+    >
       {/* Mobile collapsed pill - only visible on mobile when collapsed */}
       <div
         className={cn(
-          "container mx-auto px-4 py-2 transition-all duration-300 md:hidden",
+          "container mx-auto px-4 py-2 transition-[opacity,max-height,transform] duration-500 ease-in-out will-change-[opacity,transform] md:hidden",
           showCollapsed
-            ? "opacity-100 max-h-16"
-            : "opacity-0 max-h-0 overflow-hidden pointer-events-none",
+            ? "max-h-16 opacity-100 translate-y-0"
+            : "max-h-0 opacity-0 -translate-y-1 overflow-hidden pointer-events-none",
         )}
       >
         {renderCollapsedPill()}
@@ -208,18 +213,18 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
       {/* Full search view */}
       <div
         className={cn(
-          "container mx-auto space-y-3 transition-all duration-300",
+          "container mx-auto space-y-3 transition-[opacity,max-height,transform,padding] duration-500 ease-in-out will-change-[opacity,transform]",
           "md:p-4 md:opacity-100 md:max-h-none", // Always visible on desktop
           showFullView
-            ? "p-4 opacity-100 max-h-[500px]"
-            : "max-h-0 overflow-hidden opacity-0 pointer-events-none p-0",
+            ? "max-h-[500px] translate-y-0 p-4 opacity-100"
+            : "max-h-0 -translate-y-3 overflow-hidden p-0 opacity-0 pointer-events-none",
         )}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-1 sm:items-stretch">
             <div
               className={cn(
-                "transition-all duration-200 ease-in-out",
+                "transition-[opacity,flex-basis] duration-400 ease-out",
                 showOriginSummary ? "sm:w-60" : "sm:flex-1",
                 origin.isActive
                   ? "opacity-100"
@@ -249,7 +254,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
                   inputAriaLabel="Search origin airport"
                   autoFocus
                   isLoading={isInitialLoading}
-                  className="w-full transition-all duration-200 ease-in-out"
+                  className="w-full transition-[opacity,transform] duration-300 ease-out"
                 />
               )}
             </div>
@@ -257,7 +262,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
             {showDestinationField && (
               <div
                 className={cn(
-                  "transition-all duration-200 ease-in-out",
+                  "transition-[opacity,flex-basis] duration-400 ease-out",
                   showDestinationSummary ? "sm:w-60" : "sm:flex-1",
                   destination.isActive
                     ? "opacity-100"
@@ -289,7 +294,7 @@ export function RouteSearchPanel({ search, header }: RouteSearchPanelProps) {
                       destination.isActive || !destination.selectedAirport
                     }
                     isLoading={isInitialLoading}
-                    className="w-full transition-all duration-200 ease-in-out"
+                    className="w-full transition-[opacity,transform] duration-300 ease-out"
                   />
                 )}
               </div>
