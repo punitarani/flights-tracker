@@ -59,7 +59,7 @@ const sampleFlight: FlightOptionSummary = {
 };
 
 beforeEach(() => {
-  mock.restore();
+  sendWithResendMock.mockReset();
 });
 
 describe("notification templates", () => {

@@ -1,5 +1,5 @@
 import "@/test/setup";
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { AlertType } from "@/core/alert-types";
 import * as alertsDb from "@/core/alerts.db";
 import {
@@ -17,30 +17,33 @@ import {
   createMockUserId,
 } from "./mock-data";
 
-mock.module("@/core/alerts.db", () => ({
-  validateAirportExists: mock(),
-  validateAirlineExists: mock(),
-  createAlert: mock(),
-  getAlertById: mock(),
-  getAlertsByUser: mock(),
-}));
-const mockedAlertsDb = alertsDb as {
-  validateAirportExists: ReturnType<typeof mock>;
-  validateAirlineExists: ReturnType<typeof mock>;
-  createAlert: ReturnType<typeof mock>;
-  getAlertById: ReturnType<typeof mock>;
-  getAlertsByUser: ReturnType<typeof mock>;
-};
+const validateAirportExistsSpy = spyOn(alertsDb, "validateAirportExists");
+const validateAirlineExistsSpy = spyOn(alertsDb, "validateAirlineExists");
+const createAlertSpy = spyOn(alertsDb, "createAlert");
+const getAlertByIdSpy = spyOn(alertsDb, "getAlertById");
+const getAlertsByUserSpy = spyOn(alertsDb, "getAlertsByUser");
 
 describe("alerts-service", () => {
   beforeEach(() => {
-    mock.restore();
+    validateAirportExistsSpy.mockReset();
+    validateAirlineExistsSpy.mockReset();
+    createAlertSpy.mockReset();
+    getAlertByIdSpy.mockReset();
+    getAlertsByUserSpy.mockReset();
+  });
+
+  afterAll(() => {
+    validateAirportExistsSpy.mockRestore();
+    validateAirlineExistsSpy.mockRestore();
+    createAlertSpy.mockRestore();
+    getAlertByIdSpy.mockRestore();
+    getAlertsByUserSpy.mockRestore();
   });
 
   describe("validateAlertFilters", () => {
     it("should pass validation for valid filters", async () => {
-      mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
-      mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
+      validateAirportExistsSpy.mockResolvedValue(true);
+      validateAirlineExistsSpy.mockResolvedValue(true);
 
       const filters = createMockAlertFilters();
 
@@ -63,7 +66,7 @@ describe("alerts-service", () => {
     });
 
     it("should throw error when origin airport does not exist", async () => {
-      mockedAlertsDb.validateAirportExists.mockResolvedValueOnce(false); // from airport
+      validateAirportExistsSpy.mockResolvedValueOnce(false); // from airport
 
       const filters = createMockAlertFilters({
         route: { from: "XXX", to: "JFK" },
@@ -75,8 +78,8 @@ describe("alerts-service", () => {
     });
 
     it("should throw error when destination airport does not exist", async () => {
-      mockedAlertsDb.validateAirportExists.mockResolvedValueOnce(true); // from airport
-      mockedAlertsDb.validateAirportExists.mockResolvedValueOnce(false); // to airport
+      validateAirportExistsSpy.mockResolvedValueOnce(true); // from airport
+      validateAirportExistsSpy.mockResolvedValueOnce(false); // to airport
 
       const filters = createMockAlertFilters({
         route: { from: "LAX", to: "YYY" },
@@ -88,8 +91,8 @@ describe("alerts-service", () => {
     });
 
     it("should throw error when airline does not exist", async () => {
-      mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
-      mockedAlertsDb.validateAirlineExists.mockResolvedValue(false);
+      validateAirportExistsSpy.mockResolvedValue(true);
+      validateAirlineExistsSpy.mockResolvedValue(false);
 
       const filters = createMockAlertFilters({
         filters: { airlines: ["XX"] },
@@ -101,7 +104,7 @@ describe("alerts-service", () => {
     });
 
     it("should throw error when origin and destination are the same", async () => {
-      mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
+      validateAirportExistsSpy.mockResolvedValue(true);
 
       const filters = createMockAlertFilters({
         route: { from: "LAX", to: "LAX" },
@@ -113,8 +116,8 @@ describe("alerts-service", () => {
     });
 
     it("should throw error for negative price", async () => {
-      mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
-      mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
+      validateAirportExistsSpy.mockResolvedValue(true);
+      validateAirlineExistsSpy.mockResolvedValue(true);
 
       const filters = createMockAlertFilters({
         filters: { price: -100 },
@@ -126,8 +129,8 @@ describe("alerts-service", () => {
     });
 
     it("should throw error when only one date boundary is provided", async () => {
-      mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
-      mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
+      validateAirportExistsSpy.mockResolvedValue(true);
+      validateAirlineExistsSpy.mockResolvedValue(true);
 
       const filters = createMockAlertFilters({
         filters: { dateTo: undefined },
@@ -145,13 +148,13 @@ describe("alerts-service", () => {
       const userId = createMockUserId();
       const filters = createMockAlertFilters();
 
-      mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
-      mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
-      mockedAlertsDb.createAlert.mockResolvedValue(mockAlert);
+      validateAirportExistsSpy.mockResolvedValue(true);
+      validateAirlineExistsSpy.mockResolvedValue(true);
+      createAlertSpy.mockResolvedValue(mockAlert);
 
       const result = await createFlightAlert(userId, AlertType.DAILY, filters);
 
-      expect(mockedAlertsDb.createAlert).toHaveBeenCalledWith({
+      expect(createAlertSpy).toHaveBeenCalledWith({
         userId,
         type: AlertType.DAILY,
         filters,
@@ -168,9 +171,9 @@ describe("alerts-service", () => {
       futureDate.setDate(futureDate.getDate() + 30);
       const alertEnd = futureDate.toISOString();
 
-      mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
-      mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
-      mockedAlertsDb.createAlert.mockResolvedValue(mockAlert);
+      validateAirportExistsSpy.mockResolvedValue(true);
+      validateAirlineExistsSpy.mockResolvedValue(true);
+      createAlertSpy.mockResolvedValue(mockAlert);
 
       const result = await createFlightAlert(
         userId,
@@ -179,7 +182,7 @@ describe("alerts-service", () => {
         alertEnd,
       );
 
-      expect(mockedAlertsDb.createAlert).toHaveBeenCalledWith({
+      expect(createAlertSpy).toHaveBeenCalledWith({
         userId,
         type: AlertType.DAILY,
         filters,
@@ -200,8 +203,8 @@ describe("alerts-service", () => {
       const userId = createMockUserId();
       const filters = createMockAlertFilters();
 
-      mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
-      mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
+      validateAirportExistsSpy.mockResolvedValue(true);
+      validateAirlineExistsSpy.mockResolvedValue(true);
 
       await expect(
         createFlightAlert(userId, AlertType.DAILY, filters, "invalid-date"),
@@ -215,8 +218,8 @@ describe("alerts-service", () => {
       pastDate.setDate(pastDate.getDate() - 1);
       const alertEnd = pastDate.toISOString();
 
-      mockedAlertsDb.validateAirportExists.mockResolvedValue(true);
-      mockedAlertsDb.validateAirlineExists.mockResolvedValue(true);
+      validateAirportExistsSpy.mockResolvedValue(true);
+      validateAirlineExistsSpy.mockResolvedValue(true);
 
       await expect(
         createFlightAlert(userId, AlertType.DAILY, filters, alertEnd),
@@ -230,11 +233,11 @@ describe("alerts-service", () => {
       const userId = mockAlert.userId;
       const alertId = mockAlert.id;
 
-      mockedAlertsDb.getAlertById.mockResolvedValue(mockAlert);
+      getAlertByIdSpy.mockResolvedValue(mockAlert);
 
       const result = await getFlightAlert(alertId, userId);
 
-      expect(mockedAlertsDb.getAlertById).toHaveBeenCalledWith(alertId);
+      expect(getAlertByIdSpy).toHaveBeenCalledWith(alertId);
       expect(result).toEqual(mockAlert);
     });
 
@@ -242,7 +245,7 @@ describe("alerts-service", () => {
       const userId = createMockUserId();
       const alertId = createMockAlertId();
 
-      mockedAlertsDb.getAlertById.mockResolvedValue(null);
+      getAlertByIdSpy.mockResolvedValue(null);
 
       await expect(getFlightAlert(alertId, userId)).rejects.toThrow(
         AlertNotFoundError,
@@ -254,7 +257,7 @@ describe("alerts-service", () => {
       const userId = createMockUserId();
       const alertId = mockAlert.id;
 
-      mockedAlertsDb.getAlertById.mockResolvedValue(mockAlert);
+      getAlertByIdSpy.mockResolvedValue(mockAlert);
 
       await expect(getFlightAlert(alertId, userId)).rejects.toThrow(
         AlertNotFoundError,
@@ -276,14 +279,11 @@ describe("alerts-service", () => {
       const mockAlerts = [createMockAlert(), createMockAlert({ id: "alert2" })];
       const userId = createMockUserId();
 
-      mockedAlertsDb.getAlertsByUser.mockResolvedValue(mockAlerts);
+      getAlertsByUserSpy.mockResolvedValue(mockAlerts);
 
       const result = await getUserAlerts(userId);
 
-      expect(mockedAlertsDb.getAlertsByUser).toHaveBeenCalledWith(
-        userId,
-        undefined,
-      );
+      expect(getAlertsByUserSpy).toHaveBeenCalledWith(userId, undefined);
       expect(result).toEqual(mockAlerts);
     });
 
@@ -291,14 +291,11 @@ describe("alerts-service", () => {
       const mockAlerts = [createMockAlert({ status: "active" })];
       const userId = createMockUserId();
 
-      mockedAlertsDb.getAlertsByUser.mockResolvedValue(mockAlerts);
+      getAlertsByUserSpy.mockResolvedValue(mockAlerts);
 
       const result = await getUserAlerts(userId, "active");
 
-      expect(mockedAlertsDb.getAlertsByUser).toHaveBeenCalledWith(
-        userId,
-        "active",
-      );
+      expect(getAlertsByUserSpy).toHaveBeenCalledWith(userId, "active");
       expect(result).toEqual(mockAlerts);
     });
 
