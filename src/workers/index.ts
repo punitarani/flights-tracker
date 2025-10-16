@@ -30,53 +30,40 @@ const handlers = {
     setTag("handler", "scheduled");
     setTag("cron", controller.cron);
 
-    // Start monitor with proper configuration
-    const checkInId = Sentry.captureCheckIn(
-      {
-        monitorSlug: "check-flight-alerts-cron",
-        status: "in_progress",
-      },
-      {
-        schedule: { type: "crontab", value: "0 */6 * * *" },
-        checkinMargin: 5,
-        maxRuntime: 30,
-        timezone: "UTC",
-      },
-    );
-
-    const finishMonitor = (status: "ok" | "error") => {
-      Sentry.captureCheckIn({
-        checkInId,
-        status,
-        monitorSlug: "check-flight-alerts-cron",
-      });
-    };
-
     try {
       workerLogger.info("Cron triggered", {
         scheduledTime: controller.scheduledTime,
       });
 
       // Create unique workflow instance
+      // Monitor tracking is handled by the workflow wrapper
       const now = new Date();
       const instanceId = `CheckFlightAlertsWorkflow_${now.toISOString().split("T")[0]}_${now.toISOString().split("T")[1].substring(0, 5).replace(":", "-")}`;
 
       const instance = await env.CHECK_ALERTS_WORKFLOW.create({
         id: instanceId,
-        params: {},
+        params: {
+          // Monitor config is applied by default from workflow definition
+          // Pass __monitorConfig to override if needed
+        },
       });
 
       workerLogger.info("Started CheckFlightAlertsWorkflow", {
         instanceId: instance.id,
       });
-      finishMonitor("ok");
     } catch (error) {
       workerLogger.error("Cron execution failed", {
         error: error instanceof Error ? error.message : String(error),
       });
 
       captureException(error, { handler: "scheduled" });
-      finishMonitor("error");
+
+      // Report immediate failure to Sentry monitor
+      Sentry.captureCheckIn({
+        monitorSlug: "check-flight-alerts-cron",
+        status: "error",
+      });
+
       throw error;
     }
   },
@@ -198,7 +185,7 @@ const handlers = {
 
         const instance = await env.CHECK_ALERTS_WORKFLOW.create({
           id: instanceId,
-          params: {},
+          params: {}, // Manual triggers don't use monitor
         });
 
         // Step 3: Audit log

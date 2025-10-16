@@ -13,8 +13,13 @@ import * as Sentry from "@sentry/cloudflare";
 import { getUserIdsWithActiveDailyAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
+import { withSentryMonitor } from "../utils/monitor-wrapper";
 import { addBreadcrumb, captureException } from "../utils/sentry";
 
+/**
+ * Base workflow that handles the core business logic
+ * Separated from monitoring concerns for clean separation of responsibilities
+ */
 class CheckFlightAlertsWorkflowBase extends WorkflowEntrypoint<
   WorkerEnv,
   Record<string, never>
@@ -44,34 +49,36 @@ class CheckFlightAlertsWorkflowBase extends WorkflowEntrypoint<
       },
     );
 
-    await step.do("queue-users-for-processing", {}, async () => {
-      if (userIds.length === 0) {
-        workerLogger.info("No users to queue");
-        return { queued: 0 };
-      }
+    if (userIds.length === 0) {
+      workerLogger.info("No users with active alerts found");
+      return { queued: 0 };
+    }
 
+    await step.do("queue-users-for-processing", {}, async () => {
       try {
-        // Send user IDs to queue in batches (max 100 per Cloudflare limits)
-        const batchSize = 100;
+        workerLogger.info("Queuing users for alert processing", {
+          count: userIds.length,
+        });
+
+        // Queue messages in batches of 100 (Cloudflare's limit per sendBatch call)
+        const BATCH_SIZE = 100;
         let totalQueued = 0;
 
-        for (let i = 0; i < userIds.length; i += batchSize) {
-          const batch = userIds.slice(i, i + batchSize);
-          const messages = batch.map((userId) => ({
-            body: { userId },
-          }));
+        for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+          const batch = userIds.slice(i, i + BATCH_SIZE);
 
-          await this.env.ALERTS_QUEUE.sendBatch(messages);
+          await this.env.ALERTS_QUEUE.sendBatch(
+            batch.map((userId) => ({
+              body: { userId },
+            })),
+          );
+
           totalQueued += batch.length;
 
           workerLogger.info("Queued batch", {
-            batchNumber: Math.floor(i / batchSize) + 1,
+            batchNumber: Math.floor(i / BATCH_SIZE) + 1,
             batchSize: batch.length,
-          });
-
-          addBreadcrumb("Queued batch", {
-            batchNumber: Math.floor(i / batchSize) + 1,
-            batchSize: batch.length,
+            totalQueued,
           });
         }
 
@@ -90,12 +97,20 @@ class CheckFlightAlertsWorkflowBase extends WorkflowEntrypoint<
   }
 }
 
-// Export instrumented workflow
-export const CheckFlightAlertsWorkflow = Sentry.instrumentWorkflowWithSentry(
-  (env: WorkerEnv) => ({
-    dsn: env.SENTRY_DSN,
-    environment: env.SENTRY_ENVIRONMENT || "production",
-    tracesSampleRate: 1.0,
-  }),
+// Export with Sentry instrumentation
+const InstrumentedWorkflow = Sentry.instrumentWorkflowWithSentry(
   CheckFlightAlertsWorkflowBase,
+  "CheckFlightAlertsWorkflow",
+);
+
+// Export with monitor wrapper for cron monitoring
+export const CheckFlightAlertsWorkflow = withSentryMonitor(
+  InstrumentedWorkflow,
+  {
+    slug: "check-flight-alerts-cron",
+    schedule: "0 */6 * * *",
+    checkinMargin: 5,
+    maxRuntime: 30,
+    timezone: "UTC",
+  },
 );
