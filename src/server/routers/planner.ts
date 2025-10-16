@@ -3,11 +3,17 @@ import { PlanItineraryInputSchema } from "../schemas/planner";
 import { planItinerary } from "../services/planner-agent";
 import { createRouter } from "../trpc";
 
+/**
+ * Planner router using AI SDK with streaming RSCs
+ * The planItinerary function returns React Server Components
+ * that can be streamed to the client for real-time updates
+ */
 export const plannerRouter = createRouter().mutation("plan", {
   input: PlanItineraryInputSchema,
   async resolve({ input }) {
     try {
-      return await planItinerary(input);
+      const result = await planItinerary(input);
+      return result;
     } catch (error) {
       if (error instanceof Error) {
         throw new TRPCError({
