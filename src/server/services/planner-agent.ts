@@ -1,15 +1,15 @@
 import { generateText } from "ai";
 import { z } from "zod";
-import { DEFAULT_MODEL, GROQ_CONFIG } from "@/lib/groq/client";
 import { Currency, MaxStops, SeatType, TripType } from "@/lib/fli/models";
+import { DEFAULT_MODEL, GROQ_CONFIG } from "@/lib/groq/client";
 import { logger } from "@/lib/logger";
 import type {
   PlanItineraryInput,
   PlanItineraryOutput,
 } from "../schemas/planner";
 import { searchAirports } from "./airports";
-import { searchCalendarPrices, searchFlights } from "./flights";
 import type { FlightOption } from "./flights";
+import { searchCalendarPrices, searchFlights } from "./flights";
 
 /**
  * AI-powered flight planner agent using Vercel AI SDK
@@ -23,7 +23,7 @@ const tools = {
   searchAirport: {
     description:
       "Search for airports by name, city, country, or IATA/ICAO code. Returns airport details including coordinates.",
-    parameters: z.object({
+    inputSchema: z.object({
       query: z
         .string()
         .describe("Search query (airport name, city, or airport code)"),
@@ -54,7 +54,7 @@ const tools = {
   searchFlightPrices: {
     description:
       "Search for flight prices across a date range. Returns calendar of prices for the specified route.",
-    parameters: z.object({
+    inputSchema: z.object({
       origin: z
         .string()
         .length(3)
@@ -133,7 +133,7 @@ const tools = {
   searchFlightDetails: {
     description:
       "Get detailed flight options for a specific date and route. Returns up to 5 flight options with full details.",
-    parameters: z.object({
+    inputSchema: z.object({
       origin: z.string().length(3).describe("Origin airport IATA code"),
       destination: z
         .string()
@@ -198,7 +198,7 @@ const tools = {
   getPopularRoutes: {
     description:
       "Get popular flight routes for inspiration. Useful when user asks for recommendations or doesn't specify destination.",
-    parameters: z.object({
+    inputSchema: z.object({
       from: z
         .string()
         .length(3)
@@ -280,22 +280,22 @@ export async function planItinerary(
       system: SYSTEM_PROMPT,
       prompt: input.prompt,
       temperature: GROQ_CONFIG.temperature,
-      maxTokens: GROQ_CONFIG.maxTokens,
       tools,
-      maxToolRoundtrips: 5,
       onStepFinish: ({ toolCalls, toolResults }) => {
         // Log tool execution for transparency
         if (toolCalls && toolResults) {
           for (let i = 0; i < toolCalls.length; i++) {
             const call = toolCalls[i];
             const resultItem = toolResults[i];
-            transcript.push({
-              step: transcript.length + 1,
-              tool: call?.toolName || "unknown",
-              input: call?.args as Record<string, unknown>,
-              output: resultItem?.result,
-              timestamp: new Date().toISOString(),
-            });
+            if (call && resultItem) {
+              transcript.push({
+                step: transcript.length + 1,
+                tool: (call as any).toolName || "unknown",
+                input: ((call as any).args || {}) as Record<string, unknown>,
+                output: (resultItem as any).result,
+                timestamp: new Date().toISOString(),
+              });
+            }
           }
         }
       },
