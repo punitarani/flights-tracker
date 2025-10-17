@@ -18,7 +18,11 @@ import {
 } from "../adapters/seats-aero.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
-import { addBreadcrumb, captureException } from "../utils/sentry";
+import {
+  addBreadcrumb,
+  captureException,
+  runWorkflowWithSentry,
+} from "../utils/sentry";
 import { paginateSeatsAeroSearch } from "./process-seats-aero-search-pagination";
 
 /**
@@ -33,14 +37,23 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
   SearchRequestParams
 > {
   async run(event: WorkflowEvent<SearchRequestParams>, step: WorkflowStep) {
-    try {
-      return await this.runWorkflow(event, step);
-    } catch (error) {
-      // This catch block only executes when the entire workflow fails
-      // (i.e., after all step retries and workflow retries are exhausted)
-      await this.handleWorkflowFailure(event, error);
-      throw error;
-    }
+    return runWorkflowWithSentry(
+      this.env,
+      {
+        workflow: "process-seats-aero-search",
+        instanceId: event.instanceId,
+      },
+      async () => {
+        try {
+          return await this.runWorkflow(event, step);
+        } catch (error) {
+          // This catch block only executes when the entire workflow fails
+          // (i.e., after all step retries and workflow retries are exhausted)
+          await this.handleWorkflowFailure(event, error);
+          throw error;
+        }
+      },
+    );
   }
 
   private async runWorkflow(
