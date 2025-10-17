@@ -1,3 +1,4 @@
+import { parallel } from "radash";
 import type { SearchRequestParams } from "@/core/seats-aero.db";
 import type { SeatsAeroSearchRequest } from "@/db/schema";
 import type { AvailabilityTrip } from "@/lib/fli/models/seats-aero";
@@ -104,6 +105,7 @@ export async function paginateSeatsAeroSearch({
           searchRequestId: searchRequest.id,
         });
 
+        // Deduplicate trips by ID
         const uniqueTrips = new Map<string, AvailabilityTrip>();
         for (const availability of response.data) {
           for (const trip of availability.AvailabilityTrips ?? []) {
@@ -111,14 +113,19 @@ export async function paginateSeatsAeroSearch({
           }
         }
 
+        // Process trips in batches of 25 in parallel (max 4 concurrent batches)
         const trips = [...uniqueTrips.values()];
+        const batches: AvailabilityTrip[][] = [];
         for (let start = 0; start < trips.length; start += 25) {
-          const batch = trips.slice(start, start + 25);
+          batches.push(trips.slice(start, start + 25));
+        }
+
+        await parallel(4, batches, async (batch) => {
           await upsertTrips(env, {
             searchRequestId: searchRequest.id,
             trips: batch,
           });
-        }
+        });
 
         const processedThisPage = response.count;
         const newTotal = previousTotal + processedThisPage;

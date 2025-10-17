@@ -10,7 +10,11 @@ export function getSentryOptions(env: WorkerEnv) {
   return {
     dsn: env.SENTRY_DSN,
     environment: env.SENTRY_ENVIRONMENT || "production",
+    // Sample 100% of transactions for performance monitoring
     tracesSampleRate: 1.0,
+    // Enable debug mode (always true for workers as environment is prefixed with "workers-")
+    debug: true,
+    // Enable logs integration
     enableLogs: true,
   };
 }
