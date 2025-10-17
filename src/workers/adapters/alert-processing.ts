@@ -28,7 +28,6 @@ import { getWorkerDb } from "../db";
 import type { WorkerEnv } from "../env";
 import { fetchFlightDataForAlerts } from "../utils/flights-search";
 import { workerLogger } from "../utils/logger";
-import { addBreadcrumb, captureException } from "../utils/sentry";
 import { getUserEmail } from "../utils/user";
 
 const DEDUPLICATION_HOURS = 23;
@@ -274,7 +273,6 @@ export async function processDailyAlertsForUser(
   userId: string,
 ): Promise<{ success: boolean; reason?: string }> {
   workerLogger.info("Starting alert processing for user", { userId });
-  addBreadcrumb("Starting alert processing", { userId });
 
   try {
     // 1. Check email eligibility (time window + 24h limit)
@@ -284,7 +282,6 @@ export async function processDailyAlertsForUser(
         userId,
         reason: eligibility.reason,
       });
-      addBreadcrumb("Skipped email send", { reason: eligibility.reason });
       return { success: true, reason: eligibility.reason };
     }
 
@@ -292,11 +289,8 @@ export async function processDailyAlertsForUser(
     const userEmail = await getUserEmail(env, userId);
     if (!userEmail) {
       workerLogger.warn("No email found for user", { userId });
-      captureException(new Error("No email found for user"), { userId });
       return { success: false, reason: "no-email" };
     }
-
-    addBreadcrumb("User email fetched", { userId });
 
     // 3. Get active daily alerts (reuse existing function)
     const allAlerts = await getAlertsByUser(userId, "active");
@@ -374,10 +368,6 @@ export async function processDailyAlertsForUser(
 
     try {
       await sendNotificationEmail(notificationRequest);
-      addBreadcrumb("Email sent successfully", {
-        userId,
-        alertCount: alertsWithFlights.length,
-      });
 
       await recordNotificationSent(
         userId,
@@ -396,13 +386,6 @@ export async function processDailyAlertsForUser(
           emailError instanceof Error ? emailError.message : String(emailError),
       });
 
-      captureException(emailError, {
-        userId,
-        userEmail,
-        alertCount: alertsWithFlights.length,
-        operation: "send-email",
-      });
-
       await recordNotificationSent(
         userId,
         userEmail,
@@ -418,11 +401,6 @@ export async function processDailyAlertsForUser(
     workerLogger.error("Error processing alerts", {
       userId,
       error: error instanceof Error ? error.message : String(error),
-    });
-
-    captureException(error, {
-      userId,
-      operation: "process-daily-alerts",
     });
 
     return { success: false, reason: "processing-error" };
