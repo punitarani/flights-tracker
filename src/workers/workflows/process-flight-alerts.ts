@@ -17,6 +17,12 @@ import { workerLogger } from "../utils/logger";
 
 interface ProcessAlertsParams {
   userId: string;
+  /**
+   * Force send email regardless of eligibility checks
+   * Used for manual testing/triggers via Cloudflare dashboard
+   * @default false
+   */
+  forceSend?: boolean;
 }
 
 export class ProcessFlightAlertsWorkflow extends WorkflowEntrypoint<
@@ -24,7 +30,7 @@ export class ProcessFlightAlertsWorkflow extends WorkflowEntrypoint<
   ProcessAlertsParams
 > {
   async run(event: WorkflowEvent<ProcessAlertsParams>, step: WorkflowStep) {
-    const { userId } = event.payload;
+    const { userId, forceSend = false } = event.payload;
 
     // Set user context for Sentry
     Sentry.setUser({ id: userId });
@@ -32,6 +38,7 @@ export class ProcessFlightAlertsWorkflow extends WorkflowEntrypoint<
     workerLogger.info("Starting ProcessFlightAlertsWorkflow", {
       userId,
       instanceId: event.instanceId,
+      forceSend,
     });
 
     // Validate user has active alerts (defense-in-depth)
@@ -91,10 +98,14 @@ export class ProcessFlightAlertsWorkflow extends WorkflowEntrypoint<
           {
             name: "process-daily-alerts",
             op: "task.process",
-            attributes: { userId },
+            attributes: { userId, forceSend },
           },
           async () => {
-            const result = await processDailyAlertsForUser(this.env, userId);
+            const result = await processDailyAlertsForUser(
+              this.env,
+              userId,
+              forceSend,
+            );
             return result;
           },
         );

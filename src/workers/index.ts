@@ -104,7 +104,7 @@ const handlers = {
 
         await env.PROCESS_ALERTS_WORKFLOW.create({
           id: instanceId,
-          params: { userId },
+          params: { userId, forceSend: false },
         });
 
         message.ack();
@@ -201,6 +201,80 @@ const handlers = {
           success: true,
           instanceId: instance.id,
           status: await instance.status(),
+        });
+      }
+
+      // Manual trigger for single user alert processing (for testing)
+      if (
+        url.pathname === "/trigger/process-user-alerts" &&
+        request.method === "POST"
+      ) {
+        // Get client information for logging
+        const clientIp = getClientIp(request);
+        const userAgent = getUserAgent(request);
+
+        // Step 1: Validate API key
+        const authResult = validateApiKey(request, env);
+        if (!authResult.authenticated) {
+          workerLogger.warn("Unauthorized user alerts trigger attempt", {
+            reason: authResult.reason,
+            clientIp,
+            userAgent,
+          });
+
+          return Response.json(
+            {
+              error: "Unauthorized",
+              message: authResult.reason,
+            },
+            { status: 401 },
+          );
+        }
+
+        // Step 2: Parse and validate request body
+        const body = (await request.json()) as {
+          userId: string;
+          forceSend?: boolean;
+        };
+
+        if (!body.userId) {
+          return Response.json(
+            {
+              error: "Bad Request",
+              message: "Missing required field: userId",
+            },
+            { status: 400 },
+          );
+        }
+
+        const forceSend = body.forceSend ?? false;
+
+        // Step 3: Create workflow instance
+        const date = new Date().toISOString().split("T")[0];
+        const suffix = forceSend ? "_force" : "_manual";
+        const timestamp = Date.now();
+        const instanceId = `ProcessFlightAlertsWorkflow_${body.userId}_${date}${suffix}_${timestamp}`;
+
+        const instance = await env.PROCESS_ALERTS_WORKFLOW.create({
+          id: instanceId,
+          params: { userId: body.userId, forceSend },
+        });
+
+        // Step 4: Audit log
+        workerLogger.info("Manually triggered ProcessFlightAlertsWorkflow", {
+          instanceId,
+          userId: body.userId,
+          forceSend,
+          clientIp,
+          userAgent,
+          authenticated: true,
+        });
+
+        return Response.json({
+          success: true,
+          instanceId: instance.id,
+          status: await instance.status(),
+          forceSend,
         });
       }
 
@@ -336,6 +410,8 @@ const handlers = {
           debugSentry: "GET /debug-sentry (test Sentry integration)",
           triggerCheck:
             "POST /trigger/check-alerts (manual testing - processes all users)",
+          triggerUserAlerts:
+            "POST /trigger/process-user-alerts (process specific user, body: {userId: string, forceSend?: boolean})",
           triggerSeatsAero:
             "POST /trigger/seats-aero-search (trigger seats.aero data fetch)",
         },
