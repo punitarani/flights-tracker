@@ -1,8 +1,15 @@
 name = "flights-tracker-worker"
 main = "src/workers/index.ts"
 compatibility_date = "2025-09-15"
-compatibility_flags = ["nodejs_compat", "nodejs_als", "nodejs_compat_populate_process_env"]
+compatibility_flags = [
+  "nodejs_compat",
+  "nodejs_als",
+  "nodejs_compat_populate_process_env",
+  "enable_nodejs_http_modules",
+  "enable_nodejs_process_v2"
+]
 upload_source_maps = true
+
 
 # CPU time limit
 [limits]
