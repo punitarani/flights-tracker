@@ -4,7 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mockConsole } from "../test/setup";
-import { setSentryLogger, workerLogger } from "./logger";
+import { workerLogger } from "./logger";
 
 describe("workerLogger", () => {
   let consoleMock: ReturnType<typeof mockConsole>;
@@ -73,31 +73,5 @@ describe("workerLogger", () => {
     expect(
       logEntry.timestamp >= beforeLog && logEntry.timestamp <= afterLog,
     ).toBe(true);
-  });
-
-  test("forwards logs to Sentry logger when available", () => {
-    const sentryInfoCalls: Array<{
-      message: string;
-      attributes?: Record<string, unknown>;
-    }> = [];
-
-    setSentryLogger({
-      info: (message: string, attributes?: Record<string, unknown>) => {
-        sentryInfoCalls.push({ message, attributes });
-      },
-    });
-
-    try {
-      workerLogger.info("Sentry test", { requestId: "req-123" });
-
-      expect(sentryInfoCalls).toHaveLength(1);
-      const [{ message, attributes }] = sentryInfoCalls;
-      expect(message).toBe("Sentry test");
-      expect(attributes).toBeDefined();
-      expect(attributes?.requestId).toBe("req-123");
-      expect(attributes?.timestamp).toBeDefined();
-    } finally {
-      setSentryLogger(undefined);
-    }
   });
 });

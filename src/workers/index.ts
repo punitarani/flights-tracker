@@ -3,11 +3,9 @@
  * Handles cron triggers and queue consumption for flight alert processing
  */
 
-import * as Sentry from "@sentry/cloudflare";
 import type { QueueMessage, WorkerEnv } from "./env";
 import { getClientIp, getUserAgent, validateApiKey } from "./utils/auth";
 import { workerLogger } from "./utils/logger";
-import { captureException, getSentryOptions, setTag } from "./utils/sentry";
 import { CheckFlightAlertsWorkflow } from "./workflows/check-flight-alerts";
 import { ProcessFlightAlertsWorkflow } from "./workflows/process-flight-alerts";
 import { ProcessSeatsAeroSearchWorkflow } from "./workflows/process-seats-aero-search";
@@ -27,9 +25,6 @@ const handlers = {
     env: WorkerEnv,
     _ctx: ExecutionContext,
   ): Promise<void> {
-    setTag("handler", "scheduled");
-    setTag("cron", controller.cron);
-
     try {
       workerLogger.info("Cron triggered", {
         scheduledTime: controller.scheduledTime,
@@ -56,14 +51,6 @@ const handlers = {
         error: error instanceof Error ? error.message : String(error),
       });
 
-      captureException(error, { handler: "scheduled" });
-
-      // Report immediate failure to Sentry monitor
-      Sentry.captureCheckIn({
-        monitorSlug: "check-flight-alerts-cron",
-        status: "error",
-      });
-
       throw error;
     }
   },
@@ -76,9 +63,6 @@ const handlers = {
     env: WorkerEnv,
     _ctx: ExecutionContext,
   ): Promise<void> {
-    setTag("handler", "queue");
-    setTag("batch_size", batch.messages.length);
-
     workerLogger.info("Processing queue batch", {
       messageCount: batch.messages.length,
     });
@@ -115,12 +99,6 @@ const handlers = {
           error: error instanceof Error ? error.message : String(error),
         });
 
-        captureException(error, {
-          userId,
-          messageId: message.id,
-          handler: "queue",
-        });
-
         message.retry({ delaySeconds: 60 });
       }
     }
@@ -134,8 +112,6 @@ const handlers = {
     env: WorkerEnv,
     _ctx: ExecutionContext,
   ): Promise<Response> {
-    setTag("handler", "fetch");
-
     try {
       const url = new URL(request.url);
 
@@ -194,20 +170,6 @@ const handlers = {
           clientIp,
           userAgent,
           authenticated: true,
-        });
-
-        // Send to Sentry for audit trail
-        captureException(new Error("Manual workflow trigger"), {
-          level: "info",
-          tags: {
-            event_type: "manual_trigger",
-            workflow: "check-flight-alerts",
-          },
-          extra: {
-            instanceId,
-            clientIp,
-            userAgent,
-          },
         });
 
         return Response.json({
@@ -353,12 +315,6 @@ const handlers = {
         },
       });
     } catch (error) {
-      captureException(error, {
-        handler: "fetch",
-        url: request.url,
-        method: request.method,
-      });
-
       return Response.json(
         {
           error: "Internal server error",
@@ -370,8 +326,4 @@ const handlers = {
   },
 };
 
-// Wrap handlers with Sentry
-export default Sentry.withSentry(
-  (env: WorkerEnv) => getSentryOptions(env),
-  handlers,
-);
+export default handlers;

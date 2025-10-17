@@ -1,6 +1,6 @@
 # Cloudflare Workers - Flight Alert Processing
 
-Automated flight alert processing using Cloudflare Workflows, Queues, and Sentry monitoring.
+Automated flight alert processing using Cloudflare Workflows and Queues.
 
 ## Architecture Overview
 
@@ -28,7 +28,7 @@ ProcessFlightAlertsWorkflow_{userId}_{date}
 
 ```
 src/workers/                     (~350 lines of Cloudflare-specific code)
-├── index.ts                     # Handlers (scheduled, queue, fetch) + Sentry wrapper
+├── index.ts                     # Handlers (scheduled, queue, fetch)
 ├── env.d.ts                     # Worker environment types
 ├── db.ts                        # Worker DB connection
 ├── workflows/
@@ -39,7 +39,6 @@ src/workers/                     (~350 lines of Cloudflare-specific code)
 │   └── alert-processing.ts      # Processing logic wrapper (parallelized)
 └── utils/                       # Worker-specific utilities
     ├── logger.ts                # Structured logging
-    ├── sentry.ts                # Error tracking & monitoring
     ├── user.ts                  # User email fetching (Supabase)
     └── flights-search.ts        # Flight data API calls (parallelized)
 ```
@@ -183,7 +182,7 @@ compatibility_flags = ["nodejs_compat", "nodejs_als", "nodejs_compat_populate_pr
 bun install
 ```
 
-Installs: `@sentry/cloudflare`, `wrangler`, `@cloudflare/workers-types`
+Installs: `wrangler`, `@cloudflare/workers-types`
 
 ### Step 1: Create Queue
 
@@ -207,8 +206,6 @@ bunx wrangler secret put WORKER_API_KEY  # Generate a strong random key
 
 # Optional (recommended)
 bunx wrangler secret put RESEND_FROM_EMAIL
-bunx wrangler secret put SENTRY_DSN
-bunx wrangler secret put SENTRY_ENVIRONMENT
 bunx wrangler secret put DISABLE_MANUAL_TRIGGERS  # Set to "true" to disable manual HTTP triggers
 ```
 
@@ -223,8 +220,6 @@ bunx wrangler secret put DISABLE_MANUAL_TRIGGERS  # Set to "true" to disable man
 * `WORKER_API_KEY`: Strong random key for manual trigger authentication (generate with: `openssl rand -base64 32`)
 * `DISABLE_MANUAL_TRIGGERS`: Set to `"true"` to completely disable manual HTTP triggers
 * `RESEND_FROM_EMAIL`: Email sender (default: `alerts@graypane.com`)
-* `SENTRY_DSN`: Sentry project DSN (optional but recommended)
-* `SENTRY_ENVIRONMENT`: `production` or `staging`
 
 ### Step 3: Deploy
 
@@ -354,7 +349,7 @@ bun scripts/trigger-alerts.ts --help
 The worker implements multiple layers of security to prevent unauthorized access:
 
 1. **API Key Authentication** - Protects manual HTTP triggers
-2. **Audit Logging** - Tracks all manual triggers with Sentry
+2. **Audit Logging** - Tracks all manual triggers via structured logs
 3. **Workflow Validation** - Validates user data before processing
 4. **Environment-Based Controls** - Ability to disable manual triggers entirely
 
@@ -391,7 +386,7 @@ WORKER_API_KEY=your_key bun run trigger:alerts
 
 ### Audit Logging
 
-All manual workflow triggers are logged to both structured logs and Sentry for audit trail.
+All manual workflow triggers are logged to structured logs for audit trail.
 
 **Logged Information:**
 
@@ -406,9 +401,6 @@ All manual workflow triggers are logged to both structured logs and Sentry for a
 ```bash
 # Live logs
 bun run worker:tail
-
-# Sentry dashboard
-# Events tagged with: event_type=manual_trigger
 ```
 
 ### Workflow Validation
@@ -449,7 +441,7 @@ bunx wrangler secret put DISABLE_MANUAL_TRIGGERS
 1. ✅ Always set `WORKER_API_KEY` to a strong random value
 2. ✅ Store API key securely (password manager, secrets vault)
 3. ✅ Rotate API key periodically (e.g., quarterly)
-4. ✅ Monitor Sentry for unauthorized access attempts
+4. ✅ Monitor worker logs for unauthorized access attempts
 5. ✅ Consider setting `DISABLE_MANUAL_TRIGGERS=true` if manual triggers aren't needed
 
 **API Key Management:**
@@ -489,22 +481,6 @@ Look for these patterns in logs:
 * ❌ Database compromise (separate concern)
 
 ## Monitoring & Observability
-
-### Sentry Integration
-
-Full error tracking and performance monitoring with `@sentry/cloudflare`:
-
-**Features:**
-
-* Automatic exception capture in all handlers
-* Performance monitoring (100% trace sample rate)
-* Breadcrumbs for debugging workflow execution
-* User context tagging (userId)
-* Handler-specific tags (scheduled, queue, fetch)
-* Workflow error tracking with full context
-
-**Configuration:**
-Set `SENTRY_DSN` and `SENTRY_ENVIRONMENT` secrets (see deployment step 2).
 
 ### Cloudflare Dashboard
 
@@ -568,7 +544,7 @@ bun test src/workers/utils/logger.test.ts
 
 **Test Coverage:**
 
-* ✅ **24 tests** - Utils (logger, user, flights-search, sentry)
+* ✅ **20 tests** - Utils (logger, user, flights-search)
 * ✅ **6 tests** - Adapters (alerts-db, alert-processing)
 * ✅ **8 tests** - Workflows (check, process)
 * ✅ **9 tests** - Handlers (scheduled, queue, fetch)
@@ -605,7 +581,7 @@ Alert processing is optimized for maximum concurrency:
 4. ✅ **Durable Execution** - Auto-retry, state persistence
 5. ✅ **Controlled Concurrency** - Max 10 users processed simultaneously
 6. ✅ **Time-Based Sending** - Built-in 6-9 PM UTC window
-7. ✅ **Full Observability** - Sentry error tracking & performance monitoring
+7. ✅ **Full Observability** - Structured logging and Cloudflare monitoring
 8. ✅ **Idempotent** - Instance IDs prevent duplicate processing
 9. ✅ **Optimized Performance** - Parallel async operations throughout
 
@@ -628,8 +604,6 @@ bun run worker:tail  # View live logs
 ```
 
 ### Workflow failures
-
-**Check Sentry dashboard** (if configured) for detailed error context.
 
 **View failed workflow:**
 
@@ -697,5 +671,4 @@ bunx wrangler queues pause-delivery flights-tracker-alerts-queue
 
 * [Cloudflare Workflows Docs](https://developers.cloudflare.com/workflows/)
 * [Cloudflare Queues Docs](https://developers.cloudflare.com/queues/)
-* [Sentry for Cloudflare](https://docs.sentry.io/platforms/javascript/guides/cloudflare/)
 * [Wrangler CLI Reference](https://developers.cloudflare.com/workers/wrangler/commands/)

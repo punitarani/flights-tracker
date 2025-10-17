@@ -8,7 +8,6 @@ import {
 } from "../adapters/seats-aero.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
-import { addBreadcrumb } from "../utils/sentry";
 
 type SeatsAeroSearchResponse = {
   count: number;
@@ -135,13 +134,6 @@ export async function paginateSeatsAeroSearch({
           cursor: response.cursor,
           hasMore: response.hasMore,
           processedCount: newTotal,
-        });
-
-        addBreadcrumb("Processed API page", {
-          pageIndex,
-          count: response.count,
-          totalProcessed: newTotal,
-          hasMore: response.hasMore,
         });
 
         return {

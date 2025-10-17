@@ -18,15 +18,11 @@ import {
 } from "../adapters/seats-aero.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
-import { addBreadcrumb, captureException } from "../utils/sentry";
 import { paginateSeatsAeroSearch } from "./process-seats-aero-search-pagination";
 
 /**
  * ProcessSeatsAeroSearchWorkflow
- *
- * Note: Sentry instrumentation via instrumentWorkflowWithSentry was removed
- * as it interfered with Cloudflare's workflow step execution causing timeouts.
- * Error tracking is preserved through captureException calls within the workflow.
+ * Fetches award flight availability data from seats.aero API in the background
  */
 export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
   WorkerEnv,
@@ -53,12 +49,6 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
       searchStartDate,
       searchEndDate,
     } = event.payload;
-
-    addBreadcrumb("ProcessSeatsAeroSearchWorkflow started", {
-      route: `${originAirport}-${destinationAirport}`,
-      dates: `${searchStartDate} to ${searchEndDate}`,
-      instanceId: event.instanceId,
-    });
 
     workerLogger.info("Starting ProcessSeatsAeroSearchWorkflow", {
       originAirport,
@@ -119,10 +109,6 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
       instanceId: event.instanceId,
     });
 
-    addBreadcrumb("Search completed", {
-      totalProcessed,
-    });
-
     return { success: true, totalProcessed };
   }
 
@@ -163,18 +149,5 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
         instanceId: event.instanceId,
       },
     );
-
-    captureException(error, {
-      workflow: "process-seats-aero-search",
-      searchRequestId: searchRequest.id,
-      route: `${originAirport}-${destinationAirport}`,
-      instanceId: event.instanceId,
-      level: "final_failure",
-    });
-
-    addBreadcrumb("Workflow permanently failed", {
-      searchRequestId: searchRequest.id,
-      error: error instanceof Error ? error.message : String(error),
-    });
   }
 }

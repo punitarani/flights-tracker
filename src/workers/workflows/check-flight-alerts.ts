@@ -12,26 +12,17 @@ import {
 import { getUserIdsWithActiveDailyAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
-import { withSentryMonitor } from "../utils/monitor-wrapper";
-import { addBreadcrumb, captureException } from "../utils/sentry";
 
 /**
  * CheckFlightAlertsWorkflow
  * Triggered by cron every 6 hours
  * Fetches all user IDs with active daily alerts and queues them
- *
- * Note: Sentry instrumentation via instrumentWorkflowWithSentry was removed
- * as it interfered with Cloudflare's workflow step execution causing timeouts.
- * Error tracking is preserved through captureException calls within the workflow.
- * Cron monitoring is still tracked via withSentryMonitor wrapper.
  */
-class CheckFlightAlertsWorkflowClass extends WorkflowEntrypoint<
+export class CheckFlightAlertsWorkflow extends WorkflowEntrypoint<
   WorkerEnv,
   Record<string, never>
 > {
   async run(_event: WorkflowEvent<Record<string, never>>, step: WorkflowStep) {
-    addBreadcrumb("CheckFlightAlertsWorkflow started");
-
     const userIds = await step.do(
       "fetch-user-ids-with-active-alerts",
       {},
@@ -42,12 +33,10 @@ class CheckFlightAlertsWorkflowClass extends WorkflowEntrypoint<
           workerLogger.info("Found users with active alerts", {
             count: ids.length,
           });
-          addBreadcrumb("Fetched user IDs", { count: ids.length });
           return ids;
         } catch (error) {
-          captureException(error, {
-            workflow: "check-flight-alerts",
-            step: "fetch-user-ids",
+          workerLogger.error("Failed to fetch user IDs", {
+            error: error instanceof Error ? error.message : String(error),
           });
           throw error;
         }
@@ -88,12 +77,10 @@ class CheckFlightAlertsWorkflowClass extends WorkflowEntrypoint<
         }
 
         workerLogger.info("Successfully queued all users", { totalQueued });
-        addBreadcrumb("Completed queuing", { totalQueued });
         return { queued: totalQueued };
       } catch (error) {
-        captureException(error, {
-          workflow: "check-flight-alerts",
-          step: "queue-users",
+        workerLogger.error("Failed to queue users", {
+          error: error instanceof Error ? error.message : String(error),
           userCount: userIds.length,
         });
         throw error;
@@ -101,16 +88,3 @@ class CheckFlightAlertsWorkflowClass extends WorkflowEntrypoint<
     });
   }
 }
-
-// Export with monitor wrapper for cron monitoring only
-// instrumentWorkflowWithSentry removed to prevent step execution interference
-export const CheckFlightAlertsWorkflow = withSentryMonitor(
-  CheckFlightAlertsWorkflowClass,
-  {
-    slug: "check-flight-alerts-cron",
-    schedule: "0 */6 * * *",
-    checkinMargin: 5,
-    maxRuntime: 30,
-    timezone: "UTC",
-  },
-);
