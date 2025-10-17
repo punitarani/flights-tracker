@@ -107,7 +107,7 @@ export async function paginateSeatsAeroSearch({
         // Create DB client once for this step to reuse across all batches
         const db = getWorkerDb(env);
 
-        // Stream-process trips in sequential 25-item batches to minimize memory
+        // Stream-process trips in sequential 200-item batches to minimize memory
         // Database handles deduplication via ON CONFLICT on apiTripId
         let batchTrips: AvailabilityTrip[] = [];
 
@@ -116,7 +116,7 @@ export async function paginateSeatsAeroSearch({
             batchTrips.push(trip);
 
             // When we hit batch size, process and clear
-            if (batchTrips.length === 25) {
+            if (batchTrips.length === 200) {
               await upsertTrips(
                 env,
                 {
