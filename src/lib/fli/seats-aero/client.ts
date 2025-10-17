@@ -64,24 +64,42 @@ export class SeatsAeroClient {
 
     const url = `${this.baseUrl}/search?${queryParams.toString()}`;
 
-    const response = await this.fetchImpl(url, {
-      method: "GET",
-      headers: {
-        "Partner-Authorization": this.apiKey,
-        Accept: "application/json",
-      },
-    });
+    // Create AbortController with 5-minute timeout to prevent indefinite hangs
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
 
-    if (!response.ok) {
-      throw new SeatsAeroAPIError(
-        `Search request failed: ${response.statusText}`,
-        response.status,
-        response.statusText,
-      );
+    try {
+      const response = await this.fetchImpl(url, {
+        method: "GET",
+        headers: {
+          "Partner-Authorization": this.apiKey,
+          Accept: "application/json",
+        },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new SeatsAeroAPIError(
+          `Search request failed: ${response.statusText}`,
+          response.status,
+          response.statusText,
+        );
+      }
+
+      const data = await response.json();
+      return SearchResponseSchema.parse(data);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new SeatsAeroAPIError(
+          "Request timeout: seats.aero API did not respond within 5 minutes",
+          408,
+          "Request Timeout",
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data = await response.json();
-    return SearchResponseSchema.parse(data);
   }
 
   /**
