@@ -1,6 +1,6 @@
 /**
  * Adapter for seats-aero.db to work in Cloudflare Worker environment
- * Wraps DB operations with worker DB instance
+ * Provides optimized database operations with proper error handling
  */
 
 import { and, eq, sql } from "drizzle-orm";
@@ -17,6 +17,8 @@ import type { AvailabilityTrip } from "@/lib/fli/models/seats-aero";
 import { parseFlightNumbers } from "@/lib/fli/models/seats-aero";
 import { getWorkerDb } from "../db";
 import type { WorkerEnv } from "../env";
+import { workerLogger } from "../utils/logger";
+import { captureException } from "../utils/sentry";
 
 /**
  * Gets an existing search request if it exists
@@ -118,6 +120,9 @@ export async function failSearchRequest(
     .where(eq(seatsAeroSearchRequest.id, id));
 }
 
+/**
+ * Maps seats.aero cabin class strings to our database enum values
+ */
 const cabinClassMap: Record<
   string,
   "economy" | "business" | "first" | "premium_economy"
@@ -126,6 +131,10 @@ const cabinClassMap: Record<
   business: "business",
   first: "first",
   premium_economy: "premium_economy",
+  // Handle variations
+  "premium economy": "premium_economy",
+  economyplus: "premium_economy",
+  "economy plus": "premium_economy",
 };
 
 type UpsertAvailabilityTripsInput = {
@@ -134,76 +143,158 @@ type UpsertAvailabilityTripsInput = {
 };
 
 /**
- * Bulk upserts availability trips to minimize database round-trips.
+ * Safely transforms an AvailabilityTrip to database format
+ * Handles missing fields and type conversions with proper defaults
+ */
+function transformTripToDbFormat(
+  trip: AvailabilityTrip,
+  searchRequestId: string,
+) {
+  try {
+    // Extract travel date from departure time
+    const travelDate = trip.DepartsAt.split("T")[0];
+    if (!travelDate) {
+      throw new Error(`Invalid DepartsAt format: ${trip.DepartsAt}`);
+    }
+
+    // Parse and validate cabin class
+    const cabinKey = trip.Cabin.toLowerCase().trim();
+    const cabinClass = cabinClassMap[cabinKey] || "economy";
+
+    return {
+      searchRequestId,
+      apiTripId: trip.ID,
+      apiRouteId: trip.RouteID,
+      apiAvailabilityId: trip.AvailabilityID,
+      originAirport: trip.OriginAirport.toUpperCase(),
+      destinationAirport: trip.DestinationAirport.toUpperCase(),
+      travelDate,
+      flightNumbers: parseFlightNumbers(trip.FlightNumbers),
+      carriers: trip.Carriers,
+      aircraftTypes: trip.Aircraft || null,
+      departureTime: trip.DepartsAt,
+      arrivalTime: trip.ArrivesAt,
+      durationMinutes: trip.TotalDuration,
+      stops: trip.Stops,
+      totalDistanceMiles: trip.TotalSegmentDistance,
+      cabinClass,
+      mileageCost: trip.MileageCost,
+      remainingSeats: trip.RemainingSeats,
+      totalTaxes: trip.TotalTaxes.toString(),
+      taxesCurrency: trip.TaxesCurrency || null,
+      taxesCurrencySymbol: trip.TaxesCurrencySymbol || null,
+      source: trip.Source,
+      apiCreatedAt: trip.CreatedAt,
+      apiUpdatedAt: trip.UpdatedAt,
+      rawData: trip,
+    };
+  } catch (error) {
+    workerLogger.error("Failed to transform trip to DB format", {
+      tripId: trip.ID,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
+/**
+ * Bulk upserts availability trips with optimized batch processing.
+ * Uses smaller batches to avoid query size limits and better error isolation.
  */
 export async function upsertAvailabilityTrips(
   env: WorkerEnv,
   input: UpsertAvailabilityTripsInput,
 ): Promise<void> {
-  const db = getWorkerDb(env);
-
   if (input.trips.length === 0) {
     return;
   }
 
-  const values = input.trips.map((trip) => ({
-    searchRequestId: input.searchRequestId,
-    apiTripId: trip.ID,
-    apiRouteId: trip.RouteID,
-    apiAvailabilityId: trip.AvailabilityID,
-    originAirport: trip.OriginAirport.toUpperCase(),
-    destinationAirport: trip.DestinationAirport.toUpperCase(),
-    travelDate: trip.DepartsAt.split("T")[0],
-    flightNumbers: parseFlightNumbers(trip.FlightNumbers),
-    carriers: trip.Carriers,
-    aircraftTypes: trip.Aircraft ?? null,
-    departureTime: trip.DepartsAt,
-    arrivalTime: trip.ArrivesAt,
-    durationMinutes: trip.TotalDuration,
-    stops: trip.Stops,
-    totalDistanceMiles: trip.TotalSegmentDistance,
-    cabinClass: cabinClassMap[trip.Cabin] || "economy",
-    mileageCost: trip.MileageCost,
-    remainingSeats: trip.RemainingSeats,
-    totalTaxes: trip.TotalTaxes.toString(),
-    taxesCurrency: trip.TaxesCurrency || null,
-    taxesCurrencySymbol: trip.TaxesCurrencySymbol || null,
-    source: trip.Source,
-    apiCreatedAt: trip.CreatedAt,
-    apiUpdatedAt: trip.UpdatedAt,
-    rawData: trip,
-  }));
+  const db = getWorkerDb(env);
+  const batchSize = 10; // Reduced from 25 to avoid query size limits
+  const batches = [];
 
-  await db
-    .insert(seatsAeroAvailabilityTrip)
-    .values(values)
-    .onConflictDoUpdate({
-      target: seatsAeroAvailabilityTrip.apiTripId,
-      set: {
-        searchRequestId: sql`${sql.raw("excluded.search_request_id")}`,
-        apiRouteId: sql`${sql.raw("excluded.api_route_id")}`,
-        apiAvailabilityId: sql`${sql.raw("excluded.api_availability_id")}`,
-        originAirport: sql`${sql.raw("excluded.origin_airport")}`,
-        destinationAirport: sql`${sql.raw("excluded.destination_airport")}`,
-        travelDate: sql`${sql.raw("excluded.travel_date")}`,
-        flightNumbers: sql`${sql.raw("excluded.flight_numbers")}`,
-        carriers: sql`${sql.raw("excluded.carriers")}`,
-        aircraftTypes: sql`${sql.raw("excluded.aircraft_types")}`,
-        departureTime: sql`${sql.raw("excluded.departure_time")}`,
-        arrivalTime: sql`${sql.raw("excluded.arrival_time")}`,
-        durationMinutes: sql`${sql.raw("excluded.duration_minutes")}`,
-        stops: sql`${sql.raw("excluded.stops")}`,
-        totalDistanceMiles: sql`${sql.raw("excluded.total_distance_miles")}`,
-        cabinClass: sql`${sql.raw("excluded.cabin_class")}`,
-        mileageCost: sql`${sql.raw("excluded.mileage_cost")}`,
-        remainingSeats: sql`${sql.raw("excluded.remaining_seats")}`,
-        totalTaxes: sql`${sql.raw("excluded.total_taxes")}`,
-        taxesCurrency: sql`${sql.raw("excluded.taxes_currency")}`,
-        taxesCurrencySymbol: sql`${sql.raw("excluded.taxes_currency_symbol")}`,
-        source: sql`${sql.raw("excluded.source")}`,
-        apiCreatedAt: sql`${sql.raw("excluded.api_created_at")}`,
-        apiUpdatedAt: sql`${sql.raw("excluded.api_updated_at")}`,
-        rawData: sql`${sql.raw("excluded.raw_data")}`,
-      },
-    });
+  // Split into smaller batches
+  for (let i = 0; i < input.trips.length; i += batchSize) {
+    batches.push(input.trips.slice(i, i + batchSize));
+  }
+
+  workerLogger.info("Starting batch upsert of availability trips", {
+    totalTrips: input.trips.length,
+    batches: batches.length,
+    batchSize,
+    searchRequestId: input.searchRequestId,
+  });
+
+  // Process batches sequentially to avoid overwhelming the database
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+    const batch = batches[batchIndex];
+
+    try {
+      // Transform all trips in this batch
+      const values = batch.map((trip) =>
+        transformTripToDbFormat(trip, input.searchRequestId),
+      );
+
+      // Bulk upsert with proper SQL EXCLUDED reference
+      await db
+        .insert(seatsAeroAvailabilityTrip)
+        .values(values)
+        .onConflictDoUpdate({
+          target: seatsAeroAvailabilityTrip.apiTripId,
+          set: {
+            searchRequestId: sql.raw("EXCLUDED.search_request_id"),
+            apiRouteId: sql.raw("EXCLUDED.api_route_id"),
+            apiAvailabilityId: sql.raw("EXCLUDED.api_availability_id"),
+            originAirport: sql.raw("EXCLUDED.origin_airport"),
+            destinationAirport: sql.raw("EXCLUDED.destination_airport"),
+            travelDate: sql.raw("EXCLUDED.travel_date"),
+            flightNumbers: sql.raw("EXCLUDED.flight_numbers"),
+            carriers: sql.raw("EXCLUDED.carriers"),
+            aircraftTypes: sql.raw("EXCLUDED.aircraft_types"),
+            departureTime: sql.raw("EXCLUDED.departure_time"),
+            arrivalTime: sql.raw("EXCLUDED.arrival_time"),
+            durationMinutes: sql.raw("EXCLUDED.duration_minutes"),
+            stops: sql.raw("EXCLUDED.stops"),
+            totalDistanceMiles: sql.raw("EXCLUDED.total_distance_miles"),
+            cabinClass: sql.raw("EXCLUDED.cabin_class"),
+            mileageCost: sql.raw("EXCLUDED.mileage_cost"),
+            remainingSeats: sql.raw("EXCLUDED.remaining_seats"),
+            totalTaxes: sql.raw("EXCLUDED.total_taxes"),
+            taxesCurrency: sql.raw("EXCLUDED.taxes_currency"),
+            taxesCurrencySymbol: sql.raw("EXCLUDED.taxes_currency_symbol"),
+            source: sql.raw("EXCLUDED.source"),
+            apiCreatedAt: sql.raw("EXCLUDED.api_created_at"),
+            apiUpdatedAt: sql.raw("EXCLUDED.api_updated_at"),
+            rawData: sql.raw("EXCLUDED.raw_data"),
+          },
+        });
+
+      workerLogger.debug("Batch upsert successful", {
+        batchIndex: batchIndex + 1,
+        batchSize: batch.length,
+      });
+    } catch (error) {
+      workerLogger.error("Batch upsert failed", {
+        batchIndex: batchIndex + 1,
+        batchSize: batch.length,
+        error: error instanceof Error ? error.message : String(error),
+        searchRequestId: input.searchRequestId,
+      });
+
+      captureException(error, {
+        context: "upsertAvailabilityTrips",
+        batchIndex: batchIndex + 1,
+        batchSize: batch.length,
+        searchRequestId: input.searchRequestId,
+      });
+
+      throw error; // Re-throw to allow workflow step retry
+    }
+  }
+
+  workerLogger.info("Completed batch upsert of availability trips", {
+    totalTrips: input.trips.length,
+    batches: batches.length,
+    searchRequestId: input.searchRequestId,
+  });
 }

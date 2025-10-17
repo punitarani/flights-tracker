@@ -279,7 +279,7 @@ export function FlightFiltersPanel({
         refetchTimeoutRef.current = null;
       }
     };
-  }, [price.canRefetch, price.onRefetch]);
+  }, [price.canRefetch, price.onRefetch, price]);
 
   return (
     <Card className="space-y-4 border bg-card/80 p-4 shadow-sm">

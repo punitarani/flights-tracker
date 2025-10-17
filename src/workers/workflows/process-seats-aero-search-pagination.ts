@@ -1,3 +1,4 @@
+import { unique } from "radash";
 import type { SearchRequestParams } from "@/core/seats-aero.db";
 import type { SeatsAeroSearchRequest } from "@/db/schema";
 import type { AvailabilityTrip } from "@/lib/fli/models/seats-aero";
@@ -7,7 +8,7 @@ import {
 } from "../adapters/seats-aero.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
-import { addBreadcrumb } from "../utils/sentry";
+import { addBreadcrumb, captureException } from "../utils/sentry";
 
 type SeatsAeroSearchResponse = {
   count: number;
@@ -104,20 +105,56 @@ export async function paginateSeatsAeroSearch({
           searchRequestId: searchRequest.id,
         });
 
-        const uniqueTrips = new Map<string, AvailabilityTrip>();
+        // Extract and deduplicate trips using radash
+        const allTrips: AvailabilityTrip[] = [];
         for (const availability of response.data) {
-          for (const trip of availability.AvailabilityTrips ?? []) {
-            uniqueTrips.set(trip.ID, trip);
+          if (availability.AvailabilityTrips) {
+            allTrips.push(...availability.AvailabilityTrips);
           }
         }
 
-        const trips = [...uniqueTrips.values()];
-        for (let start = 0; start < trips.length; start += 25) {
-          const batch = trips.slice(start, start + 25);
-          await upsertTrips(env, {
-            searchRequestId: searchRequest.id,
-            trips: batch,
-          });
+        // Deduplicate by trip ID using radash
+        const trips = unique(allTrips, (t) => t.ID);
+
+        workerLogger.info("Processing unique trips", {
+          totalTrips: allTrips.length,
+          uniqueTrips: trips.length,
+          deduped: allTrips.length - trips.length,
+          searchRequestId: searchRequest.id,
+        });
+
+        // Batch trips into groups of 10 for database insertion
+        const batchSize = 10;
+        const batches: AvailabilityTrip[][] = [];
+        for (let start = 0; start < trips.length; start += batchSize) {
+          batches.push(trips.slice(start, start + batchSize));
+        }
+
+        // Process batches sequentially to avoid overwhelming database
+        // Each batch is processed with proper error handling
+        for (let i = 0; i < batches.length; i++) {
+          try {
+            await upsertTrips(env, {
+              searchRequestId: searchRequest.id,
+              trips: batches[i],
+            });
+          } catch (error) {
+            workerLogger.error("Failed to upsert batch", {
+              batchIndex: i + 1,
+              batchSize: batches[i].length,
+              searchRequestId: searchRequest.id,
+              error: error instanceof Error ? error.message : String(error),
+            });
+
+            captureException(error, {
+              context: "pagination-upsert-batch",
+              batchIndex: i + 1,
+              pageIndex,
+              searchRequestId: searchRequest.id,
+            });
+
+            throw error; // Re-throw to trigger step retry
+          }
         }
 
         const processedThisPage = response.count;
