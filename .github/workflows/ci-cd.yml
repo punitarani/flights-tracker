@@ -260,12 +260,16 @@ jobs:
           echo "Message: ${DEPLOY_MESSAGE}"
 
           # Upload version with metadata
-          VERSION_OUTPUT=$(bunx wrangler versions upload \
+          VERSION_ID=$(bunx wrangler versions upload \
             --message "${DEPLOY_MESSAGE}" \
-            --tag "${DEPLOY_TAG}" \
-            --output json)
+            --tag "${DEPLOY_TAG}" 2>&1 | awk '/Version ID:/ {print $3}')
 
-          VERSION_ID=$(echo "${VERSION_OUTPUT}" | jq -r '.id')
+          # Check if the version ID was captured successfully
+          if [ -z "$VERSION_ID" ]; then
+            echo "Failed to capture the version ID."
+            exit 1
+          fi
+          
           echo "Uploaded version: ${VERSION_ID}"
 
           # Deploy the version
