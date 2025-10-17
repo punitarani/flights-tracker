@@ -45,7 +45,9 @@ export class SeatsAeroClient {
   constructor(config: SeatsAeroClientConfig) {
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl ?? "https://seats.aero/partnerapi";
-    this.fetchImpl = config.fetchImpl ?? fetch;
+    // Bind fetch to preserve its context when called as a method
+    // This prevents "Illegal invocation" errors in Cloudflare Workers
+    this.fetchImpl = config.fetchImpl ?? fetch.bind(globalThis);
   }
 
   /**
