@@ -3,6 +3,14 @@
  * Provides mocks and utilities for testing workers without Cloudflare runtime dependencies
  */
 
+import type {
+  ExecutionContext,
+  Message,
+  MessageBatch,
+  Queue,
+  ScheduledController,
+  Workflow,
+} from "@cloudflare/workers-types";
 import type { WorkerEnv } from "../env";
 
 /**

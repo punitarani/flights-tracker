@@ -3,6 +3,11 @@
  * Handles cron triggers and queue consumption for flight alert processing
  */
 
+import type {
+  ExecutionContext,
+  MessageBatch,
+  ScheduledController,
+} from "@cloudflare/workers-types";
 import type { QueueMessage, WorkerEnv } from "./env";
 import { getClientIp, getUserAgent, validateApiKey } from "./utils/auth";
 import { workerLogger } from "./utils/logger";
