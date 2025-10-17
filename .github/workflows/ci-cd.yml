@@ -263,7 +263,7 @@ jobs:
           VERSION_OUTPUT=$(bunx wrangler versions upload \
             --message "${DEPLOY_MESSAGE}" \
             --tag "${DEPLOY_TAG}" \
-            --json)
+            --output json)
 
           VERSION_ID=$(echo "${VERSION_OUTPUT}" | jq -r '.id')
           echo "Uploaded version: ${VERSION_ID}"
