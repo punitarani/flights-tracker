@@ -7,32 +7,16 @@ import * as Sentry from "@sentry/cloudflare";
 import type { WorkerEnv } from "../env";
 
 export function getSentryOptions(env: WorkerEnv) {
-  const options = {
+  return {
     dsn: env.SENTRY_DSN,
     environment: env.SENTRY_ENVIRONMENT || "production",
     // Sample 100% of transactions for performance monitoring
     tracesSampleRate: 1.0,
-    // Enable debug mode for better visibility in development
-    debug: env.SENTRY_ENVIRONMENT !== "production",
+    // Enable debug mode (always true for workers as environment is prefixed with "workers-")
+    debug: true,
     // Enable logs integration
     enableLogs: true,
   };
-
-  // Add breadcrumbs integration if available (not present in test mocks)
-  if (typeof Sentry.breadcrumbsIntegration === "function") {
-    return {
-      ...options,
-      integrations: [
-        Sentry.breadcrumbsIntegration({
-          console: true,
-          fetch: true,
-          xhr: true,
-        }),
-      ],
-    };
-  }
-
-  return options;
 }
 
 export function captureException(
