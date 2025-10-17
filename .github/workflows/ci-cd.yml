@@ -247,39 +247,29 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Deploy to Cloudflare Workers
-        id: deploy
+      - name: Prepare deployment metadata
+        id: metadata
         run: |
-          # Create version with descriptive message and tag
           COMMIT_SHORT="${GITHUB_SHA:0:7}"
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n1)
           DEPLOY_TAG="${GITHUB_REF_NAME}-${GITHUB_RUN_NUMBER}-${COMMIT_SHORT}"
           DEPLOY_MESSAGE="Deploy #${GITHUB_RUN_NUMBER} from ${GITHUB_REF_NAME} by ${GITHUB_ACTOR}: ${COMMIT_MSG}"
-
+          
+          echo "tag=${DEPLOY_TAG}" >> $GITHUB_OUTPUT
+          echo "message=${DEPLOY_MESSAGE}" >> $GITHUB_OUTPUT
+          
           echo "Deploying with tag: ${DEPLOY_TAG}"
           echo "Message: ${DEPLOY_MESSAGE}"
 
-          # Upload version with metadata
-          VERSION_ID=$(bunx wrangler versions upload \
-            --message "${DEPLOY_MESSAGE}" \
-            --tag "${DEPLOY_TAG}" 2>&1 | awk '/Version ID:/ {print $3}')
-
-          # Check if the version ID was captured successfully
-          if [ -z "$VERSION_ID" ]; then
-            echo "Failed to capture the version ID."
-            exit 1
-          fi
-          
-          echo "Uploaded version: ${VERSION_ID}"
-
-          # Deploy the version
-          bunx wrangler versions deploy "${VERSION_ID}" --percentage 100
-
-          echo "version_id=${VERSION_ID}" >> $GITHUB_OUTPUT
-          echo "deploy_tag=${DEPLOY_TAG}" >> $GITHUB_OUTPUT
+      - name: Upload Worker Version
+        id: upload
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: bun
+          command: versions upload --message "${{ steps.metadata.outputs.message }}" --tag "${{ steps.metadata.outputs.tag }}"
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           APP_URL: ${{ secrets.APP_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
@@ -300,11 +290,34 @@ jobs:
           PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
           PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
 
+      - name: Extract Version ID
+        id: version
+        run: |
+          # Extract version ID (UUID format) from wrangler output
+          VERSION_ID=$(echo '${{ steps.upload.outputs.command-output }}' | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -n1)
+          
+          if [ -z "$VERSION_ID" ]; then
+            echo "Failed to extract version ID from output:"
+            echo '${{ steps.upload.outputs.command-output }}'
+            exit 1
+          fi
+          
+          echo "version_id=${VERSION_ID}" >> $GITHUB_OUTPUT
+          echo "Extracted version ID: ${VERSION_ID}"
+
+      - name: Deploy Worker Version
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: bun
+          command: versions deploy ${{ steps.version.outputs.version_id }} --percentage 100
+
       - name: Log deployment details
         run: |
           echo "✅ Deployment complete!"
-          echo "Version ID: ${{ steps.deploy.outputs.version_id }}"
-          echo "Deploy Tag: ${{ steps.deploy.outputs.deploy_tag }}"
+          echo "Version ID: ${{ steps.version.outputs.version_id }}"
+          echo "Deploy Tag: ${{ steps.metadata.outputs.tag }}"
 
       - name: Notify Vercel
         uses: vercel/repository-dispatch/actions/status@v1
