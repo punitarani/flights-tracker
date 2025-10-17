@@ -13,6 +13,7 @@
 
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import * as schema from "@/db/schema";
 import type { WorkerEnv } from "./env";
 
 /**
@@ -25,7 +26,7 @@ import type { WorkerEnv } from "./env";
  * - prepare: false (REQUIRED for Pgbouncer in transaction mode)
  *
  * @param env - Worker environment variables containing DATABASE_URL
- * @returns Drizzle database client instance
+ * @returns Drizzle database client instance with schema
  */
 export function getWorkerDb(env: WorkerEnv) {
   const client = postgres(env.DATABASE_URL, {
@@ -49,5 +50,5 @@ export function getWorkerDb(env: WorkerEnv) {
     // ssl: env.ENVIRONMENT === 'production' ? 'require' : false,
   });
 
-  return drizzle({ client });
+  return drizzle({ client, schema });
 }

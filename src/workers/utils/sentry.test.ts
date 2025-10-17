@@ -15,6 +15,7 @@ describe("Sentry utilities", () => {
       dsn: undefined as any,
       environment: "test",
       tracesSampleRate: 1.0,
+      debug: true, // Non-production environment
       enableLogs: true,
     });
   });
