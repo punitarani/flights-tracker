@@ -32,6 +32,13 @@ export interface WorkerEnv {
   WORKER_API_KEY?: string; // API key for manual trigger authentication
   DISABLE_MANUAL_TRIGGERS?: string; // Set to "true" to disable manual HTTP triggers
 
+  // Version metadata (for Sentry release tracking)
+  CF_VERSION_METADATA?: {
+    id: string;
+    tag?: string;
+    timestamp?: string;
+  };
+
   // Proxy configuration (optional)
   PROXY_ENABLED?: string;
   PROXY_HOST?: string;

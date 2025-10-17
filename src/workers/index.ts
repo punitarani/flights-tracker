@@ -8,9 +8,11 @@ import type {
   MessageBatch,
   ScheduledController,
 } from "@cloudflare/workers-types";
+import * as Sentry from "@sentry/cloudflare";
 import type { QueueMessage, WorkerEnv } from "./env";
 import { getClientIp, getUserAgent, validateApiKey } from "./utils/auth";
 import { workerLogger } from "./utils/logger";
+import { getSentryOptions } from "./utils/sentry";
 import { CheckFlightAlertsWorkflow } from "./workflows/check-flight-alerts";
 import { ProcessFlightAlertsWorkflow } from "./workflows/process-flight-alerts";
 import { ProcessSeatsAeroSearchWorkflow } from "./workflows/process-seats-aero-search";
@@ -28,32 +30,49 @@ const handlers = {
   async scheduled(
     controller: ScheduledController,
     env: WorkerEnv,
-    _ctx: ExecutionContext,
+    ctx: ExecutionContext,
   ): Promise<void> {
-    try {
-      workerLogger.info("Cron triggered", {
-        scheduledTime: controller.scheduledTime,
-      });
+    // Wrap cron execution with Sentry monitoring
+    ctx.waitUntil(
+      Sentry.withMonitor(
+        "check-flight-alerts-cron",
+        async () => {
+          try {
+            workerLogger.info("Cron triggered", {
+              scheduledTime: controller.scheduledTime,
+            });
 
-      // Create unique workflow instance
-      const now = new Date();
-      const instanceId = `CheckFlightAlertsWorkflow_${now.toISOString().split("T")[0]}_${now.toISOString().split("T")[1].substring(0, 5).replace(":", "-")}`;
+            // Create unique workflow instance
+            const now = new Date();
+            const instanceId = `CheckFlightAlertsWorkflow_${now.toISOString().split("T")[0]}_${now.toISOString().split("T")[1].substring(0, 5).replace(":", "-")}`;
 
-      const instance = await env.CHECK_ALERTS_WORKFLOW.create({
-        id: instanceId,
-        params: {},
-      });
+            const instance = await env.CHECK_ALERTS_WORKFLOW.create({
+              id: instanceId,
+              params: {},
+            });
 
-      workerLogger.info("Started CheckFlightAlertsWorkflow", {
-        instanceId: instance.id,
-      });
-    } catch (error) {
-      workerLogger.error("Cron execution failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+            workerLogger.info("Started CheckFlightAlertsWorkflow", {
+              instanceId: instance.id,
+            });
+          } catch (error) {
+            workerLogger.error("Cron execution failed", {
+              error: error instanceof Error ? error.message : String(error),
+            });
 
-      throw error;
-    }
+            throw error;
+          }
+        },
+        {
+          schedule: {
+            type: "crontab",
+            value: "0 */6 * * *",
+          },
+          checkinMargin: 10, // 10 minutes grace period
+          maxRuntime: 60, // Max 60 minutes runtime
+          timezone: "UTC",
+        },
+      ),
+    );
   },
 
   /**
@@ -121,6 +140,11 @@ const handlers = {
           status: "ok",
           timestamp: new Date().toISOString(),
         });
+      }
+
+      // Debug endpoint to test Sentry integration
+      if (url.pathname === "/debug-sentry") {
+        throw new Error("Test Sentry error from Cloudflare Worker!");
       }
 
       // Manual trigger for testing (processes all users)
@@ -309,6 +333,7 @@ const handlers = {
         message: "Flights Tracker Worker",
         endpoints: {
           health: "GET /health",
+          debugSentry: "GET /debug-sentry (test Sentry integration)",
           triggerCheck:
             "POST /trigger/check-alerts (manual testing - processes all users)",
           triggerSeatsAero:
@@ -333,4 +358,5 @@ const handlers = {
   },
 };
 
-export default handlers;
+// Wrap handlers with Sentry for error tracking and performance monitoring
+export default Sentry.withSentry(getSentryOptions, handlers);

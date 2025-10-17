@@ -9,6 +9,7 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
+import * as Sentry from "@sentry/cloudflare";
 import type { SearchRequestParams } from "@/core/seats-aero.db";
 import { createSeatsAeroClient } from "@/lib/fli/seats-aero/client";
 import {
@@ -18,6 +19,7 @@ import {
 } from "../adapters/seats-aero.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
+import { getSentryOptions } from "../utils/sentry";
 import { paginateSeatsAeroSearch } from "./process-seats-aero-search-pagination";
 
 export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
@@ -25,14 +27,22 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
   SearchRequestParams
 > {
   async run(event: WorkflowEvent<SearchRequestParams>, step: WorkflowStep) {
-    try {
-      return await this.runWorkflow(event, step);
-    } catch (error) {
-      // This catch block only executes when the entire workflow fails
-      // (i.e., after all step retries and workflow retries are exhausted)
-      await this.handleWorkflowFailure(event, error);
-      throw error;
-    }
+    // Instrument workflow with Sentry for tracing and error tracking
+    return await Sentry.instrumentWorkflowWithSentry(
+      event,
+      this.env,
+      getSentryOptions,
+      async () => {
+        try {
+          return await this.runWorkflow(event, step);
+        } catch (error) {
+          // This catch block only executes when the entire workflow fails
+          // (i.e., after all step retries and workflow retries are exhausted)
+          await this.handleWorkflowFailure(event, error);
+          throw error;
+        }
+      },
+    );
   }
 
   private async runWorkflow(
@@ -59,29 +69,38 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
       "validate-search-request",
       {},
       async () => {
-        const search = await getSearchRequest(this.env, {
-          originAirport,
-          destinationAirport,
-          searchStartDate,
-          searchEndDate,
-        });
+        return await Sentry.startSpan(
+          {
+            name: "validate-search-request",
+            op: "db.query",
+            attributes: { originAirport, destinationAirport },
+          },
+          async () => {
+            const search = await getSearchRequest(this.env, {
+              originAirport,
+              destinationAirport,
+              searchStartDate,
+              searchEndDate,
+            });
 
-        if (!search) {
-          const error = new Error("Search request not found in database");
-          workerLogger.error("Search request validation failed", {
-            originAirport,
-            destinationAirport,
-            instanceId: event.instanceId,
-          });
-          throw error;
-        }
+            if (!search) {
+              const error = new Error("Search request not found in database");
+              workerLogger.error("Search request validation failed", {
+                originAirport,
+                destinationAirport,
+                instanceId: event.instanceId,
+              });
+              throw error;
+            }
 
-        workerLogger.info("Search request validated", {
-          searchRequestId: search.id,
-          status: search.status,
-        });
+            workerLogger.info("Search request validated", {
+              searchRequestId: search.id,
+              status: search.status,
+            });
 
-        return search;
+            return search;
+          },
+        );
       },
     );
 

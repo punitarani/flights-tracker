@@ -1,7 +1,9 @@
 /**
  * Simple logger for Cloudflare Workers
- * Wrapper around console with structured data
+ * Wrapper around console with structured data and Sentry integration
  */
+
+import * as Sentry from "@sentry/cloudflare";
 
 type LogLevel = "info" | "warn" | "error";
 
@@ -18,12 +20,43 @@ function log(level: LogLevel, message: string, data?: LogAttributes) {
 
   const serialized = JSON.stringify(logEntry);
 
+  // Send to console (for Cloudflare logs)
   if (level === "error") {
     console.error(serialized);
   } else if (level === "warn") {
     console.warn(serialized);
   } else {
     console.log(serialized);
+  }
+
+  // Send to Sentry
+  if (level === "error") {
+    // Capture errors with full context
+    const error =
+      data?.error instanceof Error ? data.error : new Error(message);
+    Sentry.captureException(error, {
+      level: "error",
+      extra: data,
+      tags: {
+        logger: "worker",
+      },
+    });
+  } else if (level === "warn") {
+    // Add warning breadcrumb
+    Sentry.addBreadcrumb({
+      category: "log",
+      message,
+      level: "warning",
+      data,
+    });
+  } else {
+    // Add info breadcrumb
+    Sentry.addBreadcrumb({
+      category: "log",
+      message,
+      level: "info",
+      data,
+    });
   }
 }
 
