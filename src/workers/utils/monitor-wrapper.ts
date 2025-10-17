@@ -11,8 +11,13 @@ import {
   type WorkflowStep,
 } from "cloudflare:workers";
 import * as Sentry from "@sentry/cloudflare";
+import type { WorkerEnv } from "../env";
 import { workerLogger } from "./logger";
-import { addBreadcrumb, captureException } from "./sentry";
+import {
+  addBreadcrumb,
+  captureException,
+  ensureWorkflowSentryInitialized,
+} from "./sentry";
 
 export interface MonitorConfig {
   slug: string;
@@ -43,7 +48,7 @@ export interface MonitoredWorkflowParams {
  * ```
  */
 export function withSentryMonitor<
-  TEnv,
+  TEnv extends WorkerEnv,
   TParams extends Record<string, unknown>,
 >(
   // biome-ignore lint/suspicious/noExplicitAny: ctx type varies by runtime and Sentry instrumentation
@@ -77,6 +82,8 @@ export function withSentryMonitor<
       let checkInId: string | undefined;
 
       try {
+        ensureWorkflowSentryInitialized(this.env);
+
         // Start monitor check-in
         checkInId = Sentry.captureCheckIn(
           {
