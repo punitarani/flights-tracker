@@ -14,7 +14,6 @@ import {
 } from "drizzle-orm/pg-core";
 import type { AlertType } from "@/core/alert-types";
 import type { AlertFilters } from "@/core/filters";
-import type { AvailabilityTrip } from "@/lib/fli/models/seats-aero";
 import type { FlightOption } from "@/server/services/flights";
 import { generateId } from "./id";
 
@@ -179,7 +178,6 @@ export const seatsAeroAvailabilityTrip = pgTable(
     createdAt: timestamp("created_at", { mode: "string" })
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
-    rawData: jsonb("raw_data").notNull().$type<AvailabilityTrip>(),
   },
   (table) => [
     // Main query index: covers origin, dest, date filtering

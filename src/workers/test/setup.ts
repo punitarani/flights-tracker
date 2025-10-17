@@ -69,6 +69,9 @@ export const createMockEnv = (overrides?: Partial<WorkerEnv>): WorkerEnv => ({
   PROCESS_ALERTS_WORKFLOW: createMockWorkflow() as unknown as Workflow,
   SEATS_AERO_SEARCH_WORKFLOW: createMockWorkflow() as unknown as Workflow,
   ALERTS_QUEUE: createMockQueue() as unknown as Queue<QueueMessageBody>,
+  HYPERDRIVE: {
+    connectionString: "postgresql://test:test@localhost:5432/test",
+  } as Hyperdrive,
   ...overrides,
 });
 

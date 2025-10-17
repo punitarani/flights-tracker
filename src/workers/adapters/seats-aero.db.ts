@@ -52,12 +52,14 @@ export async function getSearchRequest(
 
 /**
  * Updates search request progress during pagination
+ * @param db - Optional database client to reuse (avoids creating new client per call)
  */
 export async function updateSearchRequestProgress(
   env: WorkerEnv,
   input: UpdateSearchRequestProgressInput,
+  db?: ReturnType<typeof getWorkerDb>,
 ): Promise<void> {
-  const db = getWorkerDb(env);
+  const dbClient = db ?? getWorkerDb(env);
 
   const updates: Partial<SeatsAeroSearchRequest> = {
     status: "processing",
@@ -73,7 +75,7 @@ export async function updateSearchRequestProgress(
     updates.processedCount = input.processedCount;
   }
 
-  await db
+  await dbClient
     .update(seatsAeroSearchRequest)
     .set(updates)
     .where(eq(seatsAeroSearchRequest.id, input.id));
@@ -135,12 +137,14 @@ type UpsertAvailabilityTripsInput = {
 
 /**
  * Bulk upserts availability trips to minimize database round-trips.
+ * @param db - Optional database client to reuse (avoids creating new client per call)
  */
 export async function upsertAvailabilityTrips(
   env: WorkerEnv,
   input: UpsertAvailabilityTripsInput,
+  db?: ReturnType<typeof getWorkerDb>,
 ): Promise<void> {
-  const db = getWorkerDb(env);
+  const dbClient = db ?? getWorkerDb(env);
 
   if (input.trips.length === 0) {
     return;
@@ -171,10 +175,9 @@ export async function upsertAvailabilityTrips(
     source: trip.Source,
     apiCreatedAt: trip.CreatedAt,
     apiUpdatedAt: trip.UpdatedAt,
-    rawData: trip,
   }));
 
-  await db
+  await dbClient
     .insert(seatsAeroAvailabilityTrip)
     .values(values)
     .onConflictDoUpdate({
@@ -203,7 +206,6 @@ export async function upsertAvailabilityTrips(
         source: sql.raw("excluded.source"),
         apiCreatedAt: sql.raw("excluded.api_created_at"),
         apiUpdatedAt: sql.raw("excluded.api_updated_at"),
-        rawData: sql.raw("excluded.raw_data"),
       },
     });
 }

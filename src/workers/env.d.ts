@@ -11,6 +11,9 @@ export interface WorkerEnv {
   // Queue
   ALERTS_QUEUE: Queue<QueueMessage>;
 
+  // Hyperdrive - Global connection pooling for PostgreSQL
+  HYPERDRIVE: Hyperdrive;
+
   // Environment variables
   DATABASE_URL: string;
   RESEND_API_KEY: string;

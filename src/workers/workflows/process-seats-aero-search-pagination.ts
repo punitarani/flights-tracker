@@ -1,4 +1,3 @@
-import { parallel } from "radash";
 import type { SearchRequestParams } from "@/core/seats-aero.db";
 import type { SeatsAeroSearchRequest } from "@/db/schema";
 import type { AvailabilityTrip } from "@/lib/fli/models/seats-aero";
@@ -6,6 +5,7 @@ import {
   updateSearchRequestProgress,
   upsertAvailabilityTrips,
 } from "../adapters/seats-aero.db";
+import { getWorkerDb } from "../db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
 
@@ -104,37 +104,57 @@ export async function paginateSeatsAeroSearch({
           searchRequestId: searchRequest.id,
         });
 
-        // Deduplicate trips by ID
-        const uniqueTrips = new Map<string, AvailabilityTrip>();
+        // Create DB client once for this step to reuse across all batches
+        const db = getWorkerDb(env);
+
+        // Stream-process trips in sequential 25-item batches to minimize memory
+        // Database handles deduplication via ON CONFLICT on apiTripId
+        let batchTrips: AvailabilityTrip[] = [];
+
         for (const availability of response.data) {
           for (const trip of availability.AvailabilityTrips ?? []) {
-            uniqueTrips.set(trip.ID, trip);
+            batchTrips.push(trip);
+
+            // When we hit batch size, process and clear
+            if (batchTrips.length === 25) {
+              await upsertTrips(
+                env,
+                {
+                  searchRequestId: searchRequest.id,
+                  trips: batchTrips,
+                },
+                db,
+              );
+              batchTrips = [];
+            }
           }
         }
 
-        // Process trips in batches of 25 in parallel (max 4 concurrent batches)
-        const trips = [...uniqueTrips.values()];
-        const batches: AvailabilityTrip[][] = [];
-        for (let start = 0; start < trips.length; start += 25) {
-          batches.push(trips.slice(start, start + 25));
+        // Process remaining trips in final partial batch
+        if (batchTrips.length > 0) {
+          await upsertTrips(
+            env,
+            {
+              searchRequestId: searchRequest.id,
+              trips: batchTrips,
+            },
+            db,
+          );
         }
-
-        await parallel(4, batches, async (batch) => {
-          await upsertTrips(env, {
-            searchRequestId: searchRequest.id,
-            trips: batch,
-          });
-        });
 
         const processedThisPage = response.count;
         const newTotal = previousTotal + processedThisPage;
 
-        await updateProgress(env, {
-          id: searchRequest.id,
-          cursor: response.cursor,
-          hasMore: response.hasMore,
-          processedCount: newTotal,
-        });
+        await updateProgress(
+          env,
+          {
+            id: searchRequest.id,
+            cursor: response.cursor,
+            hasMore: response.hasMore,
+            processedCount: newTotal,
+          },
+          db,
+        );
 
         return {
           cursor: response.cursor,
