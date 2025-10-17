@@ -62,7 +62,7 @@ export class SeatsAeroClient {
 
     const url = `${this.baseUrl}/search?${queryParams.toString()}`;
 
-    const response = await this.fetchImpl(url, {
+    const response = await this.fetchImpl.call(globalThis, url, {
       method: "GET",
       headers: {
         "Partner-Authorization": this.apiKey,
