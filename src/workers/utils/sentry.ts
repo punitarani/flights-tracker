@@ -10,31 +10,31 @@ export function getSentryOptions(env: WorkerEnv) {
   return {
     dsn: env.SENTRY_DSN,
     environment: env.SENTRY_ENVIRONMENT || "production",
-    
+
     // Performance monitoring
     tracesSampleRate: 1.0,
     profilesSampleRate: 1.0,
-    
+
     // Enable application logs integration
     enableLogs: true,
-    
+
     // Workflow tracking
     enableWorkflows: true,
-    
+
     // Better error grouping
     beforeSend: (event) => {
       // Add custom fingerprinting for better grouping
       if (event.exception?.values?.[0]) {
         const error = event.exception.values[0];
         event.fingerprint = [
-          error.type || 'Error',
-          error.value || 'unknown',
-          event.transaction || 'unknown',
+          error.type || "Error",
+          error.value || "unknown",
+          event.transaction || "unknown",
         ];
       }
       return event;
     },
-    
+
     // Integration options
     integrations: [
       // Enable default integrations

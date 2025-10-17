@@ -34,36 +34,36 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
 > {
   async run(event: WorkflowEvent<SearchRequestParams>, step: WorkflowStep) {
     const startTime = Date.now();
-    
+
     try {
       workerLogger.info("Workflow started", {
         instanceId: event.instanceId,
         timestamp: event.timestamp,
         params: event.payload,
       });
-      
+
       const result = await this.runWorkflow(event, step);
-      
+
       const duration = Date.now() - startTime;
       workerLogger.info("Workflow completed successfully", {
         instanceId: event.instanceId,
         duration,
         totalProcessed: result.totalProcessed,
       });
-      
+
       return result;
     } catch (error) {
       // This catch block only executes when the entire workflow fails
       // (i.e., after all step retries and workflow retries are exhausted)
       const duration = Date.now() - startTime;
-      
+
       workerLogger.error("Workflow failed permanently", {
         instanceId: event.instanceId,
         duration,
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       });
-      
+
       await this.handleWorkflowFailure(event, error);
       throw error;
     }
@@ -150,12 +150,12 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
       },
       async () => {
         await completeSearchRequest(this.env, searchRequest.id);
-        
+
         workerLogger.info("Marked search as completed", {
           searchRequestId: searchRequest.id,
           totalProcessed,
         });
-        
+
         return { completed: true };
       },
     );

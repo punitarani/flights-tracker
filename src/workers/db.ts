@@ -29,10 +29,10 @@ const clientCache = new Map<string, postgres.Sql>();
  */
 export function getWorkerDb(env: WorkerEnv) {
   const dbUrl = env.DATABASE_URL;
-  
+
   // Check cache first
   let client = clientCache.get(dbUrl);
-  
+
   if (!client) {
     // Create new client with optimized settings
     client = postgres(dbUrl, {
@@ -40,20 +40,20 @@ export function getWorkerDb(env: WorkerEnv) {
       max: 1, // Single connection per worker
       idle_timeout: 20, // Close idle connections quickly
       connect_timeout: 10, // Fail fast on connection issues
-      
+
       // CRITICAL: Disable prepared statements for Pgbouncer
       prepare: false,
-      
+
       // Performance optimizations
       transform: undefined, // Disable type parsing for better perf
-      
+
       // Connection settings
       keep_alive: 5, // Keep connection alive
       connection: {
         application_name: "flights-tracker-worker",
       },
     });
-    
+
     // Cache the client
     clientCache.set(dbUrl, client);
   }
@@ -68,6 +68,6 @@ export function getWorkerDb(env: WorkerEnv) {
 export async function closeAllConnections(): Promise<void> {
   const clients = Array.from(clientCache.values());
   clientCache.clear();
-  
-  await Promise.all(clients.map(client => client.end()));
+
+  await Promise.all(clients.map((client) => client.end()));
 }

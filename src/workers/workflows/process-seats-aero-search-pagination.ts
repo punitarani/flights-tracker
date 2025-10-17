@@ -1,7 +1,7 @@
+import { unique } from "radash";
 import type { SearchRequestParams } from "@/core/seats-aero.db";
 import type { SeatsAeroSearchRequest } from "@/db/schema";
 import type { AvailabilityTrip } from "@/lib/fli/models/seats-aero";
-import { parallel, unique } from "radash";
 import {
   updateSearchRequestProgress,
   upsertAvailabilityTrips,
@@ -112,10 +112,10 @@ export async function paginateSeatsAeroSearch({
             allTrips.push(...availability.AvailabilityTrips);
           }
         }
-        
+
         // Deduplicate by trip ID using radash
         const trips = unique(allTrips, (t) => t.ID);
-        
+
         workerLogger.info("Processing unique trips", {
           totalTrips: allTrips.length,
           uniqueTrips: trips.length,
@@ -145,14 +145,14 @@ export async function paginateSeatsAeroSearch({
               searchRequestId: searchRequest.id,
               error: error instanceof Error ? error.message : String(error),
             });
-            
+
             captureException(error, {
               context: "pagination-upsert-batch",
               batchIndex: i + 1,
               pageIndex,
               searchRequestId: searchRequest.id,
             });
-            
+
             throw error; // Re-throw to trigger step retry
           }
         }

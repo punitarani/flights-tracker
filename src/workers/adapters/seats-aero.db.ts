@@ -228,7 +228,7 @@ export async function upsertAvailabilityTrips(
   // Process batches sequentially to avoid overwhelming the database
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex];
-    
+
     try {
       // Transform all trips in this batch
       const values = batch.map((trip) =>
@@ -242,30 +242,30 @@ export async function upsertAvailabilityTrips(
         .onConflictDoUpdate({
           target: seatsAeroAvailabilityTrip.apiTripId,
           set: {
-            searchRequestId: sql.raw('EXCLUDED.search_request_id'),
-            apiRouteId: sql.raw('EXCLUDED.api_route_id'),
-            apiAvailabilityId: sql.raw('EXCLUDED.api_availability_id'),
-            originAirport: sql.raw('EXCLUDED.origin_airport'),
-            destinationAirport: sql.raw('EXCLUDED.destination_airport'),
-            travelDate: sql.raw('EXCLUDED.travel_date'),
-            flightNumbers: sql.raw('EXCLUDED.flight_numbers'),
-            carriers: sql.raw('EXCLUDED.carriers'),
-            aircraftTypes: sql.raw('EXCLUDED.aircraft_types'),
-            departureTime: sql.raw('EXCLUDED.departure_time'),
-            arrivalTime: sql.raw('EXCLUDED.arrival_time'),
-            durationMinutes: sql.raw('EXCLUDED.duration_minutes'),
-            stops: sql.raw('EXCLUDED.stops'),
-            totalDistanceMiles: sql.raw('EXCLUDED.total_distance_miles'),
-            cabinClass: sql.raw('EXCLUDED.cabin_class'),
-            mileageCost: sql.raw('EXCLUDED.mileage_cost'),
-            remainingSeats: sql.raw('EXCLUDED.remaining_seats'),
-            totalTaxes: sql.raw('EXCLUDED.total_taxes'),
-            taxesCurrency: sql.raw('EXCLUDED.taxes_currency'),
-            taxesCurrencySymbol: sql.raw('EXCLUDED.taxes_currency_symbol'),
-            source: sql.raw('EXCLUDED.source'),
-            apiCreatedAt: sql.raw('EXCLUDED.api_created_at'),
-            apiUpdatedAt: sql.raw('EXCLUDED.api_updated_at'),
-            rawData: sql.raw('EXCLUDED.raw_data'),
+            searchRequestId: sql.raw("EXCLUDED.search_request_id"),
+            apiRouteId: sql.raw("EXCLUDED.api_route_id"),
+            apiAvailabilityId: sql.raw("EXCLUDED.api_availability_id"),
+            originAirport: sql.raw("EXCLUDED.origin_airport"),
+            destinationAirport: sql.raw("EXCLUDED.destination_airport"),
+            travelDate: sql.raw("EXCLUDED.travel_date"),
+            flightNumbers: sql.raw("EXCLUDED.flight_numbers"),
+            carriers: sql.raw("EXCLUDED.carriers"),
+            aircraftTypes: sql.raw("EXCLUDED.aircraft_types"),
+            departureTime: sql.raw("EXCLUDED.departure_time"),
+            arrivalTime: sql.raw("EXCLUDED.arrival_time"),
+            durationMinutes: sql.raw("EXCLUDED.duration_minutes"),
+            stops: sql.raw("EXCLUDED.stops"),
+            totalDistanceMiles: sql.raw("EXCLUDED.total_distance_miles"),
+            cabinClass: sql.raw("EXCLUDED.cabin_class"),
+            mileageCost: sql.raw("EXCLUDED.mileage_cost"),
+            remainingSeats: sql.raw("EXCLUDED.remaining_seats"),
+            totalTaxes: sql.raw("EXCLUDED.total_taxes"),
+            taxesCurrency: sql.raw("EXCLUDED.taxes_currency"),
+            taxesCurrencySymbol: sql.raw("EXCLUDED.taxes_currency_symbol"),
+            source: sql.raw("EXCLUDED.source"),
+            apiCreatedAt: sql.raw("EXCLUDED.api_created_at"),
+            apiUpdatedAt: sql.raw("EXCLUDED.api_updated_at"),
+            rawData: sql.raw("EXCLUDED.raw_data"),
           },
         });
 
