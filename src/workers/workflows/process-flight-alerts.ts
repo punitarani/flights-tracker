@@ -9,7 +9,6 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
-import * as Sentry from "@sentry/cloudflare";
 import { processDailyAlertsForUser } from "../adapters/alert-processing";
 import { userHasActiveAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
@@ -20,7 +19,15 @@ interface ProcessAlertsParams {
   userId: string;
 }
 
-class ProcessFlightAlertsWorkflowBase extends WorkflowEntrypoint<
+/**
+ * ProcessFlightAlertsWorkflow
+ * Processes all alerts for a single user
+ *
+ * Note: Sentry instrumentation via instrumentWorkflowWithSentry was removed
+ * as it interfered with Cloudflare's workflow step execution causing timeouts.
+ * Error tracking is preserved through captureException calls within the workflow.
+ */
+export class ProcessFlightAlertsWorkflow extends WorkflowEntrypoint<
   WorkerEnv,
   ProcessAlertsParams
 > {
@@ -116,13 +123,3 @@ class ProcessFlightAlertsWorkflowBase extends WorkflowEntrypoint<
     return result;
   }
 }
-
-// Export instrumented workflow
-export const ProcessFlightAlertsWorkflow = Sentry.instrumentWorkflowWithSentry(
-  (env: WorkerEnv) => ({
-    dsn: env.SENTRY_DSN,
-    environment: env.SENTRY_ENVIRONMENT || "production",
-    tracesSampleRate: 1.0,
-  }),
-  ProcessFlightAlertsWorkflowBase,
-);

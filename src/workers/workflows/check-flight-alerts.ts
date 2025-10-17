@@ -9,7 +9,6 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
-import * as Sentry from "@sentry/cloudflare";
 import { getUserIdsWithActiveDailyAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
@@ -17,10 +16,16 @@ import { withSentryMonitor } from "../utils/monitor-wrapper";
 import { addBreadcrumb, captureException } from "../utils/sentry";
 
 /**
- * Base workflow that handles the core business logic
- * Separated from monitoring concerns for clean separation of responsibilities
+ * CheckFlightAlertsWorkflow
+ * Triggered by cron every 6 hours
+ * Fetches all user IDs with active daily alerts and queues them
+ *
+ * Note: Sentry instrumentation via instrumentWorkflowWithSentry was removed
+ * as it interfered with Cloudflare's workflow step execution causing timeouts.
+ * Error tracking is preserved through captureException calls within the workflow.
+ * Cron monitoring is still tracked via withSentryMonitor wrapper.
  */
-class CheckFlightAlertsWorkflowBase extends WorkflowEntrypoint<
+class CheckFlightAlertsWorkflowClass extends WorkflowEntrypoint<
   WorkerEnv,
   Record<string, never>
 > {
@@ -97,19 +102,10 @@ class CheckFlightAlertsWorkflowBase extends WorkflowEntrypoint<
   }
 }
 
-// Export with Sentry instrumentation
-const InstrumentedWorkflow = Sentry.instrumentWorkflowWithSentry(
-  (env: WorkerEnv) => ({
-    dsn: env.SENTRY_DSN,
-    environment: env.SENTRY_ENVIRONMENT || "workers-production",
-    tracesSampleRate: 1.0,
-  }),
-  CheckFlightAlertsWorkflowBase,
-);
-
-// Export with monitor wrapper for cron monitoring
+// Export with monitor wrapper for cron monitoring only
+// instrumentWorkflowWithSentry removed to prevent step execution interference
 export const CheckFlightAlertsWorkflow = withSentryMonitor(
-  InstrumentedWorkflow,
+  CheckFlightAlertsWorkflowClass,
   {
     slug: "check-flight-alerts-cron",
     schedule: "0 */6 * * *",
