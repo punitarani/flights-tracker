@@ -1,54 +1,45 @@
 /**
- * Sentry utilities for Cloudflare Workers
- * Uses @sentry/cloudflare with withSentry wrapper in index.ts
+ * Sentry initialization and utilities for Cloudflare Workers
+ * Provides error tracking, performance monitoring, and logging integration
  */
 
-import * as Sentry from "@sentry/cloudflare";
+import type { Options } from "@sentry/cloudflare";
 import type { WorkerEnv } from "../env";
 
-export function getSentryOptions(env: WorkerEnv) {
+/**
+ * Returns Sentry configuration options for worker initialization
+ * Uses environment variables and version metadata from Cloudflare
+ */
+export function getSentryOptions(env: WorkerEnv): Partial<Options> {
   return {
     dsn: env.SENTRY_DSN,
     environment: env.SENTRY_ENVIRONMENT || "production",
-    tracesSampleRate: 1.0,
+
+    // Enable performance tracing
+    tracesSampleRate: env.SENTRY_ENVIRONMENT === "production" ? 0.2 : 1.0,
+
+    // Enable logging integration
     enableLogs: true,
+
+    // Send user IP and request headers for better debugging
+    sendDefaultPii: true,
+
+    // Add release tracking if version metadata is available
+    release: env.CF_VERSION_METADATA?.id,
+
+    // Disable debug logging in production
+    debug: env.SENTRY_ENVIRONMENT !== "production",
+
+    // Add integrations for better error context
+    integrations: [
+      // Console logging integration is automatically added
+    ],
   };
 }
 
-export function captureException(
-  error: unknown,
-  context?: Record<string, unknown>,
-) {
-  Sentry.withScope((scope) => {
-    if (context) {
-      scope.setContext("additional", context);
-    }
-    Sentry.captureException(error);
-  });
+/**
+ * Check if Sentry is enabled based on environment variables
+ */
+export function isSentryEnabled(env: WorkerEnv): boolean {
+  return Boolean(env.SENTRY_DSN);
 }
-
-export function captureMessage(
-  message: string,
-  level: "info" | "warning" | "error" = "info",
-) {
-  Sentry.captureMessage(message, level);
-}
-
-export function setUser(userId: string) {
-  Sentry.setUser({ id: userId });
-}
-
-export function addBreadcrumb(message: string, data?: Record<string, unknown>) {
-  Sentry.addBreadcrumb({
-    message,
-    data,
-    timestamp: Date.now() / 1000,
-  });
-}
-
-export function setTag(key: string, value: string | number) {
-  Sentry.setTag(key, value);
-}
-
-// Re-export for convenience
-export { Sentry };

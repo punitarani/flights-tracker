@@ -212,7 +212,7 @@ export async function failSearchRequest(
  */
 export async function upsertAvailabilityTrip(
   input: UpsertAvailabilityTripInput,
-): Promise<SeatsAeroAvailabilityTrip> {
+): Promise<void> {
   const trip = input.trip;
 
   // Map cabin class from API enum to our schema
@@ -233,7 +233,7 @@ export async function upsertAvailabilityTrip(
     apiAvailabilityId: trip.AvailabilityID,
     originAirport: trip.OriginAirport.toUpperCase(),
     destinationAirport: trip.DestinationAirport.toUpperCase(),
-    travelDate: trip.DepartsAt.split("T")[0], // Extract date from ISO timestamp
+    travelDate: trip.DepartsAt.split("T")[0],
     flightNumbers: parseFlightNumbers(trip.FlightNumbers),
     carriers: trip.Carriers,
     aircraftTypes: trip.Aircraft ?? null,
@@ -254,17 +254,11 @@ export async function upsertAvailabilityTrip(
     rawData: trip,
   };
 
-  // Upsert using ON CONFLICT
-  const result = await db
-    .insert(seatsAeroAvailabilityTrip)
-    .values(values)
-    .onConflictDoUpdate({
-      target: seatsAeroAvailabilityTrip.apiTripId,
-      set: values,
-    })
-    .returning();
-
-  return result[0];
+  // Upsert using ON CONFLICT without returning rows
+  await db.insert(seatsAeroAvailabilityTrip).values(values).onConflictDoUpdate({
+    target: seatsAeroAvailabilityTrip.apiTripId,
+    set: values,
+  });
 }
 
 /**

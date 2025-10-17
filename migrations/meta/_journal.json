@@ -36,6 +36,13 @@
       "when": 1760416577350,
       "tag": "0004_plain_rogue",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1760682054592,
+      "tag": "0005_sour_madame_hydra",
+      "breakpoints": true
     }
   ]
 }

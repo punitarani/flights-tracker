@@ -118,13 +118,7 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
           return true;
         },
       },
-      hydrateOptions: {
-        defaultOptions: {
-          queries: {
-            staleTime: 60 * 60 * 1000,
-          },
-        },
-      },
+      hydrateOptions: undefined,
     }).catch(() => {
       void persistor.removeClient();
     });

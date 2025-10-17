@@ -11,6 +11,9 @@ export interface WorkerEnv {
   // Queue
   ALERTS_QUEUE: Queue<QueueMessage>;
 
+  // Hyperdrive - Global connection pooling for PostgreSQL
+  HYPERDRIVE: Hyperdrive;
+
   // Environment variables
   DATABASE_URL: string;
   RESEND_API_KEY: string;
@@ -28,6 +31,13 @@ export interface WorkerEnv {
   // Security
   WORKER_API_KEY?: string; // API key for manual trigger authentication
   DISABLE_MANUAL_TRIGGERS?: string; // Set to "true" to disable manual HTTP triggers
+
+  // Version metadata (for Sentry release tracking)
+  CF_VERSION_METADATA?: {
+    id: string;
+    tag?: string;
+    timestamp?: string;
+  };
 
   // Proxy configuration (optional)
   PROXY_ENABLED?: string;

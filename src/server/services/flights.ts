@@ -1,3 +1,4 @@
+import { sift, tryit } from "radash";
 import { z } from "zod";
 
 import {
@@ -8,6 +9,7 @@ import {
   type FlightResult,
 } from "@/lib/fli/models";
 import { SearchDates, SearchFlights } from "@/lib/fli/search";
+import { logger } from "@/lib/logger";
 
 import {
   type FlightFiltersInput,
@@ -186,27 +188,66 @@ function normalizeFlightResults(
   results: Array<FlightResult | [FlightResult, FlightResult]>,
   currency?: string,
 ): FlightOption[] {
-  const options: FlightOption[] = [];
+  // Use radash.sift to filter out null values from failed normalizations
+  const options = sift(
+    results.map((entry) => {
+      // Use radash.tryit for safe error handling
+      const [error, option] = tryit(() => {
+        if (Array.isArray(entry)) {
+          const slices = entry.map((slice) => normalizeFlightSlice(slice));
+          const totalPrice = slices.reduce(
+            (sum, slice) => sum + slice.price,
+            0,
+          );
+          return {
+            totalPrice,
+            currency: currency ?? defaultCurrency,
+            slices,
+          };
+        }
 
-  for (const entry of results) {
-    if (Array.isArray(entry)) {
-      const slices = entry.map((slice) => normalizeFlightSlice(slice));
-      const totalPrice = slices.reduce((sum, slice) => sum + slice.price, 0);
-      options.push({
-        totalPrice,
-        currency: currency ?? defaultCurrency,
-        slices,
-      });
-      continue;
-    }
+        const slice = normalizeFlightSlice(entry);
+        return {
+          totalPrice: slice.price,
+          currency: currency ?? defaultCurrency,
+          slices: [slice],
+        };
+      })();
 
-    const slice = normalizeFlightSlice(entry);
-    options.push({
-      totalPrice: slice.price,
-      currency: currency ?? defaultCurrency,
-      slices: [slice],
-    });
-  }
+      if (error) {
+        // Log the error with detailed context including the problematic flight data
+        logger.warn("Skipping flight option due to normalization error", {
+          error,
+          flightData: Array.isArray(entry)
+            ? entry.map((slice) => ({
+                price: slice.price,
+                duration: slice.duration,
+                stops: slice.stops,
+                legs: slice.legs.map((leg) => ({
+                  airline: leg.airline,
+                  flightNumber: leg.flightNumber,
+                  departureAirport: leg.departureAirport,
+                  arrivalAirport: leg.arrivalAirport,
+                })),
+              }))
+            : {
+                price: entry.price,
+                duration: entry.duration,
+                stops: entry.stops,
+                legs: entry.legs.map((leg) => ({
+                  airline: leg.airline,
+                  flightNumber: leg.flightNumber,
+                  departureAirport: leg.departureAirport,
+                  arrivalAirport: leg.arrivalAirport,
+                })),
+              },
+        });
+        return null;
+      }
+
+      return option;
+    }),
+  );
 
   return options;
 }
@@ -238,7 +279,9 @@ function normalizeFlightLeg(leg: FlightLeg): FlightLegSummary {
 function lookupAirportCode(airportName: string): string {
   const code = airportReverseLookup.get(airportName);
   if (!code) {
-    throw new Error(`Unknown airport: ${airportName}`);
+    throw new Error(
+      `Unknown airport: ${airportName ?? "undefined"} (type: ${typeof airportName})`,
+    );
   }
   return code;
 }
@@ -246,7 +289,9 @@ function lookupAirportCode(airportName: string): string {
 function lookupAirlineCode(airlineName: string): string {
   const code = airlineReverseLookup.get(airlineName);
   if (!code) {
-    throw new Error(`Unknown airline: ${airlineName}`);
+    throw new Error(
+      `Unknown airline: ${airlineName ?? "undefined"} (type: ${typeof airlineName})`,
+    );
   }
   return code.replace(/^_/, "");
 }

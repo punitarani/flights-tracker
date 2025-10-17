@@ -19,10 +19,9 @@ import {
 } from "../adapters/seats-aero.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
-import { addBreadcrumb, captureException } from "../utils/sentry";
 import { paginateSeatsAeroSearch } from "./process-seats-aero-search-pagination";
 
-class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
+export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
   WorkerEnv,
   SearchRequestParams
 > {
@@ -48,12 +47,6 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
       searchEndDate,
     } = event.payload;
 
-    addBreadcrumb("ProcessSeatsAeroSearchWorkflow started", {
-      route: `${originAirport}-${destinationAirport}`,
-      dates: `${searchStartDate} to ${searchEndDate}`,
-      instanceId: event.instanceId,
-    });
-
     workerLogger.info("Starting ProcessSeatsAeroSearchWorkflow", {
       originAirport,
       destinationAirport,
@@ -67,29 +60,38 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
       "validate-search-request",
       {},
       async () => {
-        const search = await getSearchRequest(this.env, {
-          originAirport,
-          destinationAirport,
-          searchStartDate,
-          searchEndDate,
-        });
+        return await Sentry.startSpan(
+          {
+            name: "validate-search-request",
+            op: "db.query",
+            attributes: { originAirport, destinationAirport },
+          },
+          async () => {
+            const search = await getSearchRequest(this.env, {
+              originAirport,
+              destinationAirport,
+              searchStartDate,
+              searchEndDate,
+            });
 
-        if (!search) {
-          const error = new Error("Search request not found in database");
-          workerLogger.error("Search request validation failed", {
-            originAirport,
-            destinationAirport,
-            instanceId: event.instanceId,
-          });
-          throw error;
-        }
+            if (!search) {
+              const error = new Error("Search request not found in database");
+              workerLogger.error("Search request validation failed", {
+                originAirport,
+                destinationAirport,
+                instanceId: event.instanceId,
+              });
+              throw error;
+            }
 
-        workerLogger.info("Search request validated", {
-          searchRequestId: search.id,
-          status: search.status,
-        });
+            workerLogger.info("Search request validated", {
+              searchRequestId: search.id,
+              status: search.status,
+            });
 
-        return search;
+            return search;
+          },
+        );
       },
     );
 
@@ -111,10 +113,6 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
       searchRequestId: searchRequest.id,
       totalProcessed,
       instanceId: event.instanceId,
-    });
-
-    addBreadcrumb("Search completed", {
-      totalProcessed,
     });
 
     return { success: true, totalProcessed };
@@ -157,29 +155,5 @@ class ProcessSeatsAeroSearchWorkflowBase extends WorkflowEntrypoint<
         instanceId: event.instanceId,
       },
     );
-
-    captureException(error, {
-      workflow: "process-seats-aero-search",
-      searchRequestId: searchRequest.id,
-      route: `${originAirport}-${destinationAirport}`,
-      instanceId: event.instanceId,
-      level: "final_failure",
-    });
-
-    addBreadcrumb("Workflow permanently failed", {
-      searchRequestId: searchRequest.id,
-      error: error instanceof Error ? error.message : String(error),
-    });
   }
 }
-
-// Export instrumented workflow
-export const ProcessSeatsAeroSearchWorkflow =
-  Sentry.instrumentWorkflowWithSentry(
-    (env: WorkerEnv) => ({
-      dsn: env.SENTRY_DSN,
-      environment: env.SENTRY_ENVIRONMENT || "production",
-      tracesSampleRate: 1.0,
-    }),
-    ProcessSeatsAeroSearchWorkflowBase,
-  );

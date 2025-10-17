@@ -3,11 +3,16 @@
  * Handles cron triggers and queue consumption for flight alert processing
  */
 
+import type {
+  ExecutionContext,
+  MessageBatch,
+  ScheduledController,
+} from "@cloudflare/workers-types";
 import * as Sentry from "@sentry/cloudflare";
 import type { QueueMessage, WorkerEnv } from "./env";
 import { getClientIp, getUserAgent, validateApiKey } from "./utils/auth";
 import { workerLogger } from "./utils/logger";
-import { captureException, getSentryOptions, setTag } from "./utils/sentry";
+import { getSentryOptions } from "./utils/sentry";
 import { CheckFlightAlertsWorkflow } from "./workflows/check-flight-alerts";
 import { ProcessFlightAlertsWorkflow } from "./workflows/process-flight-alerts";
 import { ProcessSeatsAeroSearchWorkflow } from "./workflows/process-seats-aero-search";
@@ -25,47 +30,49 @@ const handlers = {
   async scheduled(
     controller: ScheduledController,
     env: WorkerEnv,
-    _ctx: ExecutionContext,
+    ctx: ExecutionContext,
   ): Promise<void> {
-    setTag("handler", "scheduled");
-    setTag("cron", controller.cron);
+    // Wrap cron execution with Sentry monitoring
+    ctx.waitUntil(
+      Sentry.withMonitor(
+        "check-flight-alerts-cron",
+        async () => {
+          try {
+            workerLogger.info("Cron triggered", {
+              scheduledTime: controller.scheduledTime,
+            });
 
-    try {
-      workerLogger.info("Cron triggered", {
-        scheduledTime: controller.scheduledTime,
-      });
+            // Create unique workflow instance
+            const now = new Date();
+            const instanceId = `CheckFlightAlertsWorkflow_${now.toISOString().split("T")[0]}_${now.toISOString().split("T")[1].substring(0, 5).replace(":", "-")}`;
 
-      // Create unique workflow instance
-      // Monitor tracking is handled by the workflow wrapper
-      const now = new Date();
-      const instanceId = `CheckFlightAlertsWorkflow_${now.toISOString().split("T")[0]}_${now.toISOString().split("T")[1].substring(0, 5).replace(":", "-")}`;
+            const instance = await env.CHECK_ALERTS_WORKFLOW.create({
+              id: instanceId,
+              params: {},
+            });
 
-      const instance = await env.CHECK_ALERTS_WORKFLOW.create({
-        id: instanceId,
-        params: {
-          // Monitor config is applied by default from workflow definition
-          // Pass __monitorConfig to override if needed
+            workerLogger.info("Started CheckFlightAlertsWorkflow", {
+              instanceId: instance.id,
+            });
+          } catch (error) {
+            workerLogger.error("Cron execution failed", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+
+            throw error;
+          }
         },
-      });
-
-      workerLogger.info("Started CheckFlightAlertsWorkflow", {
-        instanceId: instance.id,
-      });
-    } catch (error) {
-      workerLogger.error("Cron execution failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      captureException(error, { handler: "scheduled" });
-
-      // Report immediate failure to Sentry monitor
-      Sentry.captureCheckIn({
-        monitorSlug: "check-flight-alerts-cron",
-        status: "error",
-      });
-
-      throw error;
-    }
+        {
+          schedule: {
+            type: "crontab",
+            value: "0 */6 * * *",
+          },
+          checkinMargin: 10, // 10 minutes grace period
+          maxRuntime: 60, // Max 60 minutes runtime
+          timezone: "UTC",
+        },
+      ),
+    );
   },
 
   /**
@@ -76,9 +83,6 @@ const handlers = {
     env: WorkerEnv,
     _ctx: ExecutionContext,
   ): Promise<void> {
-    setTag("handler", "queue");
-    setTag("batch_size", batch.messages.length);
-
     workerLogger.info("Processing queue batch", {
       messageCount: batch.messages.length,
     });
@@ -100,7 +104,7 @@ const handlers = {
 
         await env.PROCESS_ALERTS_WORKFLOW.create({
           id: instanceId,
-          params: { userId },
+          params: { userId, forceSend: false },
         });
 
         message.ack();
@@ -113,12 +117,6 @@ const handlers = {
         workerLogger.error("Failed to start workflow", {
           userId,
           error: error instanceof Error ? error.message : String(error),
-        });
-
-        captureException(error, {
-          userId,
-          messageId: message.id,
-          handler: "queue",
         });
 
         message.retry({ delaySeconds: 60 });
@@ -134,8 +132,6 @@ const handlers = {
     env: WorkerEnv,
     _ctx: ExecutionContext,
   ): Promise<Response> {
-    setTag("handler", "fetch");
-
     try {
       const url = new URL(request.url);
 
@@ -144,6 +140,11 @@ const handlers = {
           status: "ok",
           timestamp: new Date().toISOString(),
         });
+      }
+
+      // Debug endpoint to test Sentry integration
+      if (url.pathname === "/debug-sentry") {
+        throw new Error("Test Sentry error from Cloudflare Worker!");
       }
 
       // Manual trigger for testing (processes all users)
@@ -196,24 +197,84 @@ const handlers = {
           authenticated: true,
         });
 
-        // Send to Sentry for audit trail
-        captureException(new Error("Manual workflow trigger"), {
-          level: "info",
-          tags: {
-            event_type: "manual_trigger",
-            workflow: "check-flight-alerts",
-          },
-          extra: {
-            instanceId,
+        return Response.json({
+          success: true,
+          instanceId: instance.id,
+          status: await instance.status(),
+        });
+      }
+
+      // Manual trigger for single user alert processing (for testing)
+      if (
+        url.pathname === "/trigger/process-user-alerts" &&
+        request.method === "POST"
+      ) {
+        // Get client information for logging
+        const clientIp = getClientIp(request);
+        const userAgent = getUserAgent(request);
+
+        // Step 1: Validate API key
+        const authResult = validateApiKey(request, env);
+        if (!authResult.authenticated) {
+          workerLogger.warn("Unauthorized user alerts trigger attempt", {
+            reason: authResult.reason,
             clientIp,
             userAgent,
-          },
+          });
+
+          return Response.json(
+            {
+              error: "Unauthorized",
+              message: authResult.reason,
+            },
+            { status: 401 },
+          );
+        }
+
+        // Step 2: Parse and validate request body
+        const body = (await request.json()) as {
+          userId: string;
+          forceSend?: boolean;
+        };
+
+        if (!body.userId) {
+          return Response.json(
+            {
+              error: "Bad Request",
+              message: "Missing required field: userId",
+            },
+            { status: 400 },
+          );
+        }
+
+        const forceSend = body.forceSend ?? false;
+
+        // Step 3: Create workflow instance
+        const date = new Date().toISOString().split("T")[0];
+        const suffix = forceSend ? "_force" : "_manual";
+        const timestamp = Date.now();
+        const instanceId = `ProcessFlightAlertsWorkflow_${body.userId}_${date}${suffix}_${timestamp}`;
+
+        const instance = await env.PROCESS_ALERTS_WORKFLOW.create({
+          id: instanceId,
+          params: { userId: body.userId, forceSend },
+        });
+
+        // Step 4: Audit log
+        workerLogger.info("Manually triggered ProcessFlightAlertsWorkflow", {
+          instanceId,
+          userId: body.userId,
+          forceSend,
+          clientIp,
+          userAgent,
+          authenticated: true,
         });
 
         return Response.json({
           success: true,
           instanceId: instance.id,
           status: await instance.status(),
+          forceSend,
         });
       }
 
@@ -346,15 +407,18 @@ const handlers = {
         message: "Flights Tracker Worker",
         endpoints: {
           health: "GET /health",
+          debugSentry: "GET /debug-sentry (test Sentry integration)",
           triggerCheck:
             "POST /trigger/check-alerts (manual testing - processes all users)",
+          triggerUserAlerts:
+            "POST /trigger/process-user-alerts (process specific user, body: {userId: string, forceSend?: boolean})",
           triggerSeatsAero:
             "POST /trigger/seats-aero-search (trigger seats.aero data fetch)",
         },
       });
     } catch (error) {
-      captureException(error, {
-        handler: "fetch",
+      workerLogger.error("Fetch handler error", {
+        error: error instanceof Error ? error.message : String(error),
         url: request.url,
         method: request.method,
       });
@@ -370,8 +434,5 @@ const handlers = {
   },
 };
 
-// Wrap handlers with Sentry
-export default Sentry.withSentry(
-  (env: WorkerEnv) => getSentryOptions(env),
-  handlers,
-);
+// Wrap handlers with Sentry for error tracking and performance monitoring
+export default Sentry.withSentry(getSentryOptions, handlers);

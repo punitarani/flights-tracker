@@ -3,7 +3,6 @@
  * Wraps and adapts the existing alert processing logic from src/core/
  */
 
-import { desc, eq } from "drizzle-orm";
 import { AlertType } from "@/core/alert-types";
 import {
   getAirportByIata,
@@ -13,9 +12,9 @@ import {
 import {
   createNotificationWithAlerts,
   hasAlertBeenProcessedRecently,
+  hasUserReceivedEmailToday,
 } from "@/core/notifications.db";
 import type { Alert } from "@/db/schema";
-import { notification } from "@/db/schema";
 import { sendNotificationEmail } from "@/lib/notifications";
 import type {
   AlertDescriptor,
@@ -24,11 +23,9 @@ import type {
   NotificationSendRequest,
 } from "@/lib/notifications/types";
 import type { FlightOption } from "@/server/services/flights";
-import { getWorkerDb } from "../db";
 import type { WorkerEnv } from "../env";
 import { fetchFlightDataForAlerts } from "../utils/flights-search";
 import { workerLogger } from "../utils/logger";
-import { addBreadcrumb, captureException } from "../utils/sentry";
 import { getUserEmail } from "../utils/user";
 
 const DEDUPLICATION_HOURS = 23;
@@ -40,46 +37,29 @@ interface AlertWithFlights {
 }
 
 /**
- * Checks if email can be sent based on time window and last notification
+ * Checks if email can be sent based on calendar day logic
+ * Returns true only if no email was sent today (UTC calendar day)
  */
 async function checkEmailEligibility(
-  env: WorkerEnv,
   userId: string,
+  forceSend: boolean,
 ): Promise<{ canSend: boolean; reason?: string }> {
-  const db = getWorkerDb(env);
-  const now = new Date();
-  const hourUTC = now.getUTCHours();
-
-  // Must be 6-9 PM UTC (18:00-21:59)
-  const isInTimeWindow = hourUTC >= 18 && hourUTC < 22;
-
-  if (!isInTimeWindow) {
-    return {
-      canSend: false,
-      reason: `outside-time-window (current hour: ${hourUTC} UTC)`,
-    };
+  // If force send is enabled, skip all checks
+  if (forceSend) {
+    workerLogger.info("Email eligibility check bypassed (forceSend=true)", {
+      userId,
+    });
+    return { canSend: true, reason: "force-send-enabled" };
   }
 
-  // Check last notification from DB
-  const [lastNotification] = await db
-    .select()
-    .from(notification)
-    .where(eq(notification.userId, userId))
-    .orderBy(desc(notification.sentAt))
-    .limit(1);
+  // Check if user already received an email today (UTC calendar day)
+  const receivedToday = await hasUserReceivedEmailToday(userId);
 
-  if (!lastNotification) {
-    return { canSend: true };
-  }
-
-  const lastSentTime = new Date(lastNotification.sentAt).getTime();
-  const timeSinceLastEmail = now.getTime() - lastSentTime;
-  const hoursSinceLastEmail = timeSinceLastEmail / (60 * 60 * 1000);
-
-  if (hoursSinceLastEmail < 24) {
+  if (receivedToday) {
+    workerLogger.info("User already received email today", { userId });
     return {
       canSend: false,
-      reason: `email-sent-recently (${Math.floor(hoursSinceLastEmail)}h ago)`,
+      reason: "email-already-sent-today",
     };
   }
 
@@ -268,23 +248,28 @@ async function recordNotificationSent(
 
 /**
  * Main processing function for a user's daily alerts
+ * @param env - Worker environment bindings
+ * @param userId - User ID to process alerts for
+ * @param forceSend - If true, bypass email eligibility checks (for manual triggers)
  */
 export async function processDailyAlertsForUser(
   env: WorkerEnv,
   userId: string,
+  forceSend = false,
 ): Promise<{ success: boolean; reason?: string }> {
-  workerLogger.info("Starting alert processing for user", { userId });
-  addBreadcrumb("Starting alert processing", { userId });
+  workerLogger.info("Starting alert processing for user", {
+    userId,
+    forceSend,
+  });
 
   try {
-    // 1. Check email eligibility (time window + 24h limit)
-    const eligibility = await checkEmailEligibility(env, userId);
+    // 1. Check email eligibility (calendar day check, unless forceSend=true)
+    const eligibility = await checkEmailEligibility(userId, forceSend);
     if (!eligibility.canSend) {
       workerLogger.info("Skipping - not eligible for email", {
         userId,
         reason: eligibility.reason,
       });
-      addBreadcrumb("Skipped email send", { reason: eligibility.reason });
       return { success: true, reason: eligibility.reason };
     }
 
@@ -292,11 +277,8 @@ export async function processDailyAlertsForUser(
     const userEmail = await getUserEmail(env, userId);
     if (!userEmail) {
       workerLogger.warn("No email found for user", { userId });
-      captureException(new Error("No email found for user"), { userId });
       return { success: false, reason: "no-email" };
     }
-
-    addBreadcrumb("User email fetched", { userId });
 
     // 3. Get active daily alerts (reuse existing function)
     const allAlerts = await getAlertsByUser(userId, "active");
@@ -374,10 +356,6 @@ export async function processDailyAlertsForUser(
 
     try {
       await sendNotificationEmail(notificationRequest);
-      addBreadcrumb("Email sent successfully", {
-        userId,
-        alertCount: alertsWithFlights.length,
-      });
 
       await recordNotificationSent(
         userId,
@@ -396,13 +374,6 @@ export async function processDailyAlertsForUser(
           emailError instanceof Error ? emailError.message : String(emailError),
       });
 
-      captureException(emailError, {
-        userId,
-        userEmail,
-        alertCount: alertsWithFlights.length,
-        operation: "send-email",
-      });
-
       await recordNotificationSent(
         userId,
         userEmail,
@@ -418,11 +389,6 @@ export async function processDailyAlertsForUser(
     workerLogger.error("Error processing alerts", {
       userId,
       error: error instanceof Error ? error.message : String(error),
-    });
-
-    captureException(error, {
-      userId,
-      operation: "process-daily-alerts",
     });
 
     return { success: false, reason: "processing-error" };

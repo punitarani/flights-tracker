@@ -14,29 +14,31 @@ import { processDailyAlertsForUser } from "../adapters/alert-processing";
 import { userHasActiveAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
-import { addBreadcrumb, captureException, setUser } from "../utils/sentry";
 
 interface ProcessAlertsParams {
   userId: string;
+  /**
+   * Force send email regardless of eligibility checks
+   * Used for manual testing/triggers via Cloudflare dashboard
+   * @default false
+   */
+  forceSend?: boolean;
 }
 
-class ProcessFlightAlertsWorkflowBase extends WorkflowEntrypoint<
+export class ProcessFlightAlertsWorkflow extends WorkflowEntrypoint<
   WorkerEnv,
   ProcessAlertsParams
 > {
   async run(event: WorkflowEvent<ProcessAlertsParams>, step: WorkflowStep) {
-    const { userId } = event.payload;
+    const { userId, forceSend = false } = event.payload;
 
-    // Set Sentry user context
-    setUser(userId);
-    addBreadcrumb("ProcessFlightAlertsWorkflow started", {
-      userId,
-      instanceId: event.instanceId,
-    });
+    // Set user context for Sentry
+    Sentry.setUser({ id: userId });
 
     workerLogger.info("Starting ProcessFlightAlertsWorkflow", {
       userId,
       instanceId: event.instanceId,
+      forceSend,
     });
 
     // Validate user has active alerts (defense-in-depth)
@@ -44,18 +46,25 @@ class ProcessFlightAlertsWorkflowBase extends WorkflowEntrypoint<
       "validate-user-has-active-alerts",
       {},
       async () => {
-        const hasAlerts = await userHasActiveAlerts(this.env, userId);
+        return await Sentry.startSpan(
+          {
+            name: "validate-user-has-active-alerts",
+            op: "db.query",
+            attributes: { userId },
+          },
+          async () => {
+            const hasAlerts = await userHasActiveAlerts(this.env, userId);
 
-        if (!hasAlerts) {
-          workerLogger.warn("User has no active alerts", {
-            userId,
-            instanceId: event.instanceId,
-          });
+            if (!hasAlerts) {
+              workerLogger.warn("User has no active alerts", {
+                userId,
+                instanceId: event.instanceId,
+              });
+            }
 
-          addBreadcrumb("Validation failed: no active alerts", { userId });
-        }
-
-        return hasAlerts;
+            return hasAlerts;
+          },
+        );
       },
     );
 
@@ -85,24 +94,21 @@ class ProcessFlightAlertsWorkflowBase extends WorkflowEntrypoint<
         timeout: "10 minutes",
       },
       async () => {
-        try {
-          const result = await processDailyAlertsForUser(this.env, userId);
-
-          addBreadcrumb("Processing completed", {
-            userId,
-            success: result.success,
-            reason: result.reason,
-          });
-
-          return result;
-        } catch (error) {
-          captureException(error, {
-            workflow: "process-flight-alerts",
-            userId,
-            instanceId: event.instanceId,
-          });
-          throw error;
-        }
+        return await Sentry.startSpan(
+          {
+            name: "process-daily-alerts",
+            op: "task.process",
+            attributes: { userId, forceSend },
+          },
+          async () => {
+            const result = await processDailyAlertsForUser(
+              this.env,
+              userId,
+              forceSend,
+            );
+            return result;
+          },
+        );
       },
     );
 
@@ -116,13 +122,3 @@ class ProcessFlightAlertsWorkflowBase extends WorkflowEntrypoint<
     return result;
   }
 }
-
-// Export instrumented workflow
-export const ProcessFlightAlertsWorkflow = Sentry.instrumentWorkflowWithSentry(
-  (env: WorkerEnv) => ({
-    dsn: env.SENTRY_DSN,
-    environment: env.SENTRY_ENVIRONMENT || "production",
-    tracesSampleRate: 1.0,
-  }),
-  ProcessFlightAlertsWorkflowBase,
-);

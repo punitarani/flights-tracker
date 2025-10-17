@@ -1,33 +1,13 @@
 /**
  * Simple logger for Cloudflare Workers
- * Wrapper around console with structured data
+ * Wrapper around console with structured data and Sentry integration
  */
 
-import { Sentry } from "./sentry";
+import * as Sentry from "@sentry/cloudflare";
 
 type LogLevel = "info" | "warn" | "error";
 
 type LogAttributes = Record<string, unknown>;
-
-type SentryLogger = {
-  info?: (message: string, attributes?: LogAttributes) => void;
-  warn?: (message: string, attributes?: LogAttributes) => void;
-  error?: (message: string, attributes?: LogAttributes) => void;
-};
-
-let overrideSentryLogger: SentryLogger | undefined;
-
-const resolveSentryLogger = (): SentryLogger | undefined => {
-  if (overrideSentryLogger) {
-    return overrideSentryLogger;
-  }
-
-  return (Sentry as unknown as { logger?: SentryLogger }).logger;
-};
-
-export const setSentryLogger = (logger?: SentryLogger) => {
-  overrideSentryLogger = logger;
-};
 
 function log(level: LogLevel, message: string, data?: LogAttributes) {
   const timestamp = new Date().toISOString();
@@ -40,6 +20,7 @@ function log(level: LogLevel, message: string, data?: LogAttributes) {
 
   const serialized = JSON.stringify(logEntry);
 
+  // Send to console (for Cloudflare logs)
   if (level === "error") {
     console.error(serialized);
   } else if (level === "warn") {
@@ -48,27 +29,34 @@ function log(level: LogLevel, message: string, data?: LogAttributes) {
     console.log(serialized);
   }
 
-  try {
-    const sentryLogger = resolveSentryLogger();
-    const attributes: LogAttributes = { timestamp, ...(data ?? {}) };
-
-    if (level === "info") {
-      sentryLogger?.info?.(message, attributes);
-    } else if (level === "warn") {
-      sentryLogger?.warn?.(message, attributes);
-    } else if (level === "error") {
-      sentryLogger?.error?.(message, attributes);
-    }
-  } catch (error) {
-    console.warn(
-      JSON.stringify({
-        level: "warn",
-        message: "Failed to send log to Sentry",
-        originalMessage: message,
-        originalLevel: level,
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    );
+  // Send to Sentry
+  if (level === "error") {
+    // Capture errors with full context
+    const error =
+      data?.error instanceof Error ? data.error : new Error(message);
+    Sentry.captureException(error, {
+      level: "error",
+      extra: data,
+      tags: {
+        logger: "worker",
+      },
+    });
+  } else if (level === "warn") {
+    // Add warning breadcrumb
+    Sentry.addBreadcrumb({
+      category: "log",
+      message,
+      level: "warning",
+      data,
+    });
+  } else {
+    // Add info breadcrumb
+    Sentry.addBreadcrumb({
+      category: "log",
+      message,
+      level: "info",
+      data,
+    });
   }
 }
 

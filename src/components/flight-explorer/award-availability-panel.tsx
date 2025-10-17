@@ -7,12 +7,12 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   type TooltipProps,
   XAxis,
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -229,10 +229,11 @@ export function AwardAvailabilityPanel({
   // Show toast notification when searching for award data
   useEffect(() => {
     if (shouldShowSearchToast && !toastIdRef.current) {
-      toastIdRef.current = toast.loading(
-        "Live search in progress for points. Please wait 1-2 minutes.",
-        { duration: 3000 },
-      );
+      toastIdRef.current = toast("Live search in progress for points", {
+        description: "Please wait 1-2 minutes.",
+        duration: 3000,
+        icon: <Loader2 className="h-4 w-4 animate-spin text-primary" />,
+      });
     }
 
     if (!shouldShowSearchToast && toastIdRef.current) {
@@ -265,50 +266,125 @@ export function AwardAvailabilityPanel({
     },
   );
 
-  const {
-    data: trips,
-    isLoading: isLoadingTrips,
-    error: tripsError,
-  } = trpc.useQuery(
-    [
-      "seatsAero.getTrips",
-      {
-        originAirport: originAirport.iata,
-        destinationAirport: destinationAirport.iata,
-        // biome-ignore lint/style/noNonNullAssertion: enabled by selectedDate guard
-        travelDate: selectedDate!,
-        directOnly,
-        maxStops,
-        sources,
-      },
-    ],
-    {
-      enabled: Boolean(selectedDate),
-      refetchInterval: selectedDate && isWorkflowActive ? 5000 : false,
-      refetchOnWindowFocus: false,
-    },
-  );
+  const normalizedSelection = useMemo(() => {
+    try {
+      const selectionDate = selectedDate
+        ? startOfDay(parseISO(selectedDate))
+        : null;
+      const rangeStart = startOfDay(parseISO(startDate));
+      const rangeEnd = startOfDay(parseISO(endDate));
 
-  const cabinSummaries = useMemo(() => {
-    if (!trips) {
-      return [];
+      if (
+        selectionDate &&
+        (isBefore(selectionDate, rangeStart) ||
+          isAfter(selectionDate, rangeEnd))
+      ) {
+        return null;
+      }
+
+      return selectionDate;
+    } catch {
+      return null;
     }
-    return extractCabinSummaries(trips);
-  }, [trips]);
+  }, [endDate, selectedDate, startDate]);
 
   const chartData = useMemo(() => {
     if (!dailyAvailability) return [];
-    return dailyAvailability.map((day) => ({
-      date: day.travelDate,
-      formattedDate: format(parseISO(day.travelDate), "MMM d"),
-      economy: day.economyMinMileage,
-      business: day.businessMinMileage,
-      first: day.firstMinMileage,
-      premiumEconomy: day.premiumEconomyMinMileage,
-    }));
+
+    return dailyAvailability
+      .slice()
+      .sort((a, b) => a.travelDate.localeCompare(b.travelDate))
+      .map((day) => {
+        let formattedDate = day.travelDate;
+        try {
+          const parsed = parseISO(day.travelDate);
+          if (!Number.isNaN(parsed.getTime())) {
+            formattedDate = format(parsed, "MMM d");
+          }
+        } catch {
+          // ignore formatting errors and fall back to ISO string
+        }
+
+        return {
+          date: day.travelDate,
+          formattedDate,
+          economy: day.economyMinMileage,
+          premiumEconomy: day.premiumEconomyMinMileage,
+          business: day.businessMinMileage,
+          first: day.firstMinMileage,
+        };
+      });
   }, [dailyAvailability]);
 
-  const error = dailyError || tripsError;
+  const chartDateLookup = useMemo(() => {
+    return chartData.reduce<Record<string, string | undefined>>(
+      (acc, entry) => {
+        try {
+          const parsed = parseISO(entry.date);
+          if (!Number.isNaN(parsed.getTime())) {
+            acc[entry.date] = format(parsed, "yyyy-MM-dd");
+          }
+        } catch {
+          // ignore parse errors and leave undefined
+        }
+        return acc;
+      },
+      {},
+    );
+  }, [chartData]);
+
+  const handleSelectDate = useCallback(
+    (date: string | null) => {
+      if (!date) {
+        onSelectDate(null);
+        return;
+      }
+
+      const normalized = chartDateLookup[date];
+      if (normalized) {
+        onSelectDate(normalized);
+        return;
+      }
+
+      const fallback = chartData.find((entry) => entry.date === date)?.date;
+      onSelectDate(fallback ?? date ?? null);
+    },
+    [chartData, chartDateLookup, onSelectDate],
+  );
+
+  const handleChartClick = useCallback<
+    NonNullable<React.ComponentProps<typeof LineChart>["onClick"]>
+  >(
+    (chartEvent) => {
+      const nextDate = chartEvent?.activePayload?.[0]?.payload?.date;
+
+      if (typeof nextDate === "string") {
+        handleSelectDate(nextDate);
+      }
+    },
+    [handleSelectDate],
+  );
+
+  const selectedPoint = useMemo(() => {
+    if (!selectedDate || !normalizedSelection) {
+      return null;
+    }
+
+    const normalizedIso = format(normalizedSelection, "yyyy-MM-dd");
+
+    const directMatch = chartData.find((entry) => entry.date === normalizedIso);
+    if (directMatch) {
+      return directMatch;
+    }
+
+    return (
+      chartData.find(
+        (entry) => chartDateLookup[entry.date] === normalizedIso,
+      ) ?? null
+    );
+  }, [chartData, chartDateLookup, normalizedSelection, selectedDate]);
+
+  const error = dailyError;
 
   const dateRangeDisplay = useMemo(() => {
     try {
@@ -321,15 +397,6 @@ export function AwardAvailabilityPanel({
   }, [startDate, endDate]);
 
   const isLoadingInitial = isSearching || isLoadingDaily;
-
-  const handleSelectDate = (date: string | null) => {
-    if (!date) {
-      onSelectDate(null);
-      return;
-    }
-
-    onSelectDate(selectedDate === date ? null : date);
-  };
 
   return (
     <Card className="space-y-4 p-4">
@@ -400,19 +467,29 @@ export function AwardAvailabilityPanel({
                 <LineChart
                   data={chartData}
                   margin={{ left: 12, right: 12 }}
-                  onClick={(data) => {
-                    if (data?.activePayload?.[0]?.payload?.date) {
-                      handleSelectDate(data.activePayload[0].payload.date);
-                    }
-                  }}
+                  onClick={handleChartClick}
                   className="cursor-pointer"
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis
-                    dataKey="formattedDate"
+                    dataKey="date"
                     tickLine={false}
                     axisLine={false}
                     minTickGap={16}
+                    tickFormatter={(value: string) => {
+                      try {
+                        const parsed = parseISO(value);
+                        if (!Number.isNaN(parsed.getTime())) {
+                          return format(parsed, "MMM d");
+                        }
+                      } catch {
+                        // ignore parse errors and fall back to raw value
+                      }
+                      return (
+                        chartData.find((entry) => entry.date === value)
+                          ?.formattedDate ?? value
+                      );
+                    }}
                   />
                   <YAxis
                     tickLine={false}
@@ -431,6 +508,14 @@ export function AwardAvailabilityPanel({
                     height={36}
                     content={<ChartLegendContent />}
                   />
+                  {selectedPoint ? (
+                    <ReferenceLine
+                      x={selectedPoint.date}
+                      stroke="hsl(var(--muted-foreground))"
+                      strokeDasharray="4 4"
+                      isFront
+                    />
+                  ) : null}
                   <Line
                     type="monotone"
                     dataKey="economy"
@@ -471,90 +556,8 @@ export function AwardAvailabilityPanel({
               </ChartContainer>
             </div>
 
-            <div className="space-y-2 rounded-md border bg-muted/40 p-3">
-              {selectedDate ? (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-semibold">
-                      {format(parseISO(selectedDate), "EEEE, MMM d, yyyy")}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Showing the lowest mileage by cabin for this date.
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSelectDate(null)}
-                    className="h-auto px-0 text-xs hover:bg-transparent"
-                  >
-                    Clear selection
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground">
-                  Select a date above to view cabin-level award details.
-                </div>
-              )}
-
-              {selectedDate ? (
-                <div className="space-y-2">
-                  {isLoadingTrips ? (
-                    <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Loading flights...</span>
-                    </div>
-                  ) : cabinSummaries.length > 0 ? (
-                    <div className="space-y-2">
-                      {cabinSummaries.map((cabin) => (
-                        <div
-                          key={cabin.cabinKey}
-                          className="flex items-center justify-between rounded-md border bg-background px-3 py-2"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Plane className="h-4 w-4 text-primary" />
-                            <div>
-                              <span className="text-sm font-medium">
-                                {cabin.cabin}
-                              </span>
-                              <p className="text-xs text-muted-foreground">
-                                {cabin.tripCount}{" "}
-                                {cabin.tripCount === 1 ? "option" : "options"}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            {cabin.minMileage !== null && (
-                              <div className="text-sm font-semibold">
-                                {MILEAGE_FORMATTER.format(cabin.minMileage)}{" "}
-                                miles
-                              </div>
-                            )}
-                            {cabin.directMinMileage !== null && (
-                              <div className="text-xs text-muted-foreground">
-                                Direct:{" "}
-                                {MILEAGE_FORMATTER.format(
-                                  cabin.directMinMileage,
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {trips && trips.length > 0 && (
-                        <p className="pt-1 text-xs text-muted-foreground">
-                          Showing lowest miles from {trips.length} flight
-                          {trips.length === 1 ? "" : "s"}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="py-2 text-sm text-muted-foreground">
-                      No award options found for this date.
-                    </p>
-                  )}
-                </div>
-              ) : null}
+            <div className="text-xs text-muted-foreground">
+              Select a date on the chart to load award details below.
             </div>
           </div>
         )}

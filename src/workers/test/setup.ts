@@ -3,7 +3,38 @@
  * Provides mocks and utilities for testing workers without Cloudflare runtime dependencies
  */
 
+import { beforeEach, mock } from "bun:test";
+import type {
+  ExecutionContext,
+  Message,
+  MessageBatch,
+  Queue,
+  ScheduledController,
+  Workflow,
+} from "@cloudflare/workers-types";
 import type { WorkerEnv } from "../env";
+
+// Mock Sentry to prevent telemetry during tests
+mock.module("@sentry/cloudflare", () => ({
+  withSentry: (_options: unknown, handlers: unknown) => handlers,
+  withMonitor: (_name: string, callback: () => unknown) => callback(),
+  instrumentWorkflowWithSentry: (
+    _event: unknown,
+    _env: unknown,
+    _options: unknown,
+    callback: () => unknown,
+  ) => callback(),
+  startSpan: (_options: unknown, callback: () => unknown) => callback(),
+  captureException: () => {},
+  addBreadcrumb: () => {},
+  setUser: () => {},
+  init: () => {},
+}));
+
+// Clear Sentry mocks before each test
+beforeEach(() => {
+  // Reset any Sentry state if needed
+});
 
 /**
  * Type definitions for mock Cloudflare bindings
@@ -61,6 +92,9 @@ export const createMockEnv = (overrides?: Partial<WorkerEnv>): WorkerEnv => ({
   PROCESS_ALERTS_WORKFLOW: createMockWorkflow() as unknown as Workflow,
   SEATS_AERO_SEARCH_WORKFLOW: createMockWorkflow() as unknown as Workflow,
   ALERTS_QUEUE: createMockQueue() as unknown as Queue<QueueMessageBody>,
+  HYPERDRIVE: {
+    connectionString: "postgresql://test:test@localhost:5432/test",
+  } as Hyperdrive,
   ...overrides,
 });
 

@@ -3,11 +3,11 @@ import type { SeatsAeroSearchRequest } from "@/db/schema";
 import type { AvailabilityTrip } from "@/lib/fli/models/seats-aero";
 import {
   updateSearchRequestProgress,
-  upsertAvailabilityTrip,
+  upsertAvailabilityTrips,
 } from "../adapters/seats-aero.db";
+import { getWorkerDb } from "../db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
-import { addBreadcrumb } from "../utils/sentry";
 
 type SeatsAeroSearchResponse = {
   count: number;
@@ -46,7 +46,7 @@ interface PaginationDependencies {
   params: SearchRequestParams;
   searchRequest: SeatsAeroSearchRequest;
   step: WorkflowStepLike;
-  upsertTrip?: typeof upsertAvailabilityTrip;
+  upsertTrips?: typeof upsertAvailabilityTrips;
   updateProgress?: typeof updateSearchRequestProgress;
 }
 
@@ -60,7 +60,7 @@ export async function paginateSeatsAeroSearch({
   params,
   searchRequest,
   step,
-  upsertTrip = upsertAvailabilityTrip,
+  upsertTrips = upsertAvailabilityTrips,
   updateProgress = updateSearchRequestProgress,
 }: PaginationDependencies): Promise<PaginationResult> {
   let cursor = searchRequest.cursor ?? undefined;
@@ -104,31 +104,57 @@ export async function paginateSeatsAeroSearch({
           searchRequestId: searchRequest.id,
         });
 
+        // Create DB client once for this step to reuse across all batches
+        const db = getWorkerDb(env);
+
+        // Stream-process trips in sequential 200-item batches to minimize memory
+        // Database handles deduplication via ON CONFLICT on apiTripId
+        let batchTrips: AvailabilityTrip[] = [];
+
         for (const availability of response.data) {
           for (const trip of availability.AvailabilityTrips ?? []) {
-            await upsertTrip(env, {
-              searchRequestId: searchRequest.id,
-              trip,
-            });
+            batchTrips.push(trip);
+
+            // When we hit batch size, process and clear
+            if (batchTrips.length === 200) {
+              await upsertTrips(
+                env,
+                {
+                  searchRequestId: searchRequest.id,
+                  trips: batchTrips,
+                },
+                db,
+              );
+              batchTrips = [];
+            }
           }
+        }
+
+        // Process remaining trips in final partial batch
+        if (batchTrips.length > 0) {
+          await upsertTrips(
+            env,
+            {
+              searchRequestId: searchRequest.id,
+              trips: batchTrips,
+            },
+            db,
+          );
         }
 
         const processedThisPage = response.count;
         const newTotal = previousTotal + processedThisPage;
 
-        await updateProgress(env, {
-          id: searchRequest.id,
-          cursor: response.cursor,
-          hasMore: response.hasMore,
-          processedCount: newTotal,
-        });
-
-        addBreadcrumb("Processed API page", {
-          pageIndex,
-          count: response.count,
-          totalProcessed: newTotal,
-          hasMore: response.hasMore,
-        });
+        await updateProgress(
+          env,
+          {
+            id: searchRequest.id,
+            cursor: response.cursor,
+            hasMore: response.hasMore,
+            processedCount: newTotal,
+          },
+          db,
+        );
 
         return {
           cursor: response.cursor,

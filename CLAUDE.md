@@ -123,10 +123,16 @@ A Next.js 15 application for tracking flight alerts with Supabase authentication
   * `alert-processing.ts` - Parallelized alert processing
   * `seats-aero.db.ts` - Seats.aero data access for workers
 * **Utils**: `src/workers/utils/` - Worker-specific utilities
-  * `logger.ts` - Structured logging with context
-  * `sentry.ts` - Error tracking and performance monitoring
+  * `logger.ts` - Structured logging with Sentry breadcrumbs and error capture
+  * `sentry.ts` - Sentry initialization and configuration utilities
   * `user.ts` - User data fetching from Supabase service client
   * `flights-search.ts` - Flight search via shared core logic (no Next.js API dependency)
+* **Observability**: Full Sentry integration with `@sentry/cloudflare`
+  * Worker handlers wrapped with `Sentry.withSentry()` for automatic instrumentation
+  * Workflows use custom `Sentry.startSpan()` inside `step.do()` callbacks only
+  * Custom spans track database queries, API calls, and business logic
+  * Cron monitoring with `Sentry.withMonitor()` tracks scheduled job health
+  * Logger integration sends errors to Sentry and adds breadcrumbs for context
 
 ### Environment Variables
 
@@ -249,6 +255,29 @@ All database IDs use prefixed ULIDs for type safety and debuggability:
 * Manual HTTP triggers require `WORKER_API_KEY` authentication
 * All actions logged to Sentry for audit trail
 * Can disable manual triggers entirely with `DISABLE_MANUAL_TRIGGERS=true`
+
+**Sentry Integration:**
+
+* **Package**: `@sentry/cloudflare` v10.20.0
+* **Configuration**: `src/workers/utils/sentry.ts` exports `getSentryOptions(env)`
+* **Initialization**: Worker handlers wrapped with `Sentry.withSentry()` in `src/workers/index.ts`
+* **Workflow Instrumentation**: Custom spans inside `step.do()` callbacks
+  * **IMPORTANT**: Do NOT use `Sentry.instrumentWorkflowWithSentry()` - it interferes with workflow execution
+  * Spans created only inside `step.do()` callbacks to avoid duplication during workflow resumption
+  * Use `Sentry.startSpan()` to wrap operations inside steps
+  * User context set with `Sentry.setUser({ id: userId })` at workflow start
+* **Cron Monitoring**: Scheduled handler wrapped with `Sentry.withMonitor()`
+  * Monitor name: `check-flight-alerts-cron`
+  * Schedule: `0 */6 * * *`
+  * Check-in margin: 10 minutes
+  * Max runtime: 60 minutes
+* **Custom Spans**: Track database queries (`db.query`), API calls (`http.client`), and task processing (`task.process`)
+* **Logger Integration**: Errors captured with full context, warnings and info logs added as breadcrumbs
+* **Testing**: Sentry SDK mocked in `src/workers/test/setup.ts` to prevent telemetry during tests
+* **Debug Endpoint**: `GET /debug-sentry` throws test error to verify integration
+* **Sample Rates**:
+  * Development: 100% traces (`tracesSampleRate: 1.0`)
+  * Production: 20% traces (`tracesSampleRate: 0.2`)
 
 ### Supabase SSR Pattern
 

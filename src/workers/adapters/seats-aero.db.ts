@@ -3,14 +3,12 @@
  * Wraps DB operations with worker DB instance
  */
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type {
   SearchRequestParams,
   UpdateSearchRequestProgressInput,
-  UpsertAvailabilityTripInput,
 } from "@/core/seats-aero.db";
 import {
-  type SeatsAeroAvailabilityTrip,
   type SeatsAeroSearchRequest,
   seatsAeroAvailabilityTrip,
   seatsAeroSearchRequest,
@@ -54,12 +52,14 @@ export async function getSearchRequest(
 
 /**
  * Updates search request progress during pagination
+ * @param db - Optional database client to reuse (avoids creating new client per call)
  */
 export async function updateSearchRequestProgress(
   env: WorkerEnv,
   input: UpdateSearchRequestProgressInput,
+  db?: ReturnType<typeof getWorkerDb>,
 ): Promise<void> {
-  const db = getWorkerDb(env);
+  const dbClient = db ?? getWorkerDb(env);
 
   const updates: Partial<SeatsAeroSearchRequest> = {
     status: "processing",
@@ -75,7 +75,7 @@ export async function updateSearchRequestProgress(
     updates.processedCount = input.processedCount;
   }
 
-  await db
+  await dbClient
     .update(seatsAeroSearchRequest)
     .set(updates)
     .where(eq(seatsAeroSearchRequest.id, input.id));
@@ -120,35 +120,44 @@ export async function failSearchRequest(
     .where(eq(seatsAeroSearchRequest.id, id));
 }
 
+const cabinClassMap: Record<
+  string,
+  "economy" | "business" | "first" | "premium_economy"
+> = {
+  economy: "economy",
+  business: "business",
+  first: "first",
+  premium_economy: "premium_economy",
+};
+
+type UpsertAvailabilityTripsInput = {
+  searchRequestId: string;
+  trips: AvailabilityTrip[];
+};
+
 /**
- * Upserts an availability trip (inserts or updates on conflict)
+ * Bulk upserts availability trips to minimize database round-trips.
+ * @param db - Optional database client to reuse (avoids creating new client per call)
  */
-export async function upsertAvailabilityTrip(
+export async function upsertAvailabilityTrips(
   env: WorkerEnv,
-  input: UpsertAvailabilityTripInput,
-): Promise<SeatsAeroAvailabilityTrip> {
-  const db = getWorkerDb(env);
-  const trip: AvailabilityTrip = input.trip;
+  input: UpsertAvailabilityTripsInput,
+  db?: ReturnType<typeof getWorkerDb>,
+): Promise<void> {
+  const dbClient = db ?? getWorkerDb(env);
 
-  // Map cabin class from API enum to our schema
-  const cabinClassMap: Record<
-    string,
-    "economy" | "business" | "first" | "premium_economy"
-  > = {
-    economy: "economy",
-    business: "business",
-    first: "first",
-    premium_economy: "premium_economy",
-  };
+  if (input.trips.length === 0) {
+    return;
+  }
 
-  const values = {
+  const values = input.trips.map((trip) => ({
     searchRequestId: input.searchRequestId,
     apiTripId: trip.ID,
     apiRouteId: trip.RouteID,
     apiAvailabilityId: trip.AvailabilityID,
     originAirport: trip.OriginAirport.toUpperCase(),
     destinationAirport: trip.DestinationAirport.toUpperCase(),
-    travelDate: trip.DepartsAt.split("T")[0], // Extract date from ISO timestamp
+    travelDate: trip.DepartsAt.split("T")[0],
     flightNumbers: parseFlightNumbers(trip.FlightNumbers),
     carriers: trip.Carriers,
     aircraftTypes: trip.Aircraft ?? null,
@@ -166,18 +175,37 @@ export async function upsertAvailabilityTrip(
     source: trip.Source,
     apiCreatedAt: trip.CreatedAt,
     apiUpdatedAt: trip.UpdatedAt,
-    rawData: trip,
-  };
+  }));
 
-  // Upsert using ON CONFLICT
-  const result = await db
+  await dbClient
     .insert(seatsAeroAvailabilityTrip)
     .values(values)
     .onConflictDoUpdate({
       target: seatsAeroAvailabilityTrip.apiTripId,
-      set: values,
-    })
-    .returning();
-
-  return result[0];
+      set: {
+        searchRequestId: sql.raw("excluded.search_request_id"),
+        apiRouteId: sql.raw("excluded.api_route_id"),
+        apiAvailabilityId: sql.raw("excluded.api_availability_id"),
+        originAirport: sql.raw("excluded.origin_airport"),
+        destinationAirport: sql.raw("excluded.destination_airport"),
+        travelDate: sql.raw("excluded.travel_date"),
+        flightNumbers: sql.raw("excluded.flight_numbers"),
+        carriers: sql.raw("excluded.carriers"),
+        aircraftTypes: sql.raw("excluded.aircraft_types"),
+        departureTime: sql.raw("excluded.departure_time"),
+        arrivalTime: sql.raw("excluded.arrival_time"),
+        durationMinutes: sql.raw("excluded.duration_minutes"),
+        stops: sql.raw("excluded.stops"),
+        totalDistanceMiles: sql.raw("excluded.total_distance_miles"),
+        cabinClass: sql.raw("excluded.cabin_class"),
+        mileageCost: sql.raw("excluded.mileage_cost"),
+        remainingSeats: sql.raw("excluded.remaining_seats"),
+        totalTaxes: sql.raw("excluded.total_taxes"),
+        taxesCurrency: sql.raw("excluded.taxes_currency"),
+        taxesCurrencySymbol: sql.raw("excluded.taxes_currency_symbol"),
+        source: sql.raw("excluded.source"),
+        apiCreatedAt: sql.raw("excluded.api_created_at"),
+        apiUpdatedAt: sql.raw("excluded.api_updated_at"),
+      },
+    });
 }

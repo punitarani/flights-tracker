@@ -117,6 +117,33 @@ export async function hasAlertBeenProcessedRecently(
 }
 
 /**
+ * Checks if a user has received a notification today (calendar day in UTC)
+ * @param userId - The user ID
+ * @returns True if user received notification today, false otherwise
+ */
+export async function hasUserReceivedEmailToday(
+  userId: string,
+): Promise<boolean> {
+  // Get today's date in UTC (YYYY-MM-DD format)
+  const today = new Date().toISOString().split("T")[0];
+
+  const result = await db
+    .select()
+    .from(notification)
+    .where(
+      and(
+        eq(notification.userId, userId),
+        // Check if sentAt date matches today (comparing date portions)
+        // Note: sentAt is stored as ISO string, so we extract date portion
+        gte(notification.sentAt, `${today}T00:00:00.000Z`),
+      ),
+    )
+    .limit(1);
+
+  return result.length > 0;
+}
+
+/**
  * Gets all notifications for a specific user
  * @param userId - The user ID
  * @param limit - Optional limit on number of results (default: 100)
