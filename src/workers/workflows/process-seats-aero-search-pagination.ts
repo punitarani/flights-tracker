@@ -112,8 +112,8 @@ export async function paginateSeatsAeroSearch({
         }
 
         const trips = [...uniqueTrips.values()];
-        for (let start = 0; start < trips.length; start += 100) {
-          const batch = trips.slice(start, start + 100);
+        for (let start = 0; start < trips.length; start += 25) {
+          const batch = trips.slice(start, start + 25);
           await upsertTrips(env, {
             searchRequestId: searchRequest.id,
             trips: batch,
