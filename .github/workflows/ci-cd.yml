@@ -311,7 +311,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           packageManager: bun
-          command: versions deploy ${{ steps.version.outputs.version_id }} --percentage 100
+          command: versions deploy ${{ steps.version.outputs.version_id }} --percentage 100 --yes
 
       - name: Log deployment details
         run: |
