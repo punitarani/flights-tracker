@@ -33,11 +33,37 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
   SearchRequestParams
 > {
   async run(event: WorkflowEvent<SearchRequestParams>, step: WorkflowStep) {
+    const startTime = Date.now();
+    
     try {
-      return await this.runWorkflow(event, step);
+      workerLogger.info("Workflow started", {
+        instanceId: event.instanceId,
+        timestamp: event.timestamp,
+        params: event.payload,
+      });
+      
+      const result = await this.runWorkflow(event, step);
+      
+      const duration = Date.now() - startTime;
+      workerLogger.info("Workflow completed successfully", {
+        instanceId: event.instanceId,
+        duration,
+        totalProcessed: result.totalProcessed,
+      });
+      
+      return result;
     } catch (error) {
       // This catch block only executes when the entire workflow fails
       // (i.e., after all step retries and workflow retries are exhausted)
+      const duration = Date.now() - startTime;
+      
+      workerLogger.error("Workflow failed permanently", {
+        instanceId: event.instanceId,
+        duration,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      
       await this.handleWorkflowFailure(event, error);
       throw error;
     }
@@ -103,6 +129,7 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
       apiKey: this.env.SEATS_AERO_API_KEY,
     });
 
+    // Step 2: Paginate through seats.aero API and store results
     const { totalProcessed } = await paginateSeatsAeroSearch({
       client,
       env: this.env,
@@ -111,15 +138,36 @@ export class ProcessSeatsAeroSearchWorkflow extends WorkflowEntrypoint<
       step,
     });
 
-    await completeSearchRequest(this.env, searchRequest.id);
+    // Step 3: Mark search as completed (with retry capability)
+    await step.do(
+      "mark-search-completed",
+      {
+        retries: {
+          limit: 3,
+          delay: "5 seconds" as const,
+          backoff: "constant" as const,
+        },
+      },
+      async () => {
+        await completeSearchRequest(this.env, searchRequest.id);
+        
+        workerLogger.info("Marked search as completed", {
+          searchRequestId: searchRequest.id,
+          totalProcessed,
+        });
+        
+        return { completed: true };
+      },
+    );
 
-    workerLogger.info("Completed seats.aero search", {
+    workerLogger.info("Completed seats.aero search workflow", {
       searchRequestId: searchRequest.id,
       totalProcessed,
       instanceId: event.instanceId,
     });
 
     addBreadcrumb("Search completed", {
+      searchRequestId: searchRequest.id,
       totalProcessed,
     });
 
