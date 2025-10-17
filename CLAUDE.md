@@ -62,6 +62,7 @@ A Next.js 15 application for tracking flight alerts with Supabase authentication
   * `flights.ts` - Flight search and data retrieval
   * `airports.ts` - Airport data and search
   * `seats-aero.ts` - Award flight availability searches
+  * `planner.ts` - AI-powered flight planning with streaming RSCs
   * `health.ts` - Health check endpoint
   * `app.ts` - Main router combining all sub-routers
 * **Client Setup**: `src/lib/trpc/` - React Query integration
@@ -146,6 +147,7 @@ Managed by `@t3-oss/env-nextjs` in `src/env.ts` with Zod validation:
 * `NEXT_PUBLIC_MAPKIT_TOKEN` - Apple MapKit JS token
 * `WORKER_URL` - Cloudflare Workers URL for seats.aero searches
 * `WORKER_API_KEY` - Authentication key for worker endpoints
+* `GROQ_API_KEY` - Groq AI API key for flight planner agent
 
 Reference `.env.example` for required variables.
 

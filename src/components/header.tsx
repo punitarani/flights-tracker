@@ -10,11 +10,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { createClient } from "@/lib/supabase/client";
 
 const NAV_ITEMS = [
@@ -46,41 +41,18 @@ export function Header() {
 
   const renderDesktopNav = () => (
     <nav className="hidden items-center gap-2 md:flex">
-      {NAV_ITEMS.map((item) => {
-        if (item.href === "/alerts") {
-          return (
-            <Button
-              key={item.label}
-              asChild
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="gap-2"
-            >
-              <Link href={item.href}>{item.label}</Link>
-            </Button>
-          );
-        }
-
-        return (
-          <Tooltip key={item.label}>
-            <TooltipTrigger asChild>
-              <span className="inline-flex">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2"
-                  disabled
-                >
-                  {item.label}
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Coming soon</TooltipContent>
-          </Tooltip>
-        );
-      })}
+      {NAV_ITEMS.map((item) => (
+        <Button
+          key={item.label}
+          asChild
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="gap-2"
+        >
+          <Link href={item.href}>{item.label}</Link>
+        </Button>
+      ))}
     </nav>
   );
 
@@ -119,45 +91,22 @@ export function Header() {
                 }}
               >
                 <div className="space-y-1 md:hidden">
-                  {NAV_ITEMS.map((item) => {
-                    if (item.href === "/alerts") {
-                      return (
-                        <Button
-                          key={item.label}
-                          asChild
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-between gap-2"
-                        >
-                          <Link
-                            href={item.href}
-                            onClick={() => setIsPopoverOpen(false)}
-                          >
-                            <span>{item.label}</span>
-                            <span className="text-xs text-muted-foreground">
-                              View alerts
-                            </span>
-                          </Link>
-                        </Button>
-                      );
-                    }
-
-                    return (
-                      <Button
-                        key={item.label}
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-between gap-2"
-                        disabled
+                  {NAV_ITEMS.map((item) => (
+                    <Button
+                      key={item.label}
+                      asChild
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start gap-2"
+                    >
+                      <Link
+                        href={item.href}
+                        onClick={() => setIsPopoverOpen(false)}
                       >
                         <span>{item.label}</span>
-                        <span className="text-xs text-muted-foreground">
-                          Coming soon
-                        </span>
-                      </Button>
-                    );
-                  })}
+                      </Link>
+                    </Button>
+                  ))}
                 </div>
                 <Button
                   asChild

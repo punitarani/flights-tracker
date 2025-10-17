@@ -28,6 +28,7 @@ import {
   ChartLegendContent,
   ChartTooltip,
 } from "@/components/ui/chart";
+import type { SeatsAeroAvailabilityTripModel } from "@/lib/fli/models/seats-aero/availability-trip";
 import { trpc } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
 import { AWARD_CHART_CONFIG, MILEAGE_FORMATTER } from "./constants";
@@ -126,6 +127,67 @@ function AwardTooltipContent({
   );
 }
 
+type CabinSummary = {
+  cabin: string;
+  cabinKey: "economy" | "premium_economy" | "business" | "first";
+  minMileage: number;
+  directMinMileage: number | null;
+  tripCount: number;
+};
+
+function _extractCabinSummaries(
+  trips: SeatsAeroAvailabilityTripModel[],
+): CabinSummary[] {
+  const cabinMap = new Map<string, CabinSummary>();
+
+  const cabinLabels: Record<
+    string,
+    "Economy" | "Premium Economy" | "Business" | "First"
+  > = {
+    economy: "Economy",
+    premium_economy: "Premium Economy",
+    business: "Business",
+    first: "First",
+  };
+
+  for (const trip of trips) {
+    const key = trip.cabinClass;
+    const existing = cabinMap.get(key);
+
+    if (!existing) {
+      cabinMap.set(key, {
+        cabin: cabinLabels[key] || "Economy",
+        cabinKey: key as "economy" | "premium_economy" | "business" | "first",
+        minMileage: trip.mileageCost,
+        directMinMileage: trip.stops === 0 ? trip.mileageCost : null,
+        tripCount: 1,
+      });
+    } else {
+      // Update min mileage
+      if (trip.mileageCost < (existing.minMileage ?? Infinity)) {
+        existing.minMileage = trip.mileageCost;
+      }
+
+      // Update direct min mileage
+      if (trip.stops === 0) {
+        if (
+          existing.directMinMileage === null ||
+          trip.mileageCost < existing.directMinMileage
+        ) {
+          existing.directMinMileage = trip.mileageCost;
+        }
+      }
+
+      existing.tripCount += 1;
+    }
+  }
+
+  // Sort by cabin order: Economy, Premium Economy, Business, First
+  const order = ["economy", "premium_economy", "business", "first"];
+  return Array.from(cabinMap.values()).sort(
+    (a, b) => order.indexOf(a.cabinKey) - order.indexOf(b.cabinKey),
+  );
+}
 export function AwardAvailabilityPanel({
   originAirport,
   destinationAirport,

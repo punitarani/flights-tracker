@@ -23,6 +23,7 @@
     "trigger:alerts": "bun scripts/trigger-alerts.ts"
   },
   "dependencies": {
+    "@ai-sdk/groq": "^2.0.24",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -62,6 +63,7 @@
     "@trpc/react": "^9",
     "@trpc/server": "^9",
     "@vercel/analytics": "^1.5.0",
+    "ai": "^5.0.72",
     "axios": "^1.12.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -69,6 +71,7 @@
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.44.5",
     "embla-carousel-react": "^8.6.0",
+    "groq-sdk": "^0.33.0",
     "https-proxy-agent": "^7.0.6",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.544.0",

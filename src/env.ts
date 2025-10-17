@@ -16,6 +16,7 @@ export const env = createEnv({
 
     // External APIs
     SEATS_AERO_API_KEY: z.string().min(1),
+    GROQ_API_KEY: z.string().min(1),
 
     // Worker Integration
     WORKER_URL: z.string().url(),
@@ -61,6 +62,7 @@ export const env = createEnv({
 
     // Server - External APIs
     SEATS_AERO_API_KEY: process.env.SEATS_AERO_API_KEY,
+    GROQ_API_KEY: process.env.GROQ_API_KEY,
 
     // Server - Worker Integration
     WORKER_URL: process.env.WORKER_URL,
