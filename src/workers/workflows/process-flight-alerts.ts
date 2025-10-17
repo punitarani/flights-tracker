@@ -14,7 +14,6 @@ import { processDailyAlertsForUser } from "../adapters/alert-processing";
 import { userHasActiveAlerts } from "../adapters/alerts.db";
 import type { WorkerEnv } from "../env";
 import { workerLogger } from "../utils/logger";
-import { getSentryOptions } from "../utils/sentry";
 
 interface ProcessAlertsParams {
   userId: string;
@@ -25,101 +24,90 @@ export class ProcessFlightAlertsWorkflow extends WorkflowEntrypoint<
   ProcessAlertsParams
 > {
   async run(event: WorkflowEvent<ProcessAlertsParams>, step: WorkflowStep) {
-    // Instrument workflow with Sentry for tracing and error tracking
-    return await Sentry.instrumentWorkflowWithSentry(
-      event,
-      this.env,
-      getSentryOptions,
+    const { userId } = event.payload;
+
+    // Set user context for Sentry
+    Sentry.setUser({ id: userId });
+
+    workerLogger.info("Starting ProcessFlightAlertsWorkflow", {
+      userId,
+      instanceId: event.instanceId,
+    });
+
+    // Validate user has active alerts (defense-in-depth)
+    const hasActiveAlerts = await step.do(
+      "validate-user-has-active-alerts",
+      {},
       async () => {
-        const { userId } = event.payload;
-
-        // Set user context for Sentry
-        Sentry.setUser({ id: userId });
-
-        workerLogger.info("Starting ProcessFlightAlertsWorkflow", {
-          userId,
-          instanceId: event.instanceId,
-        });
-
-        // Validate user has active alerts (defense-in-depth)
-        const hasActiveAlerts = await step.do(
-          "validate-user-has-active-alerts",
-          {},
-          async () => {
-            return await Sentry.startSpan(
-              {
-                name: "validate-user-has-active-alerts",
-                op: "db.query",
-                attributes: { userId },
-              },
-              async () => {
-                const hasAlerts = await userHasActiveAlerts(this.env, userId);
-
-                if (!hasAlerts) {
-                  workerLogger.warn("User has no active alerts", {
-                    userId,
-                    instanceId: event.instanceId,
-                  });
-                }
-
-                return hasAlerts;
-              },
-            );
-          },
-        );
-
-        // Skip processing if user has no active alerts
-        if (!hasActiveAlerts) {
-          const result = {
-            success: false,
-            reason: "User has no active daily alerts",
-          };
-
-          workerLogger.info("Skipping workflow - no active alerts", {
-            userId,
-            instanceId: event.instanceId,
-          });
-
-          return result;
-        }
-
-        const result = await step.do(
-          `process-alerts-for-user-${userId}`,
+        return await Sentry.startSpan(
           {
-            retries: {
-              limit: 5,
-              delay: "1 minute",
-              backoff: "exponential",
-            },
-            timeout: "10 minutes",
+            name: "validate-user-has-active-alerts",
+            op: "db.query",
+            attributes: { userId },
           },
           async () => {
-            return await Sentry.startSpan(
-              {
-                name: "process-daily-alerts",
-                op: "task.process",
-                attributes: { userId },
-              },
-              async () => {
-                const result = await processDailyAlertsForUser(
-                  this.env,
-                  userId,
-                );
-                return result;
-              },
-            );
+            const hasAlerts = await userHasActiveAlerts(this.env, userId);
+
+            if (!hasAlerts) {
+              workerLogger.warn("User has no active alerts", {
+                userId,
+                instanceId: event.instanceId,
+              });
+            }
+
+            return hasAlerts;
           },
         );
-
-        workerLogger.info("Completed ProcessFlightAlertsWorkflow", {
-          userId,
-          instanceId: event.instanceId,
-          success: result.success,
-          reason: result.reason,
-        });
-
-        return result;
       },
     );
+
+    // Skip processing if user has no active alerts
+    if (!hasActiveAlerts) {
+      const result = {
+        success: false,
+        reason: "User has no active daily alerts",
+      };
+
+      workerLogger.info("Skipping workflow - no active alerts", {
+        userId,
+        instanceId: event.instanceId,
+      });
+
+      return result;
+    }
+
+    const result = await step.do(
+      `process-alerts-for-user-${userId}`,
+      {
+        retries: {
+          limit: 5,
+          delay: "1 minute",
+          backoff: "exponential",
+        },
+        timeout: "10 minutes",
+      },
+      async () => {
+        return await Sentry.startSpan(
+          {
+            name: "process-daily-alerts",
+            op: "task.process",
+            attributes: { userId },
+          },
+          async () => {
+            const result = await processDailyAlertsForUser(this.env, userId);
+            return result;
+          },
+        );
+      },
+    );
+
+    workerLogger.info("Completed ProcessFlightAlertsWorkflow", {
+      userId,
+      instanceId: event.instanceId,
+      success: result.success,
+      reason: result.reason,
+    });
+
+    return result;
   }
 }

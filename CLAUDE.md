@@ -128,7 +128,7 @@ A Next.js 15 application for tracking flight alerts with Supabase authentication
   * `flights-search.ts` - Flight search via shared core logic (no Next.js API dependency)
 * **Observability**: Full Sentry integration with `@sentry/cloudflare`
   * Worker handlers wrapped with `Sentry.withSentry()` for automatic instrumentation
-  * All workflows instrumented with `Sentry.instrumentWorkflowWithSentry()`
+  * Workflows use custom `Sentry.startSpan()` inside `step.do()` callbacks only
   * Custom spans track database queries, API calls, and business logic
   * Cron monitoring with `Sentry.withMonitor()` tracks scheduled job health
   * Logger integration sends errors to Sentry and adds breadcrumbs for context
@@ -259,10 +259,11 @@ All database IDs use prefixed ULIDs for type safety and debuggability:
 * **Package**: `@sentry/cloudflare` v10.20.0
 * **Configuration**: `src/workers/utils/sentry.ts` exports `getSentryOptions(env)`
 * **Initialization**: Worker handlers wrapped with `Sentry.withSentry()` in `src/workers/index.ts`
-* **Workflow Instrumentation**: All workflows use `Sentry.instrumentWorkflowWithSentry()`
-  * Deterministic trace IDs based on workflow `instanceId`
-  * Spans created only inside `step.do()` callbacks to avoid duplication
-  * User context set with `Sentry.setUser({ id: userId })`
+* **Workflow Instrumentation**: Custom spans inside `step.do()` callbacks
+  * **IMPORTANT**: Do NOT use `Sentry.instrumentWorkflowWithSentry()` - it interferes with workflow execution
+  * Spans created only inside `step.do()` callbacks to avoid duplication during workflow resumption
+  * Use `Sentry.startSpan()` to wrap operations inside steps
+  * User context set with `Sentry.setUser({ id: userId })` at workflow start
 * **Cron Monitoring**: Scheduled handler wrapped with `Sentry.withMonitor()`
   * Monitor name: `check-flight-alerts-cron`
   * Schedule: `0 */6 * * *`
