@@ -1,10 +1,5 @@
 "use client";
 
-<<<<<<< HEAD
-import { addYears, format, parseISO, startOfToday } from "date-fns";
-import { Calendar, Loader2, Plane } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
-=======
 import {
   addYears,
   format,
@@ -14,9 +9,8 @@ import {
   startOfDay,
   startOfToday,
 } from "date-fns";
-import { Calendar, Loader2, Plane } from "lucide-react";
+import { Calendar, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
->>>>>>> 1a6b10e (Refactor: Implement AI flight planner with Groq and TRPC)
 import {
   CartesianGrid,
   Line,
@@ -133,11 +127,6 @@ function AwardTooltipContent({
   );
 }
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
->>>>>>> 1a6b10e (Refactor: Implement AI flight planner with Groq and TRPC)
 type CabinSummary = {
   cabin: string;
   cabinKey: "economy" | "premium_economy" | "business" | "first";
@@ -146,7 +135,7 @@ type CabinSummary = {
   tripCount: number;
 };
 
-function extractCabinSummaries(
+function _extractCabinSummaries(
   trips: SeatsAeroAvailabilityTripModel[],
 ): CabinSummary[] {
   const cabinMap = new Map<string, CabinSummary>();
@@ -199,11 +188,6 @@ function extractCabinSummaries(
     (a, b) => order.indexOf(a.cabinKey) - order.indexOf(b.cabinKey),
   );
 }
-
-<<<<<<< HEAD
-=======
->>>>>>> a8ad3ed (Refactor: Implement AI flight planner with Groq and TRPC)
->>>>>>> 1a6b10e (Refactor: Implement AI flight planner with Groq and TRPC)
 export function AwardAvailabilityPanel({
   originAirport,
   destinationAirport,

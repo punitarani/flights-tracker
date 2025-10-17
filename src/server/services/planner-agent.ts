@@ -1,18 +1,19 @@
 import { generateText } from "ai";
 import { z } from "zod";
 import { DEFAULT_MODEL, GROQ_CONFIG } from "@/lib/groq/client";
+import { Currency, MaxStops, SeatType, TripType } from "@/lib/fli/models";
 import { logger } from "@/lib/logger";
 import type {
   PlanItineraryInput,
   PlanItineraryOutput,
 } from "../schemas/planner";
 import { searchAirports } from "./airports";
-import type { FlightOption } from "./flights";
 import { searchCalendarPrices, searchFlights } from "./flights";
+import type { FlightOption } from "./flights";
 
 /**
  * AI-powered flight planner agent using Vercel AI SDK
- * Generates React Server Components for streaming UI updates
+ * Uses tool calling with generateText (returns JSON, not RSCs)
  */
 
 /**
@@ -99,7 +100,7 @@ const tools = {
 
       try {
         const result = await searchCalendarPrices({
-          tripType: "one-way",
+          tripType: TripType.ONE_WAY,
           segments: [{ origin, destination, departureDate: dateFrom }],
           dateRange: { from: dateFrom, to: dateTo },
           passengers: {
@@ -108,10 +109,10 @@ const tools = {
             infantsInSeat: 0,
             infantsOnLap: 0,
           },
-          seatType: "economy",
-          stops: "any",
+          seatType: SeatType.ECONOMY,
+          stops: MaxStops.ANY,
           ...(maxPrice
-            ? { priceLimit: { amount: maxPrice, currency: "USD" } }
+            ? { priceLimit: { amount: maxPrice, currency: Currency.USD } }
             : {}),
         });
 
@@ -160,7 +161,7 @@ const tools = {
 
       try {
         const result = await searchFlights({
-          tripType: "one-way",
+          tripType: TripType.ONE_WAY,
           segments: [{ origin, destination, departureDate }],
           dateRange: { from: departureDate, to: departureDate },
           passengers: {
@@ -169,8 +170,8 @@ const tools = {
             infantsInSeat: 0,
             infantsOnLap: 0,
           },
-          seatType: "economy",
-          stops: "any",
+          seatType: SeatType.ECONOMY,
+          stops: MaxStops.ANY,
         });
 
         // Return top 5 options
@@ -287,12 +288,12 @@ export async function planItinerary(
         if (toolCalls && toolResults) {
           for (let i = 0; i < toolCalls.length; i++) {
             const call = toolCalls[i];
-            const result = toolResults[i];
+            const resultItem = toolResults[i];
             transcript.push({
               step: transcript.length + 1,
               tool: call?.toolName || "unknown",
               input: call?.args as Record<string, unknown>,
-              output: result?.result,
+              output: resultItem?.result,
               timestamp: new Date().toISOString(),
             });
           }

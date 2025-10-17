@@ -34,7 +34,7 @@ export type PlanItineraryInput = z.infer<typeof PlanItineraryInputSchema>;
 export const AgentStepSchema = z.object({
   step: z.number().int().positive(),
   tool: z.string(),
-  input: z.record(z.unknown()),
+  input: z.record(z.string(), z.unknown()),
   output: z.unknown(),
   timestamp: z.string(),
 });
