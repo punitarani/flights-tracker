@@ -55,12 +55,14 @@ src/workers/                     (~350 lines of Cloudflare-specific code)
 **Trigger:** HTTP endpoint `/trigger/seats-aero-search` (called by Next.js API when frontend requests data)
 
 **Instance ID Pattern:**
+
 ```
 ProcessSeatsAeroSearch_{origin}_{dest}_{startDate}_{endDate}
 Example: ProcessSeatsAeroSearch_SFO_NRT_2025-10-15_2025-10-22
 ```
 
 **Flow:**
+
 ```
 Frontend Request (tRPC)
     ↓
@@ -88,19 +90,22 @@ Once completed: returns trips from DB
 ```
 
 **Configuration:**
-- Timeout: 30 minutes
-- Retries: 3 attempts with exponential backoff
-- Retry delay: 5 minutes
-- TTL: Search requests expire after 60 minutes
-- Trip TTL: Trips expire after 120 minutes
-- Pagination: 1000 results per page
+
+* Timeout: 30 minutes
+* Retries: 3 attempts with exponential backoff
+* Retry delay: 5 minutes
+* TTL: Search requests expire after 60 minutes
+* Trip TTL: Trips expire after 120 minutes
+* Pagination: 1000 results per page
 
 **Idempotency:**
-- Only 1 workflow per route + date range (enforced by instance ID)
-- Duplicate triggers are safely ignored by Cloudflare
-- Failed searches can be retried after deletion
+
+* Only 1 workflow per route + date range (enforced by instance ID)
+* Duplicate triggers are safely ignored by Cloudflare
+* Failed searches can be retried after deletion
 
 **Monitoring:**
+
 ```bash
 # List instances
 bunx wrangler workflows instances list seats-aero-search
@@ -117,14 +122,16 @@ curl -X POST https://your-worker.workers.dev/trigger/seats-aero-search \
 ```
 
 **Database Tables:**
-- `seats_aero_search_request` - Tracks search status and pagination state
-- `seats_aero_availability_trip` - Individual flight availability records
+
+* `seats_aero_search_request` - Tracks search status and pagination state
+* `seats_aero_availability_trip` - Individual flight availability records
 
 **Integration:**
-- Next.js service layer calls worker endpoint to trigger workflow
-- Frontend polls tRPC endpoint until status is "completed"
-- TanStack Query handles automatic 3-second polling
-- Workflow stores data in database for immediate access
+
+* Next.js service layer calls worker endpoint to trigger workflow
+* Frontend polls tRPC endpoint until status is "completed"
+* TanStack Query handles automatic 3-second polling
+* Workflow stores data in database for immediate access
 
 ## Email Sending Rules
 
@@ -250,8 +257,9 @@ vercel env add WORKER_API_KEY
 ```
 
 **Important:** The `WORKER_API_KEY` must be the same in both:
-- Cloudflare Worker secrets (for authenticating incoming requests)
-- Next.js environment variables (for authenticating outgoing requests)
+
+* Cloudflare Worker secrets (for authenticating incoming requests)
+* Next.js environment variables (for authenticating outgoing requests)
 
 ### Step 5: Verify
 
@@ -670,7 +678,6 @@ bunx wrangler workflows instances describe process-flight-alerts INSTANCE_ID
 ### Removed Code
 
 * ❌ `src/app/api/webhooks/` (3 files)
-* ❌ `WEBHOOK_SECRET` environment variable
 * ❌ `acquireUserLock()` from `src/core/alerts-db.ts` (Supabase-specific)
 
 ### Added Code
