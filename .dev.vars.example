@@ -20,6 +20,9 @@ NEXTJS_API_URL=http://localhost:3000
 # External APIs
 SEATS_AERO_API_KEY=xxxxxxxxxxxxx
 
+# AI
+AI_GATEWAY_API_KEY=xxxxxxxxxxxxx
+
 # Sentry (optional - for error tracking)
 SENTRY_DSN=https://xxxxxxxxxxxxx@o0.ingest.sentry.io/xxxxxxxxxxxxx
 SENTRY_ENVIRONMENT=development

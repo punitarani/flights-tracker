@@ -17,6 +17,9 @@ export const env = createEnv({
     // External APIs
     SEATS_AERO_API_KEY: z.string().min(1),
 
+    // AI
+    AI_GATEWAY_API_KEY: z.string().min(1),
+
     // Worker Integration
     WORKER_URL: z.string().url(),
     WORKER_API_KEY: z.string().min(1),
@@ -61,6 +64,9 @@ export const env = createEnv({
 
     // Server - External APIs
     SEATS_AERO_API_KEY: process.env.SEATS_AERO_API_KEY,
+
+    // Server - AI
+    AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
 
     // Server - Worker Integration
     WORKER_URL: process.env.WORKER_URL,
