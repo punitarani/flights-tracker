@@ -20,14 +20,17 @@ export enum SearchOrderBy {
 /**
  * Query parameters for cached search endpoint (GET /search).
  * Searches pre-cached award availability across multiple dates and sources.
+ * Parameters ordered as documented in seats.aero API specification.
  */
 export const SearchRequestParamsSchema = z.object({
+  // Required parameters
   /** Origin airport codes (comma-delimited for multiple, e.g., "SFO,LAX") */
   origin_airport: z.string().min(3),
 
   /** Destination airport codes (comma-delimited for multiple, e.g., "FRA,LHR") */
   destination_airport: z.string().min(3),
 
+  // Date range
   /** Start date for search range in YYYY-MM-DD format */
   start_date: z
     .string()
@@ -40,28 +43,31 @@ export const SearchRequestParamsSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
 
-  /** Pagination cursor from previous response */
+  // Pagination parameters
+  /** Pagination cursor from previous response (int32) */
   cursor: z.number().int().optional(),
 
-  /** Maximum number of results to return (10-1000, default 500) */
+  /** Maximum number of results to return (10-1000, defaults to 500) */
   take: z.number().int().min(10).max(1000).default(500),
 
-  /** Result ordering method */
+  /** Result ordering method (default: by date and available cabins, or "lowest_mileage") */
   order_by: z.string().optional(),
 
-  /** Number of results to skip for pagination */
+  /** Number of results to skip for pagination (int32) */
   skip: z.number().int().min(0).optional(),
 
-  /** Include detailed trip-level information in response */
+  // Trip detail options
+  /** Include detailed trip-level information in response (defaults to false) */
   include_trips: z.boolean().default(false),
 
-  /** Only return results with direct flights available */
+  /** Only return results with direct flights available (defaults to false) */
   only_direct_flights: z.boolean().default(false),
 
+  // Filter parameters
   /** Filter by airline carriers (comma-separated, e.g., "DL,AA") */
   carriers: z.string().optional(),
 
-  /** Include results with raw/filtered data (prevents dynamic price filtering) */
+  /** Include results with raw/filtered data - prevents dynamic price filtering (defaults to false) */
   include_filtered: z.boolean().default(false),
 
   /** Filter by mileage programs (comma-delimited, e.g., "aeroplan,united") */

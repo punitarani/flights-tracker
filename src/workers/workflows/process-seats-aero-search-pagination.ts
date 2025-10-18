@@ -12,7 +12,7 @@ import { workerLogger } from "../utils/logger";
 type SeatsAeroSearchResponse = {
   count: number;
   hasMore: boolean;
-  cursor?: number;
+  cursor: number;
   data: Array<{
     AvailabilityTrips: AvailabilityTrip[] | null;
   }>;
@@ -20,15 +20,26 @@ type SeatsAeroSearchResponse = {
 
 export interface SeatsAeroClientLike {
   search: (params: {
+    // Required parameters
     origin_airport: string;
     destination_airport: string;
+    // Date range
     start_date: string;
     end_date: string;
-    include_trips: boolean;
-    take: number;
-    only_direct_flights: boolean;
-    include_filtered: boolean;
+    // Pagination
     cursor?: number;
+    take: number;
+    order_by?: string;
+    skip?: number;
+    // Trip details
+    include_trips: boolean;
+    only_direct_flights: boolean;
+    // Filters
+    carriers?: string;
+    include_filtered: boolean;
+    sources?: string;
+    minify_trips?: boolean;
+    cabins?: string;
   }) => Promise<SeatsAeroSearchResponse>;
 }
 
@@ -79,21 +90,38 @@ export async function paginateSeatsAeroSearch({
   while (true) {
     const previousTotal = totalProcessed;
     const currentCursor = cursor;
+    const currentSkip = totalProcessed; // skip = number of records already processed
 
     const pageResult = await step.do(
       `fetch-page-${pageIndex + 1}`,
       stepOptions,
       async () => {
+        // API parameters in documented order with all fields present
         const response = await client.search({
+          // Required parameters
           origin_airport: params.originAirport,
           destination_airport: params.destinationAirport,
+
+          // Date range
           start_date: params.searchStartDate,
           end_date: params.searchEndDate,
-          include_trips: true,
-          take: 1000,
-          only_direct_flights: false,
-          include_filtered: false,
+
+          // Pagination (cursor must be from first response and remain constant)
           cursor: currentCursor,
+          take: 1000,
+          order_by: "lowest_mileage", // Order by cheapest mileage cost first
+          skip: currentSkip, // Number of results already retrieved
+
+          // Trip details
+          include_trips: true,
+          only_direct_flights: false,
+
+          // Filters
+          carriers: undefined, // No carrier filter
+          include_filtered: false, // Exclude dynamically filtered results
+          sources: undefined, // No mileage program filter
+          minify_trips: undefined, // Full trip details when include_trips=true
+          cabins: undefined, // No cabin class filter
         });
 
         workerLogger.info("Fetched API page", {
@@ -101,6 +129,7 @@ export async function paginateSeatsAeroSearch({
           count: response.count,
           hasMore: response.hasMore,
           cursor: response.cursor,
+          skip: currentSkip,
           searchRequestId: searchRequest.id,
         });
 
@@ -145,11 +174,15 @@ export async function paginateSeatsAeroSearch({
         const processedThisPage = response.count;
         const newTotal = previousTotal + processedThisPage;
 
+        // Cursor should only be set once from the first response
+        // and then remain constant for all subsequent requests in this search
+        const shouldSetCursor = currentCursor === undefined;
+
         await updateProgress(
           env,
           {
             id: searchRequest.id,
-            cursor: response.cursor,
+            cursor: shouldSetCursor ? response.cursor : undefined,
             hasMore: response.hasMore,
             processedCount: newTotal,
           },
@@ -170,19 +203,23 @@ export async function paginateSeatsAeroSearch({
       return { totalProcessed };
     }
 
-    if (pageResult.cursor === undefined) {
-      workerLogger.warn(
-        "Seats.aero response indicated more data but cursor was undefined",
-        {
-          pageIndex,
-          searchRequestId: searchRequest.id,
-        },
-      );
+    // Set cursor from first response and keep it constant for all subsequent requests
+    // The cursor provides consistent ordering; skip parameter handles pagination offset
+    if (cursor === undefined) {
+      cursor = pageResult.cursor;
 
-      return { totalProcessed };
+      if (cursor === undefined) {
+        workerLogger.warn(
+          "Seats.aero first response missing cursor - pagination may be inconsistent",
+          {
+            pageIndex,
+            searchRequestId: searchRequest.id,
+          },
+        );
+        return { totalProcessed };
+      }
     }
 
-    cursor = pageResult.cursor;
     pageIndex += 1;
   }
 }

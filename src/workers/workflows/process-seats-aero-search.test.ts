@@ -141,6 +141,108 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
     expect(searchParams.take).toBeGreaterThan(0);
   });
 
+  test("sends all API parameters in documented order", async () => {
+    const env = createMockEnv();
+    const params: SearchRequestParams = {
+      originAirport: "SFO",
+      destinationAirport: "NRT",
+      searchStartDate: "2025-10-15",
+      searchEndDate: "2025-10-22",
+    };
+
+    const searchRequest: SeatsAeroSearchRequest = {
+      id: "sar-param-order",
+      originAirport: params.originAirport,
+      destinationAirport: params.destinationAirport,
+      searchStartDate: params.searchStartDate,
+      searchEndDate: params.searchEndDate,
+      status: "processing",
+      cursor: null,
+      hasMore: false,
+      totalCount: 0,
+      processedCount: 0,
+      errorMessage: null,
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+    } as const;
+
+    const step: WorkflowStepLike = {
+      do: async (
+        _name: string,
+        _options: unknown,
+        operation: () => Promise<{
+          cursor: number | undefined;
+          hasMore: boolean;
+          processedCount: number;
+        }>,
+      ) => operation(),
+    };
+
+    let capturedParams: Record<string, unknown> | null = null;
+    const client: SeatsAeroClientLike = {
+      search: async (args: unknown) => {
+        capturedParams = args as Record<string, unknown>;
+        return {
+          count: 0,
+          hasMore: false,
+          cursor: 1760197253,
+          data: [],
+        };
+      },
+    };
+
+    await paginateSeatsAeroSearch({
+      client,
+      env,
+      params,
+      searchRequest,
+      step,
+      upsertTrips: async () => {},
+      updateProgress: async () => {},
+    });
+
+    // Verify all parameters are present in the documented order
+    expect(capturedParams).not.toBeNull();
+    // biome-ignore lint/style/noNonNullAssertion: asserted above
+    const paramKeys = Object.keys(capturedParams!);
+
+    // Check parameter order matches API documentation
+    expect(paramKeys).toEqual([
+      "origin_airport",
+      "destination_airport",
+      "start_date",
+      "end_date",
+      "cursor",
+      "take",
+      "order_by",
+      "skip",
+      "include_trips",
+      "only_direct_flights",
+      "carriers",
+      "include_filtered",
+      "sources",
+      "minify_trips",
+      "cabins",
+    ]);
+
+    // Verify parameter values
+    expect(capturedParams?.origin_airport).toBe("SFO");
+    expect(capturedParams?.destination_airport).toBe("NRT");
+    expect(capturedParams?.start_date).toBe("2025-10-15");
+    expect(capturedParams?.end_date).toBe("2025-10-22");
+    expect(capturedParams?.cursor).toBeUndefined(); // First request
+    expect(capturedParams?.take).toBe(1000);
+    expect(capturedParams?.order_by).toBe("lowest_mileage"); // Order by cheapest mileage first
+    expect(capturedParams?.skip).toBe(0); // First page
+    expect(capturedParams?.include_trips).toBe(true);
+    expect(capturedParams?.only_direct_flights).toBe(false);
+    expect(capturedParams?.carriers).toBeUndefined();
+    expect(capturedParams?.include_filtered).toBe(false);
+    expect(capturedParams?.sources).toBeUndefined();
+    expect(capturedParams?.minify_trips).toBeUndefined();
+    expect(capturedParams?.cabins).toBeUndefined();
+  });
+
   test("creates a new workflow step for each paginated API request", async () => {
     const env = createMockEnv();
     const params: SearchRequestParams = {
@@ -220,11 +322,13 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
       FlightNumbers: "UA839",
     };
 
+    // Mock API responses - cursor stays constant across pages (set from first response)
+    // Only skip parameter advances pagination
     const responses = [
       {
         count: 2,
         hasMore: true,
-        cursor: 101,
+        cursor: 1760197253, // Cursor set to timestamp from first response
         data: [
           { AvailabilityTrips: [baseTrip] },
           { AvailabilityTrips: [trip2] },
@@ -233,7 +337,7 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
       {
         count: 1,
         hasMore: false,
-        cursor: 202,
+        cursor: 1760197253, // Same cursor on subsequent pages
         data: [{ AvailabilityTrips: [trip3] }],
       },
     ];
@@ -277,8 +381,18 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
     expect(result.totalProcessed).toBe(3);
     expect(stepCalls).toEqual(["fetch-page-1", "fetch-page-2"]);
     expect(searchArgs).toHaveLength(2);
-    expect((searchArgs[0] as { cursor?: number }).cursor).toBeUndefined();
-    expect((searchArgs[1] as { cursor?: number }).cursor).toBe(101);
+
+    // First request: no cursor, skip=0 (start from beginning)
+    expect(
+      (searchArgs[0] as { cursor?: number; skip?: number }).cursor,
+    ).toBeUndefined();
+    expect((searchArgs[0] as { cursor?: number; skip?: number }).skip).toBe(0);
+
+    // Second request: cursor from first response (constant), skip=2 (processed 2 records)
+    expect((searchArgs[1] as { cursor?: number; skip?: number }).cursor).toBe(
+      1760197253,
+    );
+    expect((searchArgs[1] as { cursor?: number; skip?: number }).skip).toBe(2);
 
     // Expect 2 upsert calls (one per page, batched within each page)
     expect(upsertCalls).toHaveLength(2);
@@ -291,6 +405,143 @@ describe("ProcessSeatsAeroSearchWorkflow", () => {
       2, 3,
     ]);
     expect(updateProgressCalls[1]?.hasMore).toBe(false);
+
+    // Verify cursor is only set on first page, then remains constant
+    expect(updateProgressCalls[0]?.cursor).toBe(1760197253); // Set from first response
+    expect(updateProgressCalls[1]?.cursor).toBeUndefined(); // Not updated on subsequent pages
+  });
+
+  test("resumes pagination with saved cursor from database", async () => {
+    const env = createMockEnv();
+    const params: SearchRequestParams = {
+      originAirport: "LAX",
+      destinationAirport: "JFK",
+      searchStartDate: "2025-11-01",
+      searchEndDate: "2025-11-08",
+    };
+
+    // Simulate workflow resuming after processing 1000 records
+    // Cursor was already captured from first response and saved to DB
+    const searchRequest: SeatsAeroSearchRequest = {
+      id: "sar-resume",
+      originAirport: params.originAirport,
+      destinationAirport: params.destinationAirport,
+      searchStartDate: params.searchStartDate,
+      searchEndDate: params.searchEndDate,
+      status: "processing",
+      cursor: 1760197253, // Already saved from first page
+      hasMore: true,
+      totalCount: 0,
+      processedCount: 1000, // Already processed 1000 records
+      errorMessage: null,
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+    } as const;
+
+    const stepCalls: string[] = [];
+    const step: WorkflowStepLike = {
+      do: async (
+        name: string,
+        _options: unknown,
+        operation: () => Promise<{
+          cursor: number | undefined;
+          hasMore: boolean;
+          processedCount: number;
+        }>,
+      ) => {
+        stepCalls.push(name);
+        return operation();
+      },
+    };
+
+    const searchArgs: unknown[] = [];
+    const baseTrip: AvailabilityTrip = {
+      ID: "trip-1001",
+      RouteID: "route-1",
+      AvailabilityID: "avail-1",
+      OriginAirport: "LAX",
+      DestinationAirport: "JFK",
+      DepartsAt: "2025-11-01T10:00:00Z",
+      ArrivesAt: "2025-11-01T18:00:00Z",
+      TotalDuration: 300,
+      Stops: 0,
+      MileageCost: 25000,
+      RemainingSeats: 4,
+      Cabin: "economy",
+      TotalSegmentDistance: 2475,
+      TotalTaxes: 5.6,
+      TaxesCurrency: "USD",
+      TaxesCurrencySymbol: "$",
+      Carriers: "AA",
+      FlightNumbers: "AA100",
+      Source: Source.UNITED,
+      CreatedAt: "2025-10-01T00:00:00Z",
+      UpdatedAt: "2025-10-01T00:00:00Z",
+    };
+
+    // Mock remaining pages (starting from skip=1000)
+    const responses = [
+      {
+        count: 500,
+        hasMore: false,
+        cursor: 1760197253, // Same cursor as saved in DB
+        data: [{ AvailabilityTrips: [baseTrip] }],
+      },
+    ];
+
+    const client: SeatsAeroClientLike = {
+      search: async (args: unknown) => {
+        searchArgs.push(args);
+        const response = responses.shift();
+        if (!response) {
+          throw new Error("No more responses available");
+        }
+        return response;
+      },
+    };
+
+    const upsertCalls: Array<{
+      searchRequestId: string;
+      trips: AvailabilityTrip[];
+    }> = [];
+    const updateProgressCalls: Array<{
+      id: string;
+      cursor: number | undefined;
+      hasMore: boolean | undefined;
+      processedCount: number | undefined;
+    }> = [];
+
+    const result = await paginateSeatsAeroSearch({
+      client,
+      env,
+      params,
+      searchRequest,
+      step,
+      upsertTrips: async (_env, payload) => {
+        upsertCalls.push(payload);
+      },
+      updateProgress: async (_env, payload) => {
+        updateProgressCalls.push(payload);
+      },
+    });
+
+    // Verify workflow resumed correctly
+    expect(result.totalProcessed).toBe(1500); // 1000 (previous) + 500 (new)
+    expect(stepCalls).toEqual(["fetch-page-1"]); // Only one more page to fetch
+
+    // Verify request used saved cursor and correct skip offset
+    expect(searchArgs).toHaveLength(1);
+    expect((searchArgs[0] as { cursor?: number; skip?: number }).cursor).toBe(
+      1760197253,
+    ); // Reused saved cursor
+    expect((searchArgs[0] as { cursor?: number; skip?: number }).skip).toBe(
+      1000,
+    ); // Correct offset
+
+    // Verify cursor was NOT updated in DB (already set)
+    expect(updateProgressCalls[0]?.cursor).toBeUndefined(); // Cursor already in DB, no update needed
+    expect(updateProgressCalls[0]?.processedCount).toBe(1500);
+    expect(updateProgressCalls[0]?.hasMore).toBe(false);
   });
 
   test("handles empty response pages without trips", async () => {
