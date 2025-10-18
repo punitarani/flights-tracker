@@ -13,7 +13,9 @@
       "!.next",
       "!dist",
       "!build",
+      "!src/components/ai-elements",
       "!src/components/ui",
+
       "!data/seats-aero"
     ]
   },
