@@ -31,3 +31,6 @@ PROXY_HOST=
 PROXY_PORT=
 PROXY_USERNAME=
 PROXY_PASSWORD=
+
+# AI
+GROQ_API_KEY=gsk_...  # Get from https://console.groq.com

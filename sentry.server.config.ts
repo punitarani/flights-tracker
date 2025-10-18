@@ -13,8 +13,16 @@ Sentry.init({
   // Enable logs to be sent to Sentry
   enableLogs: true,
 
+  // Send user data for better debugging
+  sendDefaultPii: true,
+
   integrations: [
     Sentry.consoleLoggingIntegration({ levels: ["log", "warn", "error"] }),
+    // Vercel AI SDK integration for agent monitoring
+    Sentry.vercelAIIntegration({
+      recordInputs: true,
+      recordOutputs: true,
+    }),
   ],
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.

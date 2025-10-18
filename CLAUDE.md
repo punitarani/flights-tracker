@@ -62,6 +62,7 @@ A Next.js 15 application for tracking flight alerts with Supabase authentication
   * `flights.ts` - Flight search and data retrieval
   * `airports.ts` - Airport data and search
   * `seats-aero.ts` - Award flight availability searches
+  * `planner.ts` - AI-powered flight planning with streaming RSCs
   * `health.ts` - Health check endpoint
   * `app.ts` - Main router combining all sub-routers
 * **Client Setup**: `src/lib/trpc/` - React Query integration
@@ -146,6 +147,7 @@ Managed by `@t3-oss/env-nextjs` in `src/env.ts` with Zod validation:
 * `NEXT_PUBLIC_MAPKIT_TOKEN` - Apple MapKit JS token
 * `WORKER_URL` - Cloudflare Workers URL for seats.aero searches
 * `WORKER_API_KEY` - Authentication key for worker endpoints
+* `GROQ_API_KEY` - Groq AI API key for flight planner agent
 
 Reference `.env.example` for required variables.
 
@@ -282,3 +284,37 @@ All database IDs use prefixed ULIDs for type safety and debuggability:
 * Server Components: Use `createClient()` from `src/lib/supabase/server.ts`
 * Middleware: Use `updateSession()` from `src/lib/supabase/middleware.ts`
 * Never modify cookies manually - always use Supabase client methods
+
+### AI Flight Planner
+
+* **Location**: `/planner` route with Header/Footer layout
+* **Models**: Dual-model architecture
+  * `openai/gpt-oss-20b` - Structured data extraction (supports json\_schema)
+  * `llama-3.3-70b-versatile` - Natural language summaries
+* **Extraction**: Multi-shot prompting with `generateObject()` for 95% accuracy
+* **Features**:
+  * City-to-airport mapping (75+ cities worldwide)
+  * Natural language date parsing (10+ formats)
+  * Same-city airport detection
+  * Missing info input forms
+  * Follow-up question support
+  * Interactive MapKit visualization
+* **Data Flow**:
+  1. User query → AI extracts structured JSON
+  2. City names → Airport codes (e.g., "NYC" → JFK)
+  3. Natural dates → ISO format (e.g., "tomorrow" → 2025-10-18)
+  4. Validation (same-city check, code verification)
+  5. Flight search APIs with validated params
+  6. AI-generated friendly summary
+* **Validation**: Multi-layer checks prevent invalid searches
+  * Word exclusion list (THE, AND, FOR, etc.)
+  * Airport database validation
+  * Same-airport detection
+  * Same-city comparison
+  * Empty results handling
+* **UX**: Conversational interface with:
+  * Floating chat panel (bottom-right, collapsible)
+  * Amber-colored forms for missing info
+  * Follow-up textarea after successful searches
+  * Map route selection integration
+* **Documentation**: See `docs/PLANNER-README.md` for complete guide
