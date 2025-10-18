@@ -19,6 +19,7 @@ env:
   SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
   SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
   SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
+  AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
   WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
   SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -279,6 +280,7 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
           WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
