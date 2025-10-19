@@ -123,16 +123,20 @@ export default function PlannerPage() {
         : "Airport Routes"
       : "Search Filters";
 
-  // Check if the last assistant message has visible/renderable content
+  // Check if last assistant message has renderable content
   const lastMessage = messages.at(-1);
   const hasVisibleContent =
     lastMessage?.role === "assistant" &&
-    lastMessage.parts.length > 0 &&
     lastMessage.parts.some((part) => {
       // Text parts with content
-      if (part.type === "text" && part.text) return true;
-      // Tool parts in any state that ToolRenderer renders
-      if (part.type.startsWith("tool-") && "state" in part) {
+      if (part.type === "text" && part.text?.trim()) return true;
+      // Tool parts - only in states that ToolRenderer actually renders
+      if (
+        part.type.startsWith("tool-") &&
+        (part.state === "call" ||
+          part.state === "input-available" ||
+          part.state === "output-available")
+      ) {
         return true;
       }
       return false;
@@ -151,7 +155,7 @@ export default function PlannerPage() {
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="flex-1 overflow-y-auto">
               <Conversation className="h-full">
-                <ConversationContent className="flex flex-col space-y-4">
+                <ConversationContent className="flex flex-col space-y-2">
                   {messages.length === 0 && (
                     <div className="flex items-center justify-center min-h-[400px]">
                       <div className="text-center space-y-4 p-8">
@@ -171,12 +175,23 @@ export default function PlannerPage() {
                     <Message key={message.id} from={message.role}>
                       {message.parts.map((part, i) => {
                         if (part.type === "text") {
+                          // Skip empty text parts to avoid white space
+                          if (!part.text?.trim()) return null;
+
                           return (
-                            <MessageContent key={`${message.id}-text-${i}`}>
+                            <MessageContent
+                              key={`${message.id}-text-${i}`}
+                              variant={
+                                message.role === "assistant"
+                                  ? "flat"
+                                  : "contained"
+                              }
+                            >
                               <Response>{part.text}</Response>
                             </MessageContent>
                           );
                         }
+                        // Tools render directly without MessageContent wrapper
                         return (
                           <ToolRenderer
                             key={`${message.id}-tool-${i}`}
@@ -190,7 +205,7 @@ export default function PlannerPage() {
                   {(status === "submitted" || status === "streaming") &&
                     !hasVisibleContent && (
                       <Message from="assistant">
-                        <MessageContent>
+                        <MessageContent variant="flat">
                           <Shimmer className="text-sm">
                             Finding flights...
                           </Shimmer>
