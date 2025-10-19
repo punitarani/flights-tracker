@@ -1,7 +1,8 @@
-import { env } from "@/env";
+import {
+  renderDailyDigestEmailWithAI,
+  renderPriceDropEmailWithAI,
+} from "./ai-email-service";
 import { sendWithResend } from "./resend-client";
-import { renderDailyPriceUpdateEmail } from "./templates/daily-price-update";
-import { renderPriceDropAlertEmail } from "./templates/price-drop-alert";
 import type {
   NotificationEmailPayload,
   NotificationSendRequest,
@@ -16,12 +17,12 @@ function formatRecipient(
   return recipient.email;
 }
 
-function buildEmailContent(payload: NotificationEmailPayload) {
+async function buildEmailContent(payload: NotificationEmailPayload) {
   switch (payload.type) {
     case "daily-price-update":
-      return renderDailyPriceUpdateEmail(payload);
+      return await renderDailyDigestEmailWithAI(payload);
     case "price-drop-alert":
-      return renderPriceDropAlertEmail(payload);
+      return await renderPriceDropEmailWithAI(payload);
     default: {
       const _exhaustive: never = payload;
       throw new Error("Unsupported notification type");
@@ -30,9 +31,9 @@ function buildEmailContent(payload: NotificationEmailPayload) {
 }
 
 export async function sendNotificationEmail(request: NotificationSendRequest) {
-  const { subject, html, text } = buildEmailContent(request.payload);
+  const { subject, html, text } = await buildEmailContent(request.payload);
   const fromAddress =
-    env.RESEND_FROM_EMAIL ?? "Flight Alerts <alerts@resend.dev>";
+    process.env.RESEND_FROM_EMAIL ?? "Flight Alerts <alerts@resend.dev>";
 
   return await sendWithResend({
     from: fromAddress,
@@ -42,5 +43,3 @@ export async function sendNotificationEmail(request: NotificationSendRequest) {
     text,
   });
 }
-
-export { renderDailyPriceUpdateEmail, renderPriceDropAlertEmail };

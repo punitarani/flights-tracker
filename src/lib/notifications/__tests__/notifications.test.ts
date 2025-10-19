@@ -10,8 +10,25 @@ const sendWithResendMock = mock(() =>
   }),
 );
 
+const renderPriceDropEmailWithAIMock = mock(async () => ({
+  subject: "Price drop alert",
+  html: "<div>Price drop</div>",
+  text: "Price drop",
+}));
+
+const renderDailyDigestEmailWithAIMock = mock(async () => ({
+  subject: "Daily digest",
+  html: "<div>Daily digest</div>",
+  text: "Daily digest",
+}));
+
 mock.module("../resend-client", () => ({
   sendWithResend: sendWithResendMock,
+}));
+
+mock.module("../ai-email-service", () => ({
+  renderPriceDropEmailWithAI: renderPriceDropEmailWithAIMock,
+  renderDailyDigestEmailWithAI: renderDailyDigestEmailWithAIMock,
 }));
 
 import type { FlightOptionSummary } from "@/lib/notifications";
@@ -60,6 +77,8 @@ const sampleFlight: FlightOptionSummary = {
 
 beforeEach(() => {
   sendWithResendMock.mockReset();
+  renderPriceDropEmailWithAIMock.mockReset();
+  renderDailyDigestEmailWithAIMock.mockReset();
 });
 
 describe("notification templates", () => {
@@ -99,6 +118,12 @@ describe("notification templates", () => {
 
 describe("sendNotificationEmail", () => {
   it("delegates to Resend with formatted payload", async () => {
+    renderPriceDropEmailWithAIMock.mockResolvedValueOnce({
+      subject: "Price drop alert",
+      html: "<div>Price drop</div>",
+      text: "Price drop",
+    });
+
     await sendNotificationEmail({
       recipient: { email: "test@example.com", name: "Test User" },
       payload: {
@@ -110,9 +135,10 @@ describe("sendNotificationEmail", () => {
     });
 
     expect(sendWithResendMock).toHaveBeenCalledTimes(1);
-    const args = sendWithResendMock.mock.calls[0]?.[0];
-    expect(args?.from).toBe("Flight Alerts <alerts@resend.dev>");
+    const [args] = sendWithResendMock.mock.calls[0] ?? [];
+    expect(args?.from).toBe("alerts@example.com");
     expect(args?.to).toBe("Test User <test@example.com>");
     expect(args?.html).toContain("Price drop");
+    expect(renderPriceDropEmailWithAIMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,8 +1,11 @@
-import type {
-  FlightOptionSummary,
-  NotificationEmailPayload,
-} from "@/lib/notifications";
 import { sendNotificationEmail } from "@/lib/notifications";
+import {
+  generateDailyDigestBlueprint,
+  generatePriceDropBlueprint,
+} from "@/lib/notifications/ai-email-agent";
+import { buildDailyDigestBlueprintContext } from "@/lib/notifications/ai-email-context";
+import { renderDailyPriceUpdateEmail } from "@/lib/notifications/templates/daily-price-update";
+import { renderPriceDropAlertEmail } from "@/lib/notifications/templates/price-drop-alert";
 
 const [recipientEmail, templateArg] = process.argv.slice(2);
 
@@ -15,77 +18,71 @@ if (!recipientEmail) {
 
 const template = templateArg === "price-drop" ? "price-drop" : "daily";
 
-const now = new Date();
+async function main() {
+  const baseAlert = {
+    id: "alt-demo",
+    label: "Weekend NYC → LA",
+    origin: "JFK",
+    destination: "LAX",
+    seatType: "Economy",
+    stops: "Nonstop",
+    airlines: ["AA"],
+    priceLimit: { amount: 250, currency: "USD" },
+  };
 
-const sampleFlight: FlightOptionSummary = {
-  totalPrice: 219,
-  currency: "USD",
-  slices: [
-    {
-      durationMinutes: 360,
-      stops: 0,
-      price: 219,
-      legs: [
-        {
-          airlineCode: "AA",
-          airlineName: "American Airlines",
-          flightNumber: "100",
-          departureAirportCode: "JFK",
-          departureAirportName: "John F. Kennedy International",
-          departureDateTime: now.toISOString(),
-          arrivalAirportCode: "LAX",
-          arrivalAirportName: "Los Angeles International",
-          arrivalDateTime: new Date(
-            now.getTime() + 5 * 60 * 60 * 1000,
-          ).toISOString(),
-          durationMinutes: 300,
-        },
-      ],
-    },
-  ],
-};
+  const now = new Date().toISOString();
 
-const baseAlert = {
-  id: "alt-demo",
-  label: "Weekend NYC → LA",
-  origin: "JFK",
-  destination: "LAX",
-  seatType: "Economy",
-  stops: "Nonstop",
-  airlines: ["AA"],
-  priceLimit: { amount: 250, currency: "USD" },
-};
+  if (template === "price-drop") {
+    const payload = {
+      type: "price-drop-alert" as const,
+      alert: baseAlert,
+      flights: [],
+      detectedAt: now,
+    };
 
-const payload: NotificationEmailPayload =
-  template === "price-drop"
-    ? {
-        type: "price-drop-alert",
-        alert: baseAlert,
-        flights: [sampleFlight],
-        detectedAt: now.toISOString(),
-        previousLowestPrice: { amount: 299, currency: "USD" },
-        newLowestPrice: { amount: 219, currency: "USD" },
-      }
-    : {
-        type: "daily-price-update",
-        summaryDate: now.toISOString(),
-        alerts: [
-          {
-            alert: baseAlert,
-            flights: [sampleFlight],
-            generatedAt: now.toISOString(),
-          },
-        ],
-      };
+    const context = buildDailyDigestBlueprintContext({
+      type: "daily-price-update",
+      summaryDate: now,
+      alerts: [],
+    });
 
-await sendNotificationEmail({
-  recipient: { email: recipientEmail },
-  payload,
-})
-  .then((response) => {
-    console.log("Email queued:", response.data?.id);
-  })
-  .catch((error) => {
-    console.error("Failed to send email:", error);
-    process.exitCode = 1;
+    const blueprint = await generatePriceDropBlueprint({
+      alert: context.alerts[0]?.alert ?? baseAlert,
+      flights: [],
+    });
+
+    const email = renderPriceDropAlertEmail(payload, { blueprint });
+
+    await sendNotificationEmail({
+      recipient: { email: recipientEmail },
+      payload,
+    });
+
+    console.log("AI-generated price drop email sent to", recipientEmail);
+    console.log("Subject:", email.subject);
+    return;
+  }
+
+  const payload = {
+    type: "daily-price-update" as const,
+    summaryDate: now,
+    alerts: [],
+  };
+
+  const context = buildDailyDigestBlueprintContext(payload);
+  const blueprint = await generateDailyDigestBlueprint(context);
+  const email = renderDailyPriceUpdateEmail(payload, { blueprint });
+
+  await sendNotificationEmail({
+    recipient: { email: recipientEmail },
+    payload,
   });
+
+  console.log("AI-generated daily digest email sent to", recipientEmail);
+  console.log("Subject:", email.subject);
+}
+
+await main().catch((error) => {
+  console.error("Failed to send email:", error);
+  process.exit(1);
+});
