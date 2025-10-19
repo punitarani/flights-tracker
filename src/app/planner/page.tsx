@@ -70,8 +70,6 @@ export default function PlannerPage() {
   );
 
   const airports = airportSearchQuery.data?.airports ?? [];
-  const totalAirports = airportSearchQuery.data?.total ?? airports.length;
-  const isLoadingAirports = airportSearchQuery.isLoading;
 
   const { messages, sendMessage, status, error } =
     useChat<PlannerAgentUIMessage>({
@@ -130,13 +128,8 @@ export default function PlannerPage() {
     lastMessage.parts.some((part) => {
       // Text parts with content
       if (part.type === "text" && part.text?.trim()) return true;
-      // Tool parts - only in states that ToolRenderer actually renders
-      if (
-        part.type.startsWith("tool-") &&
-        (part.state === "call" ||
-          part.state === "input-available" ||
-          part.state === "output-available")
-      ) {
+      // Tool parts in any state
+      if (part.type.startsWith("tool-") && "state" in part) {
         return true;
       }
       return false;
@@ -302,12 +295,7 @@ export default function PlannerPage() {
         {/* Scene Panel - Desktop */}
         <div className="hidden lg:flex lg:w-1/2 flex-col h-full border-l">
           <div className="flex-1 overflow-y-auto">
-            <SceneView
-              scene={scene}
-              airports={airports}
-              totalAirports={totalAirports}
-              isLoadingAirports={isLoadingAirports}
-            />
+            <SceneView scene={scene} airports={airports} />
           </div>
         </div>
       </div>
@@ -320,12 +308,7 @@ export default function PlannerPage() {
               <SheetTitle>{sceneTitle}</SheetTitle>
             </SheetHeader>
             <div className="flex-1 overflow-y-auto">
-              <SceneView
-                scene={scene}
-                airports={airports}
-                totalAirports={totalAirports}
-                isLoadingAirports={isLoadingAirports}
-              />
+              <SceneView scene={scene} airports={airports} />
             </div>
           </div>
         </SheetContent>

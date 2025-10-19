@@ -7,18 +7,48 @@ import {
   parseISO,
   startOfDay,
 } from "date-fns";
+import { CalendarIcon, ChevronDown, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import type { PlannerSearchScene } from "@/ai/types";
-import type { FlightPricePoint } from "@/components/flight-explorer/constants";
-import { FlightPricePanel } from "@/components/flight-explorer/flight-price-panel";
-import { RouteSearchPanel } from "@/components/flight-explorer/route-search-panel";
+import { CreateAlertButton } from "@/components/alerts/create-alert-button";
+import {
+  type FlightPricePoint,
+  PRICE_CHART_CONFIG,
+  USD_FORMATTER,
+} from "@/components/flight-explorer/constants";
+import { FlightOptionsList } from "@/components/flight-explorer/flight-options-list";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Card } from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import type {
   FlightExplorerFiltersState,
-  FlightExplorerHeaderState,
-  FlightExplorerPriceState,
-  FlightExplorerSearchState,
   FlightPriceChartPoint,
-  FlightSearchFieldState,
   TimeRangeValue,
 } from "@/hooks/use-flight-explorer";
 import {
@@ -27,14 +57,13 @@ import {
 } from "@/hooks/use-flight-explorer";
 import { MaxStops, SeatType, TripType } from "@/lib/fli/models";
 import { trpc } from "@/lib/trpc/react";
+import { cn } from "@/lib/utils";
 import type { AirportData } from "@/server/services/airports";
 import type { FlightOption } from "@/server/services/flights";
 
 interface SearchSceneProps {
   scene: PlannerSearchScene;
   airports: AirportData[];
-  totalAirports: number;
-  isLoadingAirports: boolean;
 }
 
 type FiltersState = {
@@ -63,10 +92,6 @@ function ensureTimeRange(range: TimeRangeValue | null): TimeRangeValue {
   return { from, to };
 }
 
-function formatAirportValue(airport: AirportData): string {
-  return `${airport.name} (${airport.iata})`;
-}
-
 function mapMaxStops(value: string | undefined): MaxStops {
   switch (value) {
     case "nonstop":
@@ -93,12 +118,33 @@ function mapSeatType(value: string | undefined): SeatType {
   }
 }
 
-export function SearchScene({
-  scene,
-  airports,
-  totalAirports,
-  isLoadingAirports,
-}: SearchSceneProps) {
+function mapStopsToString(stops: MaxStops): string {
+  switch (stops) {
+    case MaxStops.NON_STOP:
+      return "nonstop";
+    case MaxStops.ONE_STOP_OR_FEWER:
+      return "1";
+    case MaxStops.TWO_OR_FEWER_STOPS:
+      return "2";
+    default:
+      return "any";
+  }
+}
+
+function mapSeatTypeToString(seatType: SeatType): string {
+  switch (seatType) {
+    case SeatType.PREMIUM_ECONOMY:
+      return "premium";
+    case SeatType.BUSINESS:
+      return "business";
+    case SeatType.FIRST:
+      return "first";
+    default:
+      return "economy";
+  }
+}
+
+export function SearchScene({ scene, airports }: SearchSceneProps) {
   const {
     origin: originCodes,
     destination: destinationCodes,
@@ -107,13 +153,13 @@ export function SearchScene({
   } = scene.data;
 
   // Find airports from codes
-  const originAirport = useMemo(
-    () => airports.find((a) => originCodes.includes(a.iata)) || null,
+  const originAirports = useMemo(
+    () => airports.filter((a) => originCodes.includes(a.iata)),
     [airports, originCodes],
   );
 
-  const destinationAirport = useMemo(
-    () => airports.find((a) => destinationCodes.includes(a.iata)) || null,
+  const destinationAirports = useMemo(
+    () => airports.filter((a) => destinationCodes.includes(a.iata)),
     [airports, destinationCodes],
   );
 
@@ -150,11 +196,6 @@ export function SearchScene({
   }, [scene.data, startDate, endDate]);
 
   // Local state
-  const [originQuery, setOriginQuery] = useState("");
-  const [destinationQuery, setDestinationQuery] = useState("");
-  const [activeField, setActiveField] = useState<
-    "origin" | "destination" | null
-  >(null);
   const [filters, setFilters] = useState<FiltersState>(initialFilters);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedPriceIndex, setSelectedPriceIndex] = useState<number | null>(
@@ -167,19 +208,7 @@ export function SearchScene({
   const [flightOptionsError, setFlightOptionsError] = useState<string | null>(
     null,
   );
-
-  // Update queries when airports change
-  useEffect(() => {
-    if (originAirport) {
-      setOriginQuery(formatAirportValue(originAirport));
-    }
-  }, [originAirport]);
-
-  useEffect(() => {
-    if (destinationAirport) {
-      setDestinationQuery(formatAirportValue(destinationAirport));
-    }
-  }, [destinationAirport]);
+  const [showAdditionalFilters, setShowAdditionalFilters] = useState(false);
 
   // Update filters when scene changes
   useEffect(() => {
@@ -218,7 +247,7 @@ export function SearchScene({
 
   // Search functionality
   const performSearch = useCallback(async () => {
-    if (!originAirport || !destinationAirport) {
+    if (originAirports.length === 0 || destinationAirports.length === 0) {
       return;
     }
 
@@ -247,8 +276,8 @@ export function SearchScene({
         tripType: TripType.ONE_WAY,
         segments: [
           {
-            origin: originAirport.iata,
-            destination: destinationAirport.iata,
+            origin: originAirports[0].iata,
+            destination: destinationAirports[0].iata,
             departureDate: format(filters.dateRange.from, "yyyy-MM-dd"),
             ...(normalizedDeparture && {
               departureTimeRange: normalizedDeparture,
@@ -309,18 +338,32 @@ export function SearchScene({
       );
     }
   }, [
-    originAirport,
-    destinationAirport,
+    originAirports,
+    destinationAirports,
     filters,
     scene.data.adults,
     scene.data.children,
     flightsDatesMutation,
   ]);
 
+  // Auto-search when scene data changes (agent updates)
+  const hasSearchedRef = useRef(false);
+  useEffect(() => {
+    // Only auto-search if we have valid data and haven't searched yet
+    if (
+      originAirports.length > 0 &&
+      destinationAirports.length > 0 &&
+      !hasSearchedRef.current
+    ) {
+      hasSearchedRef.current = true;
+      void performSearch();
+    }
+  }, [originAirports, destinationAirports, performSearch]);
+
   // Load flight options for a specific date
   const loadFlightOptions = useCallback(
     async (isoDate: string) => {
-      if (!originAirport || !destinationAirport) {
+      if (originAirports.length === 0 || destinationAirports.length === 0) {
         return;
       }
 
@@ -351,8 +394,8 @@ export function SearchScene({
           tripType: TripType.ONE_WAY,
           segments: [
             {
-              origin: originAirport.iata,
-              destination: destinationAirport.iata,
+              origin: originAirports[0].iata,
+              destination: destinationAirports[0].iata,
               departureDate: isoDate,
               ...(normalizedDeparture && {
                 departureTimeRange: normalizedDeparture,
@@ -396,8 +439,8 @@ export function SearchScene({
       }
     },
     [
-      originAirport,
-      destinationAirport,
+      originAirports,
+      destinationAirports,
       filters,
       scene.data.adults,
       scene.data.children,
@@ -427,60 +470,6 @@ export function SearchScene({
       current.price < lowest.price ? current : lowest,
     );
   }, [flightPrices]);
-
-  // Header state
-  const headerState: FlightExplorerHeaderState = {
-    displayMessage: `Search: ${originCodes.join("/")} → ${destinationCodes.join("/")}`,
-    isInitialLoading: isLoadingAirports,
-    isLoadingNearby: false,
-    totalAirports,
-    onShowAllAirports: () => {},
-  };
-
-  // Search field states (read-only for now)
-  const originField: FlightSearchFieldState = {
-    kind: "origin",
-    value: originQuery,
-    selectedAirport: originAirport,
-    isActive: activeField === "origin",
-    onChange: () => {},
-    onSelect: () => {},
-    onActivate: () => setActiveField("origin"),
-    onBlur: () => setActiveField(null),
-  };
-
-  const destinationField: FlightSearchFieldState = {
-    kind: "destination",
-    value: destinationQuery,
-    selectedAirport: destinationAirport,
-    isActive: activeField === "destination",
-    onChange: () => {},
-    onSelect: () => {},
-    onActivate: () => setActiveField("destination"),
-    onBlur: () => setActiveField(null),
-  };
-
-  const searchState: FlightExplorerSearchState = {
-    airports,
-    origin: originField,
-    destination: destinationField,
-    showDestinationField: true,
-    isEditing: activeField !== null,
-    shouldShowSearchAction: true,
-    isSearchDisabled: flightsDatesMutation.isLoading,
-    isSearching: flightsDatesMutation.isLoading,
-    onSearch: performSearch,
-    onReset: () => {
-      setFlightPrices([]);
-      setSelectedDate(null);
-      setSelectedPriceIndex(null);
-      setFlightOptions([]);
-      setSearchError(null);
-    },
-    selectRoute: () => {},
-    clearRoute: () => {},
-    routeChangedSinceSearch: false,
-  };
 
   // Filters state
   const filtersState: FlightExplorerFiltersState = {
@@ -543,63 +532,458 @@ export function SearchScene({
     },
   };
 
-  // Price state
-  const priceState: FlightExplorerPriceState = {
-    shouldShowPanel: true,
-    chartData,
-    cheapestEntry,
-    searchError,
-    isSearching: flightsDatesMutation.isLoading,
-    searchWindowDays: filters.searchWindowDays,
-    selectedDate,
-    selectedPriceIndex,
-    flightOptions,
-    isFlightOptionsLoading,
-    flightOptionsError,
-    onSelectPriceIndex: (index) => {
-      if (index < 0 || index >= flightPrices.length) {
-        setSelectedDate(null);
-        setSelectedPriceIndex(null);
-        return;
-      }
-      const entry = flightPrices[index];
-      setSelectedPriceIndex(index);
-      setSelectedDate(entry.date);
-      void loadFlightOptions(entry.date);
-    },
-    onSelectDate: (isoDate) => {
-      if (!isoDate) {
-        setSelectedDate(null);
-        setSelectedPriceIndex(null);
-        return;
-      }
-      const normalized = format(startOfDay(parseISO(isoDate)), "yyyy-MM-dd");
-      setSelectedDate(normalized);
-      const index = flightPrices.findIndex(
-        (entry) => entry.date === normalized,
-      );
-      setSelectedPriceIndex(index >= 0 ? index : null);
-      void loadFlightOptions(normalized);
-    },
-    canRefetch: false,
-    onRefetch: performSearch,
-  };
-
   return (
     <div className="flex flex-col h-full">
-      <RouteSearchPanel search={searchState} header={headerState} />
+      {/* Compact Route Header */}
+      <div className="border-b bg-background p-4">
+        <div className="space-y-3">
+          {/* Origin Row */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">From</Label>
+            <div className="flex flex-wrap gap-2">
+              {originAirports.map((airport) => (
+                <Badge
+                  key={airport.iata}
+                  variant="secondary"
+                  className="font-normal"
+                >
+                  {airport.iata} - {airport.city}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          {/* Destination Row */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">To</Label>
+            <div className="flex flex-wrap gap-2">
+              {destinationAirports.map((airport) => (
+                <Badge
+                  key={airport.iata}
+                  variant="secondary"
+                  className="font-normal"
+                >
+                  {airport.iata} - {airport.city}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          {/* Search Button */}
+          <Button
+            onClick={() => {
+              hasSearchedRef.current = true;
+              void performSearch();
+            }}
+            disabled={
+              flightsDatesMutation.isLoading ||
+              originAirports.length === 0 ||
+              destinationAirports.length === 0
+            }
+            className="w-full"
+            size="sm"
+          >
+            <Search className="h-4 w-4 mr-2" />
+            {flightsDatesMutation.isLoading ? "Searching..." : "Search Flights"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Filters and Results */}
       <div
         id="flight-price-panel-scroll"
         className="flex-1 overflow-auto bg-muted/10"
       >
         <div className="container mx-auto flex flex-col gap-4 p-4">
-          <FlightPricePanel
-            state={priceState}
-            filters={filtersState}
-            originAirport={originAirport}
-            destinationAirport={destinationAirport}
-            airports={airports}
-          />
+          {/* Primary Filters */}
+          <div className="space-y-4 rounded-lg border bg-card p-4">
+            <h3 className="font-semibold text-sm">Refine Results</h3>
+
+            {/* Date Range */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">
+                Travel Dates
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
+                    <span className="text-sm">
+                      {format(filters.dateRange.from, "MMM d, yyyy")} -{" "}
+                      {format(filters.dateRange.to, "MMM d, yyyy")}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={filters.dateRange}
+                    onSelect={(range) => {
+                      if (range?.from && range?.to) {
+                        filtersState.onDateRangeChange({
+                          from: range.from,
+                          to: range.to,
+                        });
+                      }
+                    }}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Cabin Class */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">
+                Cabin Class
+              </Label>
+              <Select
+                value={mapSeatTypeToString(filters.seatType)}
+                onValueChange={(value) =>
+                  filtersState.onSeatTypeChange(mapSeatType(value))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="economy">Economy</SelectItem>
+                  <SelectItem value="premium">Premium Economy</SelectItem>
+                  <SelectItem value="business">Business</SelectItem>
+                  <SelectItem value="first">First Class</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Stops */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Stops</Label>
+              <Select
+                value={mapStopsToString(filters.stops)}
+                onValueChange={(value) =>
+                  filtersState.onStopsChange(mapMaxStops(value))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any number of stops</SelectItem>
+                  <SelectItem value="nonstop">Nonstop only</SelectItem>
+                  <SelectItem value="1">1 stop or fewer</SelectItem>
+                  <SelectItem value="2">2 stops or fewer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Search Window */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">
+                Search Window: {filters.searchWindowDays} days
+              </Label>
+              <Slider
+                value={[filters.searchWindowDays]}
+                onValueChange={([value]) =>
+                  filtersState.onSearchWindowDaysChange(value)
+                }
+                min={7}
+                max={180}
+                step={1}
+                className="w-full"
+              />
+            </div>
+
+            {/* Additional Filters Toggle */}
+            <Collapsible
+              open={showAdditionalFilters}
+              onOpenChange={setShowAdditionalFilters}
+            >
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-between"
+                >
+                  <span className="text-sm">Additional Filters</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 transition-transform",
+                      showAdditionalFilters && "rotate-180",
+                    )}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-4">
+                {/* Departure Time */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Departure Time: {filters.departureTimeRange.from}:00 -{" "}
+                    {filters.departureTimeRange.to}:00
+                  </Label>
+                  <Slider
+                    value={[
+                      filters.departureTimeRange.from,
+                      filters.departureTimeRange.to,
+                    ]}
+                    onValueChange={([from, to]) =>
+                      filtersState.onDepartureTimeRangeChange({ from, to })
+                    }
+                    min={0}
+                    max={24}
+                    step={1}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Arrival Time */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Arrival Time: {filters.arrivalTimeRange.from}:00 -{" "}
+                    {filters.arrivalTimeRange.to}:00
+                  </Label>
+                  <Slider
+                    value={[
+                      filters.arrivalTimeRange.from,
+                      filters.arrivalTimeRange.to,
+                    ]}
+                    onValueChange={([from, to]) =>
+                      filtersState.onArrivalTimeRangeChange({ from, to })
+                    }
+                    min={0}
+                    max={24}
+                    step={1}
+                    className="w-full"
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+
+          {/* Price Chart */}
+          {chartData.length > 0 && !searchError && (
+            <Card className="space-y-6 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold">
+                    Cheapest fares over the next {filters.searchWindowDays} days
+                  </p>
+                  {cheapestEntry && (
+                    <p className="text-xs text-muted-foreground">
+                      {format(parseISO(cheapestEntry.date), "MMM d")} •{" "}
+                      {USD_FORMATTER.format(cheapestEntry.price)}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  {flightsDatesMutation.isLoading && (
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                  )}
+                  <CreateAlertButton
+                    originAirport={originAirports[0] || null}
+                    destinationAirport={destinationAirports[0] || null}
+                    filters={filtersState}
+                  />
+                </div>
+              </div>
+
+              <ChartContainer
+                config={PRICE_CHART_CONFIG}
+                className="h-64 w-full"
+              >
+                <LineChart
+                  data={chartData}
+                  margin={{ left: 12, right: 12 }}
+                  onClick={(data) => {
+                    if (data?.activePayload?.[0]?.payload?.date) {
+                      const isoDate = data.activePayload[0].payload.date;
+                      setSelectedDate(isoDate);
+                      const index = flightPrices.findIndex(
+                        (entry) => entry.date === isoDate,
+                      );
+                      setSelectedPriceIndex(index >= 0 ? index : null);
+                      void loadFlightOptions(isoDate);
+                    }
+                  }}
+                  className="cursor-pointer"
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="formattedDate"
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={16}
+                  />
+                  <YAxis
+                    dataKey="price"
+                    tickLine={false}
+                    axisLine={false}
+                    width={56}
+                    tickFormatter={(value: number) =>
+                      USD_FORMATTER.format(value)
+                    }
+                  />
+                  <ChartTooltip
+                    cursor={{ strokeDasharray: "4 4" }}
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(_, items) => {
+                          const isoDate = items?.[0]?.payload?.date;
+                          if (typeof isoDate === "string") {
+                            const parsed = parseISO(isoDate);
+                            if (!Number.isNaN(parsed.getTime())) {
+                              return format(parsed, "EEE, MMM d");
+                            }
+                          }
+                          return "";
+                        }}
+                        formatter={(value) =>
+                          typeof value === "number"
+                            ? USD_FORMATTER.format(value)
+                            : (value ?? "")
+                        }
+                      />
+                    }
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="price"
+                    stroke="var(--color-price)"
+                    strokeWidth={2}
+                    dot={{ r: 2, cursor: "pointer" }}
+                    activeDot={{ r: 5, cursor: "pointer" }}
+                  />
+                </LineChart>
+              </ChartContainer>
+            </Card>
+          )}
+
+          {/* Search Error */}
+          {searchError && (
+            <Card className="p-4">
+              <div
+                role="alert"
+                className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              >
+                {searchError}
+              </div>
+            </Card>
+          )}
+
+          {/* Empty State */}
+          {chartData.length === 0 &&
+            !searchError &&
+            !flightsDatesMutation.isLoading && (
+              <Card className="p-4">
+                <p className="text-sm text-muted-foreground">
+                  No results found. Try adjusting your filters or search
+                  criteria.
+                </p>
+              </Card>
+            )}
+
+          {/* Flight Options */}
+          {chartData.length > 0 && !searchError && (
+            <Card className="space-y-4 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-1">
+                  <h4 className="text-sm font-semibold">
+                    Choose a travel date
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    Click a date on the chart or pick from the calendar to load
+                    detailed flight options.
+                  </p>
+                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 gap-2"
+                      disabled={chartData.length === 0}
+                    >
+                      <CalendarIcon className="h-4 w-4" aria-hidden="true" />
+                      {selectedDate
+                        ? format(parseISO(selectedDate), "EEE, MMM d")
+                        : "Select date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={
+                        selectedDate ? parseISO(selectedDate) : undefined
+                      }
+                      onSelect={(date) => {
+                        if (!date) {
+                          setSelectedDate(null);
+                          setSelectedPriceIndex(null);
+                          return;
+                        }
+                        const isoDate = format(date, "yyyy-MM-dd");
+                        setSelectedDate(isoDate);
+                        const index = flightPrices.findIndex(
+                          (entry) => entry.date === isoDate,
+                        );
+                        setSelectedPriceIndex(index >= 0 ? index : null);
+                        void loadFlightOptions(isoDate);
+                      }}
+                      disabled={(date) => {
+                        if (chartData.length === 0) return true;
+                        const firstDate = parseISO(chartData[0].date);
+                        const lastDate = parseISO(
+                          chartData[chartData.length - 1].date,
+                        );
+                        return date < firstDate || date > lastDate;
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {selectedPriceIndex !== null && chartData[selectedPriceIndex] && (
+                <div className="flex flex-col gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-0.5">
+                    <span className="font-semibold">
+                      {format(
+                        parseISO(chartData[selectedPriceIndex].date),
+                        "EEEE, MMM d",
+                      )}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      Calendar fare •{" "}
+                      {USD_FORMATTER.format(
+                        chartData[selectedPriceIndex].price,
+                      )}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="self-start sm:self-auto"
+                    onClick={() => {
+                      setSelectedDate(null);
+                      setSelectedPriceIndex(null);
+                    }}
+                  >
+                    Clear selection
+                  </Button>
+                </div>
+              )}
+
+              <FlightOptionsList
+                options={flightOptions}
+                selectedDate={selectedDate}
+                isLoading={isFlightOptionsLoading}
+                error={flightOptionsError}
+                awardTrips={[]}
+                airports={airports}
+              />
+            </Card>
+          )}
         </div>
       </div>
     </div>
