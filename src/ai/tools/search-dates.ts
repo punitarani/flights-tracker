@@ -118,16 +118,82 @@ Important Notes:
       if (params.tripType === "roundtrip" && !params.tripDuration) {
         return {
           success: false,
-          message: "Trip duration is required for round trip searches",
+          message:
+            "Round trip searches require a trip duration (e.g., 7 days). Please specify how long you want to stay.",
           dates: [],
         };
+      }
+
+      // Validate dates are not in the past
+      const startDate = new Date(params.startDate);
+      const endDate = new Date(params.endDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (endDate < today) {
+        return {
+          success: false,
+          message: `End date ${params.endDate} is in the past. Please provide future dates.`,
+          dates: [],
+        };
+      }
+
+      if (startDate > endDate) {
+        return {
+          success: false,
+          message: `Start date ${params.startDate} is after end date ${params.endDate}. Please provide a valid date range.`,
+          dates: [],
+        };
+      }
+
+      // Validate date range is reasonable (max ~1 year)
+      const daysDiff = Math.floor(
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      if (daysDiff > 365) {
+        return {
+          success: false,
+          message: `Date range is too large (${daysDiff} days). Please search within a 1-year period.`,
+          dates: [],
+        };
+      }
+
+      // Validate airport codes exist
+      try {
+        for (const code of params.origin) {
+          toAirportEnum(code);
+        }
+        for (const code of params.destination) {
+          toAirportEnum(code);
+        }
+      } catch (error) {
+        return {
+          success: false,
+          message: `Invalid airport code: ${(error as Error).message}. Please use valid 3-letter IATA codes.`,
+          dates: [],
+        };
+      }
+
+      // Validate airline codes if provided
+      if (params.airlines) {
+        try {
+          for (const code of params.airlines) {
+            toAirlineEnum(code);
+          }
+        } catch (error) {
+          return {
+            success: false,
+            message: `Invalid airline code: ${(error as Error).message}. Please use valid 2-letter airline codes.`,
+            dates: [],
+          };
+        }
       }
 
       const searchDates = new SearchDates();
       const tripType = toTripTypeEnum(params.tripType ?? "oneway");
 
       // Build flight segments
-      const firstTravelDate = formatDate(params.startDate);
+      const firstTravelDate = params.startDate;
       const segments = [
         {
           departureAirport: params.origin.map((code) => [
@@ -166,8 +232,8 @@ Important Notes:
         flightSegments: segments,
         stops: toMaxStopsEnum(params.maxStops ?? "any"),
         seatType: toSeatTypeEnum(params.seatType ?? "economy"),
-        fromDate: formatDate(params.startDate),
-        toDate: formatDate(params.endDate),
+        fromDate: params.startDate,
+        toDate: params.endDate,
         ...(params.tripDuration && { duration: params.tripDuration }),
         ...(params.maxPrice && {
           priceLimit: { maxPrice: params.maxPrice, currency: Currency.USD },
@@ -178,12 +244,50 @@ Important Notes:
       };
 
       // Execute search
-      const results = await searchDates.search(filters);
+      let results: Awaited<ReturnType<typeof searchDates.search>>;
+      try {
+        results = await searchDates.search(filters);
+      } catch (error) {
+        const errorMsg = (error as Error).message;
+
+        // Provide more helpful error messages
+        if (errorMsg.includes("HTTP 429") || errorMsg.includes("rate limit")) {
+          return {
+            success: false,
+            message:
+              "Flight search service is currently busy. Please try again in a moment.",
+            dates: [],
+          };
+        }
+
+        if (errorMsg.includes("timeout") || errorMsg.includes("ETIMEDOUT")) {
+          return {
+            success: false,
+            message: "Date search timed out. Please try a smaller date range.",
+            dates: [],
+          };
+        }
+
+        if (errorMsg.includes("network") || errorMsg.includes("ENOTFOUND")) {
+          return {
+            success: false,
+            message:
+              "Unable to reach flight search service. Please check your connection and try again.",
+            dates: [],
+          };
+        }
+
+        return {
+          success: false,
+          message: `Unable to search dates: ${errorMsg}. Please try different search criteria.`,
+          dates: [],
+        };
+      }
 
       if (!results || results.length === 0) {
         return {
           success: false,
-          message: "No flights found in this date range",
+          message: `No flights found from ${params.origin.join("/")} to ${params.destination.join("/")} between ${params.startDate} and ${params.endDate}. Try different airports or a different date range.`,
           dates: [],
         };
       }
@@ -208,7 +312,7 @@ Important Notes:
 
       return {
         success: true,
-        message: `Found ${dates.length} date${dates.length > 1 ? "s" : ""} with flights`,
+        message: `Found ${dates.length} date${dates.length > 1 ? "s" : ""} with available flights. Cheapest: $${cheapest?.price} on ${cheapest?.date}`,
         count: dates.length,
         cheapestPrice: cheapest?.price,
         cheapestDate: cheapest?.date,
@@ -216,14 +320,15 @@ Important Notes:
         searchParams: {
           origin: params.origin,
           destination: params.destination,
-          dateRange: `${formatDate(params.startDate)} to ${formatDate(params.endDate)}`,
+          dateRange: `${params.startDate} to ${params.endDate}`,
           tripType: params.tripType ?? "oneway",
         },
       };
     } catch (error) {
+      // Catch any unexpected errors
       return {
         success: false,
-        message: `Date search failed: ${(error as Error).message}`,
+        message: `Unexpected error during date search: ${(error as Error).message}. Please try again.`,
         dates: [],
       };
     }

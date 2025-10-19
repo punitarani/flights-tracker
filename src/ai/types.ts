@@ -22,9 +22,25 @@ export const PlannerSearchSceneSchema = z.object({
   data: z.object({
     origin: z.array(z.string()),
     destination: z.array(z.string()),
-    startDate: z.coerce.date(),
-    endDate: z.coerce.date(),
-    travelDate: z.coerce.date(),
+    startDate: z.string(),
+    endDate: z.string(),
+    travelDate: z.string().optional(), // Optional - can search by date range only
+    // Optional filters for interactive search
+    adults: z.number().int().min(1).max(9).default(1).optional(),
+    children: z.number().int().min(0).max(8).default(0).optional(),
+    maxStops: z.enum(["any", "nonstop", "1", "2"]).default("any").optional(),
+    seatType: z
+      .enum(["economy", "premium", "business", "first"])
+      .default("economy")
+      .optional(),
+    maxPrice: z.number().positive().optional(),
+    airlines: z.array(z.string().length(2).toUpperCase()).optional(),
+    departureTimeFrom: z.number().min(0).max(24).optional(),
+    departureTimeTo: z.number().min(0).max(24).optional(),
+    arrivalTimeFrom: z.number().min(0).max(24).optional(),
+    arrivalTimeTo: z.number().min(0).max(24).optional(),
+    daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
+    searchWindowDays: z.number().int().positive().optional(),
   }),
 });
 export type PlannerSearchScene = z.infer<typeof PlannerSearchSceneSchema>;
@@ -41,6 +57,7 @@ export const PlannerContextSchema = z.object({
     city: z.string(),
     state: z.string(),
     country: z.string(),
+    zipCode: z.string(),
   }),
 });
 export type PlannerContext = z.infer<typeof PlannerContextSchema>;
@@ -107,8 +124,9 @@ const BaseFlightSearchSchema = z.object({
  * Used by searchFlightsTool to find available flights on a specific date.
  */
 export const SearchFlightsParamsSchema = BaseFlightSearchSchema.extend({
-  travelDate: z.coerce
-    .date()
+  travelDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
     .describe("Departure date in ISO format (YYYY-MM-DD)"),
   topN: z
     .number()
@@ -126,10 +144,14 @@ export type SearchFlightsParams = z.infer<typeof SearchFlightsParamsSchema>;
  * Used by searchDatesTool to find optimal travel dates within a range.
  */
 export const SearchDatesParamsSchema = BaseFlightSearchSchema.extend({
-  startDate: z.coerce
-    .date()
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
     .describe("Start of date range to search (YYYY-MM-DD)"),
-  endDate: z.coerce.date().describe("End of date range to search (YYYY-MM-DD)"),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("End of date range to search (YYYY-MM-DD)"),
   tripType: z
     .enum(["oneway", "roundtrip"])
     .default("oneway")
@@ -151,36 +173,57 @@ export type SearchDatesParams = z.infer<typeof SearchDatesParamsSchema>;
  * Parameters for controlling the UI scene.
  * Used by controlSceneTool to switch between map and search views.
  */
-export const ControlSceneParamsSchema = z.discriminatedUnion("view", [
-  z.object({
-    view: z.literal("map").describe("Show map view"),
-    mode: z
-      .enum(["popular", "routes"])
-      .describe("Map mode: popular routes or specific airport routes"),
-    airports: z
-      .array(z.string().length(3).toUpperCase())
-      .optional()
-      .describe(
-        "For routes mode: array of 3-letter airport codes to display connections",
-      ),
-  }),
-  z.object({
-    view: z.literal("search").describe("Show search results view"),
-    origin: z
-      .array(z.string().length(3).toUpperCase())
-      .min(1)
-      .describe("Origin airport codes for search filters"),
-    destination: z
-      .array(z.string().length(3).toUpperCase())
-      .min(1)
-      .describe("Destination airport codes for search filters"),
-    startDate: z.coerce
-      .date()
-      .describe("Start of date range for search filters"),
-    endDate: z.coerce.date().describe("End of date range for search filters"),
-    travelDate: z.coerce
-      .date()
-      .describe("Specific travel date to highlight in results"),
-  }),
-]);
+export const ControlSceneParamsSchema = z.object({
+  view: z
+    .enum(["map", "search"])
+    .describe("Which view to display: map or search"),
+  mode: z
+    .enum(["popular", "routes"])
+    .optional()
+    .describe(
+      "Map mode: popular routes or specific airport routes (only for map view)",
+    ),
+  airports: z
+    .array(z.string().length(3).toUpperCase())
+    .optional()
+    .describe(
+      "For map routes mode: array of 3-letter airport codes to display connections",
+    ),
+  origin: z
+    .array(z.string().length(3).toUpperCase())
+    .optional()
+    .describe("Origin airport codes for search view"),
+  destination: z
+    .array(z.string().length(3).toUpperCase())
+    .optional()
+    .describe("Destination airport codes for search view"),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Start of date range for search view (YYYY-MM-DD)"),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("End of date range for search view (YYYY-MM-DD)"),
+  travelDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Specific travel date for search view (YYYY-MM-DD)"),
+  // Optional filters for search view
+  adults: z.number().int().min(1).max(9).optional(),
+  children: z.number().int().min(0).max(8).optional(),
+  maxStops: z.enum(["any", "nonstop", "1", "2"]).optional(),
+  seatType: z.enum(["economy", "premium", "business", "first"]).optional(),
+  maxPrice: z.number().positive().optional(),
+  airlines: z.array(z.string().length(2).toUpperCase()).optional(),
+  departureTimeFrom: z.number().min(0).max(24).optional(),
+  departureTimeTo: z.number().min(0).max(24).optional(),
+  arrivalTimeFrom: z.number().min(0).max(24).optional(),
+  arrivalTimeTo: z.number().min(0).max(24).optional(),
+  daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
+  searchWindowDays: z.number().int().positive().optional(),
+});
 export type ControlSceneParams = z.infer<typeof ControlSceneParamsSchema>;

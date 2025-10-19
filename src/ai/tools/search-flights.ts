@@ -67,13 +67,6 @@ function toSeatTypeEnum(seat: string): SeatType {
 }
 
 /**
- * Format date to YYYY-MM-DD string.
- */
-function formatDate(date: Date): string {
-  return date.toISOString().split("T")[0] ?? "";
-}
-
-/**
  * Format flight result for display.
  */
 function formatFlightResult(flight: FlightResult) {
@@ -127,6 +120,50 @@ Important Notes:
 
   execute: async (params: SearchFlightsParams) => {
     try {
+      // Validate date is not in the past
+      const travelDate = new Date(params.travelDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (travelDate < today) {
+        return {
+          success: false,
+          message: `Travel date ${params.travelDate} is in the past. Please provide a future date.`,
+          flights: [],
+        };
+      }
+
+      // Validate airport codes exist
+      try {
+        for (const code of params.origin) {
+          toAirportEnum(code);
+        }
+        for (const code of params.destination) {
+          toAirportEnum(code);
+        }
+      } catch (error) {
+        return {
+          success: false,
+          message: `Invalid airport code: ${(error as Error).message}. Please use valid 3-letter IATA codes.`,
+          flights: [],
+        };
+      }
+
+      // Validate airline codes if provided
+      if (params.airlines) {
+        try {
+          for (const code of params.airlines) {
+            toAirlineEnum(code);
+          }
+        } catch (error) {
+          return {
+            success: false,
+            message: `Invalid airline code: ${(error as Error).message}. Please use valid 2-letter airline codes.`,
+            flights: [],
+          };
+        }
+      }
+
       const searchFlights = new SearchFlights();
 
       // Convert parameters to FlightSearchFilters
@@ -148,7 +185,7 @@ Important Notes:
               toAirportEnum(code),
               0,
             ]),
-            travelDate: formatDate(params.travelDate),
+            travelDate: params.travelDate,
           },
         ],
         stops: toMaxStopsEnum(params.maxStops ?? "any"),
@@ -163,12 +200,51 @@ Important Notes:
       };
 
       // Execute search
-      const results = await searchFlights.search(filters, params.topN ?? 5);
+      let results: Awaited<ReturnType<typeof searchFlights.search>>;
+      try {
+        results = await searchFlights.search(filters, params.topN ?? 5);
+      } catch (error) {
+        const errorMsg = (error as Error).message;
+
+        // Provide more helpful error messages
+        if (errorMsg.includes("HTTP 429") || errorMsg.includes("rate limit")) {
+          return {
+            success: false,
+            message:
+              "Flight search service is currently busy. Please try again in a moment.",
+            flights: [],
+          };
+        }
+
+        if (errorMsg.includes("timeout") || errorMsg.includes("ETIMEDOUT")) {
+          return {
+            success: false,
+            message:
+              "Flight search timed out. Please try searching fewer airports or dates.",
+            flights: [],
+          };
+        }
+
+        if (errorMsg.includes("network") || errorMsg.includes("ENOTFOUND")) {
+          return {
+            success: false,
+            message:
+              "Unable to reach flight search service. Please check your connection and try again.",
+            flights: [],
+          };
+        }
+
+        return {
+          success: false,
+          message: `Unable to search flights: ${errorMsg}. Please try different search criteria.`,
+          flights: [],
+        };
+      }
 
       if (!results || results.length === 0) {
         return {
           success: false,
-          message: "No flights found matching your criteria",
+          message: `No flights found from ${params.origin.join("/")} to ${params.destination.join("/")} on ${params.travelDate}. Try different dates or airports.`,
           flights: [],
         };
       }
@@ -184,19 +260,20 @@ Important Notes:
 
       return {
         success: true,
-        message: `Found ${flights.length} flight${flights.length > 1 ? "s" : ""}`,
+        message: `Found ${flights.length} flight${flights.length > 1 ? "s" : ""} from ${params.origin.join("/")} to ${params.destination.join("/")}`,
         count: flights.length,
         flights,
         searchParams: {
           origin: params.origin,
           destination: params.destination,
-          travelDate: formatDate(params.travelDate),
+          travelDate: params.travelDate,
         },
       };
     } catch (error) {
+      // Catch any unexpected errors
       return {
         success: false,
-        message: `Flight search failed: ${(error as Error).message}`,
+        message: `Unexpected error during flight search: ${(error as Error).message}. Please try again.`,
         flights: [],
       };
     }

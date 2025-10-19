@@ -4,6 +4,7 @@ import { LogIn, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SignOutButton } from "@/components/sign-out-button";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -18,6 +19,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 
 const NAV_ITEMS = [
+  { label: "Search", href: "/search" },
   { label: "Planner", href: "/planner" },
   { label: "Alerts", href: "/alerts" },
 ];
@@ -45,9 +47,13 @@ export function Header() {
   }, []);
 
   const renderDesktopNav = () => (
-    <nav className="hidden items-center gap-2 md:flex">
+    <nav className="flex items-center gap-2">
       {NAV_ITEMS.map((item) => {
-        if (item.href === "/alerts") {
+        if (
+          item.href === "/search" ||
+          item.href === "/alerts" ||
+          item.href === "/planner"
+        ) {
           return (
             <Button
               key={item.label}
@@ -57,7 +63,12 @@ export function Header() {
               size="sm"
               className="gap-2"
             >
-              <Link href={item.href}>{item.label}</Link>
+              <Link href={item.href}>
+                {item.href === "/planner" && (
+                  <Badge variant="outline">AI</Badge>
+                )}
+                {item.label}
+              </Link>
             </Button>
           );
         }
@@ -88,15 +99,20 @@ export function Header() {
 
   return (
     <header className="border-b bg-card/50 backdrop-blur-sm">
-      <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-4">
+      <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-4 relative">
         <Link href="/" className="flex items-center gap-3">
           <span className="text-2xl" role="img" aria-label="flight">
             ✈️
           </span>
           <span className="text-2xl font-bold tracking-tight">GrayPane</span>
         </Link>
-        <div className="flex items-center gap-2">
+
+        {/* Centered Navigation */}
+        <div className="absolute left-1/2 -translate-x-1/2 hidden md:flex">
           {renderDesktopNav()}
+        </div>
+
+        <div className="flex items-center gap-2">
           {isAuthenticated ? (
             <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
               <PopoverTrigger asChild>
@@ -107,7 +123,9 @@ export function Header() {
                   className="gap-2 px-3"
                 >
                   <UserRound className="h-4 w-4" aria-hidden="true" />
-                  <span className="max-w-[160px] truncate">{userEmail}</span>
+                  <span className="max-w-[160px] truncate">
+                    {userEmail?.split("@")[0]}
+                  </span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -120,6 +138,45 @@ export function Header() {
               >
                 <div className="space-y-1 md:hidden">
                   {NAV_ITEMS.map((item) => {
+                    if (item.href === "/search") {
+                      return (
+                        <Button
+                          key={item.label}
+                          asChild
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start gap-2"
+                        >
+                          <Link
+                            href={item.href}
+                            onClick={() => setIsPopoverOpen(false)}
+                          >
+                            <span>{item.label}</span>
+                          </Link>
+                        </Button>
+                      );
+                    }
+
+                    if (item.href === "/planner") {
+                      return (
+                        <Button
+                          key={item.label}
+                          asChild
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start gap-2"
+                        >
+                          <Link
+                            href={item.href}
+                            onClick={() => setIsPopoverOpen(false)}
+                          >
+                            <Badge variant="outline">AI</Badge>
+                            <span>{item.label}</span>
+                          </Link>
+                        </Button>
+                      );
+                    }
+
                     if (item.href === "/alerts") {
                       return (
                         <Button
@@ -127,16 +184,13 @@ export function Header() {
                           asChild
                           variant="ghost"
                           size="sm"
-                          className="w-full justify-between gap-2"
+                          className="w-full justify-start gap-2"
                         >
                           <Link
                             href={item.href}
                             onClick={() => setIsPopoverOpen(false)}
                           >
                             <span>{item.label}</span>
-                            <span className="text-xs text-muted-foreground">
-                              View alerts
-                            </span>
                           </Link>
                         </Button>
                       );
@@ -148,13 +202,10 @@ export function Header() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="w-full justify-between gap-2"
+                        className="w-full justify-start gap-2"
                         disabled
                       >
                         <span>{item.label}</span>
-                        <span className="text-xs text-muted-foreground">
-                          Coming soon
-                        </span>
                       </Button>
                     );
                   })}
