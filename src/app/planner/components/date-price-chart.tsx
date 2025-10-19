@@ -16,7 +16,7 @@ interface DatePriceChartProps {
 const CHART_CONFIG = {
   price: {
     label: "Price (USD)",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
 } as const;
 
@@ -59,8 +59,8 @@ export function DatePriceChart({
 }: DatePriceChartProps) {
   if (dates.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        <p>No dates found in this range.</p>
+      <div className="flex items-center justify-center py-8 text-muted-foreground">
+        <p className="text-sm">No dates found in this range.</p>
       </div>
     );
   }
@@ -83,15 +83,15 @@ export function DatePriceChart({
   const yAxisMax = Math.ceil(maxPrice + priceRange * 0.1);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Summary */}
       {cheapestPrice && (
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">
             {dates.length} {dates.length === 1 ? "date" : "dates"} available
           </span>
           <span className="font-semibold text-green-600">
-            Best Price: {USD_FORMATTER.format(cheapestPrice)}
+            Best: {USD_FORMATTER.format(cheapestPrice)}
           </span>
         </div>
       )}
@@ -151,34 +151,11 @@ export function DatePriceChart({
             dataKey="price"
             stroke="var(--color-price)"
             strokeWidth={2}
-            dot={(props) => {
-              const { cx, cy, payload } = props;
-              const isCheapest = payload.isCheapest;
-              return (
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r={isCheapest ? 6 : 4}
-                  fill={
-                    isCheapest ? "hsl(var(--chart-2))" : "var(--color-price)"
-                  }
-                  stroke={
-                    isCheapest ? "hsl(var(--chart-2))" : "var(--color-price)"
-                  }
-                  strokeWidth={isCheapest ? 3 : 2}
-                />
-              );
-            }}
+            dot={{ r: 3, cursor: "pointer" }}
+            activeDot={{ r: 5, cursor: "pointer" }}
           />
         </LineChart>
       </ChartContainer>
-
-      {/* Legend */}
-      <div className="text-xs text-muted-foreground text-center">
-        {onSelectDate
-          ? "Click a point on the chart to select that date"
-          : "Hover over points to see details"}
-      </div>
     </div>
   );
 }

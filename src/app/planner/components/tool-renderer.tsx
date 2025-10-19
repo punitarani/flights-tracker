@@ -137,12 +137,14 @@ export function ToolRenderer({ part }: ToolRendererProps) {
             type={part.type}
             state={part.state}
           />
+          <div className="px-4 pt-3 pb-2">
+            <DatePriceChart
+              dates={output.dates}
+              cheapestPrice={output.cheapestPrice}
+            />
+          </div>
           <ToolContent>
-            <div className="space-y-3 p-3">
-              <DatePriceChart
-                dates={output.dates}
-                cheapestPrice={output.cheapestPrice}
-              />
+            <div className="p-3">
               <ToolInput input={part.input} />
             </div>
           </ToolContent>

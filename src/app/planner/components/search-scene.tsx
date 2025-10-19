@@ -10,7 +10,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlannerSearchScene } from "@/ai/types";
 import type { FlightPricePoint } from "@/components/flight-explorer/constants";
-import { FlightFiltersPanel } from "@/components/flight-explorer/flight-filters-panel";
 import { FlightPricePanel } from "@/components/flight-explorer/flight-price-panel";
 import { RouteSearchPanel } from "@/components/flight-explorer/route-search-panel";
 import type {
@@ -594,14 +593,6 @@ export function SearchScene({
         className="flex-1 overflow-auto bg-muted/10"
       >
         <div className="container mx-auto flex flex-col gap-4 p-4">
-          <FlightFiltersPanel
-            filters={filtersState}
-            price={{
-              isSearching: flightsDatesMutation.isLoading,
-              canRefetch: false,
-              onRefetch: performSearch,
-            }}
-          />
           <FlightPricePanel
             state={priceState}
             filters={filtersState}
