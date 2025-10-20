@@ -65,14 +65,28 @@ export function DatePriceChart({
     );
   }
 
-  // Prepare chart data
-  const chartData = dates.map((datePrice) => ({
-    date: datePrice.departureDate ?? datePrice.date,
-    price: datePrice.price,
-    formattedDate: formatChartDate(datePrice.departureDate ?? datePrice.date),
-    isCheapest: datePrice.price === cheapestPrice,
-    original: datePrice,
-  }));
+  // Prepare chart data and sort chronologically
+  const chartData = dates
+    .map((datePrice) => ({
+      date: datePrice.departureDate ?? datePrice.date,
+      price: datePrice.price,
+      formattedDate: formatChartDate(datePrice.departureDate ?? datePrice.date),
+      isCheapest: datePrice.price === cheapestPrice,
+      original: datePrice,
+    }))
+    .sort((a, b) => {
+      try {
+        // Parse dates for comparison
+        const dateA = parseISO(a.date);
+        const dateB = parseISO(b.date);
+
+        // Sort chronologically
+        return dateA.getTime() - dateB.getTime();
+      } catch {
+        // If parsing fails, maintain original order
+        return 0;
+      }
+    });
 
   // Find min/max for Y-axis domain
   const prices = chartData.map((d) => d.price);
