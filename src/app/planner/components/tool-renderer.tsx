@@ -6,11 +6,7 @@ import {
   ToolInput,
   ToolOutput,
 } from "@/components/ai-elements/tool";
-import type {
-  ControlSceneOutput,
-  SearchDatesOutput,
-  SearchFlightsOutput,
-} from "../types";
+import type { SearchDatesOutput, SearchFlightsOutput } from "../types";
 import { DatePriceChart } from "./date-price-chart";
 import { FlightsList } from "./flights-list";
 
@@ -68,10 +64,13 @@ export function ToolRenderer({ part }: ToolRendererProps) {
         );
       }
 
+      const origin = part.input?.origin?.join(", ") ?? "origin";
+      const destination = part.input?.destination?.join(", ") ?? "destination";
+
       return (
         <Tool>
           <ToolHeader
-            title={`Found ${output.count ?? 0} flights`}
+            title={`Found ${output.count ?? 0} flights from ${origin} → ${destination}`}
             type={part.type}
             state={part.state}
           />
@@ -130,10 +129,13 @@ export function ToolRenderer({ part }: ToolRendererProps) {
         );
       }
 
+      const origin = part.input?.origin?.join(", ") ?? "origin";
+      const destination = part.input?.destination?.join(", ") ?? "destination";
+
       return (
         <Tool>
           <ToolHeader
-            title={`Found ${output.count ?? 0} dates${output.cheapestPrice ? ` • Best: $${output.cheapestPrice}` : ""}`}
+            title={`Found ${output.count ?? 0} dates for ${origin} → ${destination}${output.cheapestPrice ? ` • Best: $${output.cheapestPrice}` : ""}`}
             type={part.type}
             state={part.state}
           />
@@ -153,70 +155,9 @@ export function ToolRenderer({ part }: ToolRendererProps) {
     }
   }
 
-  // controlScene tool
+  // controlScene tool - hidden from conversation
   if (part.type === "tool-controlScene") {
-    if (part.state === "call" || part.state === "input-available") {
-      return (
-        <Tool>
-          <ToolHeader
-            title="Scene control"
-            type={part.type}
-            state={part.state}
-          />
-          <ToolContent>
-            <div className="space-y-3 p-3">
-              <Shimmer className="text-sm">
-                {`Switching to ${part.input?.view ?? "new"} view${part.input?.mode ? ` (${part.input.mode} mode)` : ""}...`}
-              </Shimmer>
-              <ToolInput input={part.input} />
-            </div>
-          </ToolContent>
-        </Tool>
-      );
-    }
-
-    if (part.state === "output-available") {
-      const output = part.output as ControlSceneOutput;
-
-      if (!output.success) {
-        return (
-          <Tool>
-            <ToolHeader
-              title="Scene control"
-              type={part.type}
-              state="output-error"
-            />
-            <ToolContent>
-              <div className="space-y-3 p-3">
-                <div className="rounded-md bg-destructive/10 border border-destructive/20 p-2.5">
-                  <p className="text-sm text-destructive font-medium leading-relaxed">
-                    {output.message}
-                  </p>
-                </div>
-                <ToolInput input={part.input} />
-                <ToolOutput output={output} errorText={output.message} />
-              </div>
-            </ToolContent>
-          </Tool>
-        );
-      }
-
-      return (
-        <Tool>
-          <ToolHeader
-            title="Scene updated"
-            type={part.type}
-            state={part.state}
-          />
-          <ToolContent>
-            <div className="space-y-3 p-3">
-              <p className="text-sm text-muted-foreground">{output.message}</p>
-              <ToolInput input={part.input} />
-            </div>
-          </ToolContent>
-        </Tool>
-      );
-    }
+    return null;
   }
 
   // Unknown tool or state
