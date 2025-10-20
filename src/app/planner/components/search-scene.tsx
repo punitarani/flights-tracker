@@ -64,6 +64,7 @@ import type { FlightOption } from "@/server/services/flights";
 interface SearchSceneProps {
   scene: PlannerSearchScene;
   airports: AirportData[];
+  isLoadingAirports?: boolean;
 }
 
 type FiltersState = {
@@ -144,7 +145,11 @@ function mapSeatTypeToString(seatType: SeatType): string {
   }
 }
 
-export function SearchScene({ scene, airports }: SearchSceneProps) {
+export function SearchScene({
+  scene,
+  airports,
+  isLoadingAirports = false,
+}: SearchSceneProps) {
   const {
     origin: originCodes,
     destination: destinationCodes,
@@ -537,37 +542,60 @@ export function SearchScene({ scene, airports }: SearchSceneProps) {
       {/* Compact Route Header */}
       <div className="border-b bg-background p-4">
         <div className="space-y-3">
-          {/* Origin Row */}
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">From</Label>
-            <div className="flex flex-wrap gap-2">
-              {originAirports.map((airport) => (
-                <Badge
-                  key={airport.iata}
-                  variant="secondary"
-                  className="font-normal"
-                >
-                  {airport.iata} - {airport.city}
-                </Badge>
-              ))}
+          {/* Loading State */}
+          {isLoadingAirports && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <p className="text-sm">Loading airport data...</p>
             </div>
-          </div>
+          )}
+
+          {/* Empty State - No airports found */}
+          {!isLoadingAirports &&
+            originAirports.length === 0 &&
+            destinationAirports.length === 0 && (
+              <div className="rounded-md border border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950 p-3">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  No airport data available. Please try refreshing the page.
+                </p>
+              </div>
+            )}
+
+          {/* Origin Row */}
+          {!isLoadingAirports && originAirports.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">From</Label>
+              <div className="flex flex-wrap gap-2">
+                {originAirports.map((airport) => (
+                  <Badge
+                    key={airport.iata}
+                    variant="secondary"
+                    className="font-normal"
+                  >
+                    {airport.iata} - {airport.city}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Destination Row */}
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">To</Label>
-            <div className="flex flex-wrap gap-2">
-              {destinationAirports.map((airport) => (
-                <Badge
-                  key={airport.iata}
-                  variant="secondary"
-                  className="font-normal"
-                >
-                  {airport.iata} - {airport.city}
-                </Badge>
-              ))}
+          {!isLoadingAirports && destinationAirports.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">To</Label>
+              <div className="flex flex-wrap gap-2">
+                {destinationAirports.map((airport) => (
+                  <Badge
+                    key={airport.iata}
+                    variant="secondary"
+                    className="font-normal"
+                  >
+                    {airport.iata} - {airport.city}
+                  </Badge>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Search Button */}
           <Button

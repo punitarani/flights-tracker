@@ -10,6 +10,7 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
+import { Loader } from "@/components/ai-elements/loader";
 import { Message, MessageContent } from "@/components/ai-elements/message";
 import {
   PromptInput,
@@ -140,15 +141,16 @@ export default function PlannerPage() {
       {/* Header */}
       <Header />
 
-      {/* Main Content */}
+      {/* Main Content - Horizontal 50/50 Split for Both Scenes */}
       <div className="flex flex-1 min-h-0">
-        {/* Chat Panel */}
+        {/* Left Panel - Chat/Welcome Area */}
         <div className="w-full lg:w-1/2 flex flex-col h-full border-r">
-          {/* Conversation Area with Input at Bottom */}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            {/* Conversation/Welcome Area */}
             <div className="flex-1 overflow-y-auto">
-              <Conversation className="h-full">
-                <ConversationContent className="flex flex-col space-y-2">
+              {scene.view === "map" ? (
+                // Map Scene: Show welcome message only (no conversation history)
+                <div className="h-full">
                   {messages.length === 0 && (
                     <div className="flex items-center justify-center min-h-[400px]">
                       <div className="text-center space-y-4 p-8">
@@ -163,40 +165,138 @@ export default function PlannerPage() {
                       </div>
                     </div>
                   )}
-
-                  {messages.map((message) => (
-                    <Message key={message.id} from={message.role}>
-                      {message.parts.map((part, i) => {
-                        if (part.type === "text") {
-                          // Skip empty text parts to avoid white space
-                          if (!part.text?.trim()) return null;
-
-                          return (
-                            <MessageContent
-                              key={`${message.id}-text-${i}`}
-                              variant={
-                                message.role === "assistant"
-                                  ? "flat"
-                                  : "contained"
+                  {/* Show conversation on mobile for map scene */}
+                  {messages.length > 0 && (
+                    <Conversation className="h-full lg:hidden">
+                      <ConversationContent className="flex flex-col space-y-2">
+                        {messages.map((message) => (
+                          <Message key={message.id} from={message.role}>
+                            {message.parts.map((part, i) => {
+                              if (part.type === "text") {
+                                if (!part.text?.trim()) return null;
+                                return (
+                                  <MessageContent
+                                    key={`${message.id}-text-${i}`}
+                                    variant={
+                                      message.role === "assistant"
+                                        ? "flat"
+                                        : "contained"
+                                    }
+                                  >
+                                    <Response>{part.text}</Response>
+                                  </MessageContent>
+                                );
                               }
-                            >
-                              <Response>{part.text}</Response>
+                              return (
+                                <ToolRenderer
+                                  key={`${message.id}-tool-${i}`}
+                                  part={part}
+                                />
+                              );
+                            })}
+                          </Message>
+                        ))}
+                        {status === "submitted" && (
+                          <Message from="assistant">
+                            <MessageContent variant="flat">
+                              <div className="flex items-center gap-2">
+                                <Loader />
+                                <span className="text-sm text-muted-foreground">
+                                  Thinking...
+                                </span>
+                              </div>
                             </MessageContent>
-                          );
-                        }
-                        // Tools render directly without MessageContent wrapper
-                        return (
-                          <ToolRenderer
-                            key={`${message.id}-tool-${i}`}
-                            part={part}
-                          />
-                        );
-                      })}
-                    </Message>
-                  ))}
+                          </Message>
+                        )}
+                        {status === "streaming" && !hasVisibleContent && (
+                          <Message from="assistant">
+                            <MessageContent variant="flat">
+                              <Shimmer className="text-sm">
+                                Finding flights...
+                              </Shimmer>
+                            </MessageContent>
+                          </Message>
+                        )}
+                        {error && (
+                          <Message from="assistant">
+                            <MessageContent>
+                              <div className="space-y-2">
+                                <p className="text-sm text-destructive font-medium">
+                                  Sorry, something went wrong processing your
+                                  request.
+                                </p>
+                                <div className="text-xs text-muted-foreground bg-muted p-3 rounded-md font-mono">
+                                  {error.message}
+                                </div>
+                              </div>
+                            </MessageContent>
+                          </Message>
+                        )}
+                      </ConversationContent>
+                      <ConversationScrollButton />
+                    </Conversation>
+                  )}
+                </div>
+              ) : (
+                // Search Scene: Show full conversation history
+                <Conversation className="h-full">
+                  <ConversationContent className="flex flex-col space-y-2">
+                    {messages.length === 0 && (
+                      <div className="flex items-center justify-center min-h-[400px]">
+                        <div className="text-center space-y-4 p-8">
+                          <div className="text-6xl">✈️</div>
+                          <h2 className="text-2xl font-bold">
+                            Where do you want to go?
+                          </h2>
+                          <p className="text-muted-foreground">
+                            Ask me to find flights, compare dates, or explore
+                            popular routes.
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
-                  {(status === "submitted" || status === "streaming") &&
-                    !hasVisibleContent && (
+                    {messages.map((message) => (
+                      <Message key={message.id} from={message.role}>
+                        {message.parts.map((part, i) => {
+                          if (part.type === "text") {
+                            if (!part.text?.trim()) return null;
+                            return (
+                              <MessageContent
+                                key={`${message.id}-text-${i}`}
+                                variant={
+                                  message.role === "assistant"
+                                    ? "flat"
+                                    : "contained"
+                                }
+                              >
+                                <Response>{part.text}</Response>
+                              </MessageContent>
+                            );
+                          }
+                          return (
+                            <ToolRenderer
+                              key={`${message.id}-tool-${i}`}
+                              part={part}
+                            />
+                          );
+                        })}
+                      </Message>
+                    ))}
+
+                    {status === "submitted" && (
+                      <Message from="assistant">
+                        <MessageContent variant="flat">
+                          <div className="flex items-center gap-2">
+                            <Loader />
+                            <span className="text-sm text-muted-foreground">
+                              Thinking...
+                            </span>
+                          </div>
+                        </MessageContent>
+                      </Message>
+                    )}
+                    {status === "streaming" && !hasVisibleContent && (
                       <Message from="assistant">
                         <MessageContent variant="flat">
                           <Shimmer className="text-sm">
@@ -206,23 +306,25 @@ export default function PlannerPage() {
                       </Message>
                     )}
 
-                  {error && (
-                    <Message from="assistant">
-                      <MessageContent>
-                        <div className="space-y-2">
-                          <p className="text-sm text-destructive font-medium">
-                            Sorry, something went wrong processing your request.
-                          </p>
-                          <div className="text-xs text-muted-foreground bg-muted p-3 rounded-md font-mono">
-                            {error.message}
+                    {error && (
+                      <Message from="assistant">
+                        <MessageContent>
+                          <div className="space-y-2">
+                            <p className="text-sm text-destructive font-medium">
+                              Sorry, something went wrong processing your
+                              request.
+                            </p>
+                            <div className="text-xs text-muted-foreground bg-muted p-3 rounded-md font-mono">
+                              {error.message}
+                            </div>
                           </div>
-                        </div>
-                      </MessageContent>
-                    </Message>
-                  )}
-                </ConversationContent>
-                <ConversationScrollButton />
-              </Conversation>
+                        </MessageContent>
+                      </Message>
+                    )}
+                  </ConversationContent>
+                  <ConversationScrollButton />
+                </Conversation>
+              )}
             </div>
 
             {/* Input Area - Sticky at Bottom */}
@@ -265,15 +367,19 @@ export default function PlannerPage() {
           </div>
         </div>
 
-        {/* Scene Panel - Desktop */}
+        {/* Right Panel - Scene View (Map or Search) */}
         <div className="hidden lg:flex lg:w-1/2 flex-col h-full border-l">
           <div className="flex-1 overflow-y-auto">
-            <SceneView scene={scene} airports={airports} />
+            <SceneView
+              scene={scene}
+              airports={airports}
+              isLoadingAirports={airportSearchQuery.isLoading}
+            />
           </div>
         </div>
       </div>
 
-      {/* Scene Panel - Mobile Sheet */}
+      {/* Scene Panel - Mobile Sheet (unchanged) */}
       <Sheet open={isScenePanelOpen} onOpenChange={setIsScenePanelOpen}>
         <SheetContent side="right" className="w-full sm:max-w-lg p-0">
           <div className="flex flex-col h-full">
@@ -281,7 +387,11 @@ export default function PlannerPage() {
               <SheetTitle>{sceneTitle}</SheetTitle>
             </SheetHeader>
             <div className="flex-1 overflow-y-auto">
-              <SceneView scene={scene} airports={airports} />
+              <SceneView
+                scene={scene}
+                airports={airports}
+                isLoadingAirports={airportSearchQuery.isLoading}
+              />
             </div>
           </div>
         </SheetContent>
