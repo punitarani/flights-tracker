@@ -20,7 +20,7 @@ export function MapScene({ scene }: MapSceneProps) {
   // Fetch all airports for display
   const { data: allAirportsData, isLoading: isLoadingAirports } = api.useQuery([
     "airports.search",
-    { q: "", limit: 1000 },
+    { limit: 1000 },
   ]);
 
   const allAirports = allAirportsData?.airports ?? [];
