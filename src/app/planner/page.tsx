@@ -21,7 +21,6 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { Response } from "@/components/ai-elements/response";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +31,7 @@ import {
 } from "@/components/ui/sheet";
 import { api } from "@/lib/trpc/react";
 import { SceneView } from "./components/scene-view";
+import { SuggestionsCarousel } from "./components/suggestions-carousel";
 import { ToolRenderer } from "./components/tool-renderer";
 import type { ControlSceneOutput, PlannerScene } from "./types";
 
@@ -228,36 +228,9 @@ export default function PlannerPage() {
             {/* Input Area - Sticky at Bottom */}
             <div className="border-t p-4 flex-shrink-0 space-y-4">
               {messages.length === 0 && (
-                <div className="space-y-2">
-                  <Suggestions>
-                    <Suggestion
-                      onClick={handleSuggestionClick}
-                      suggestion="Flights from SFO to NYC next week"
-                    />
-                    <Suggestion
-                      onClick={handleSuggestionClick}
-                      suggestion="LAX to London in December"
-                    />
-                    <Suggestion
-                      onClick={handleSuggestionClick}
-                      suggestion="Chicago to Miami this weekend"
-                    />
-                  </Suggestions>
-                  <Suggestions>
-                    <Suggestion
-                      onClick={handleSuggestionClick}
-                      suggestion="Cheapest dates to Tokyo from SFO"
-                    />
-                    <Suggestion
-                      onClick={handleSuggestionClick}
-                      suggestion="Weekend flights to Vegas from LA"
-                    />
-                    <Suggestion
-                      onClick={handleSuggestionClick}
-                      suggestion="Paris flights next month"
-                    />
-                  </Suggestions>
-                </div>
+                <SuggestionsCarousel
+                  onSuggestionSelect={handleSuggestionClick}
+                />
               )}
               <PromptInput onSubmit={handleSubmit} className="w-full">
                 <PromptInputBody>
