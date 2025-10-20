@@ -50,6 +50,14 @@ export function createPlannerAgent(context: PlannerContext) {
     tools: PlannerAgentTools,
     stopWhen: stepCountIs(25), // Allow multiple tool calls for complex planning
     maxRetries: 3, // Retry on transient failures
+    experimental_telemetry: {
+      isEnabled: true,
+      recordInputs: true,
+      recordOutputs: true,
+      metadata: {
+        user: JSON.stringify(context.user),
+      },
+    },
   });
 }
 
