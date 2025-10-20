@@ -21,7 +21,7 @@ import type {
   FlightExplorerFiltersState,
   FlightExplorerPriceState,
 } from "@/hooks/use-flight-explorer";
-import { trpc } from "@/lib/trpc/react";
+import { api } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
 import { AwardAvailabilityPanel } from "./award-availability-panel";
 import { PRICE_CHART_CONFIG, USD_FORMATTER } from "./constants";
@@ -61,15 +61,12 @@ export function FlightPricePanel({
   } = state;
 
   // Query award trips for the selected date to show points alongside prices
-  const { data: awardTrips } = trpc.useQuery(
-    [
-      "seatsAero.getTrips",
-      {
-        originAirport: originAirport?.iata ?? "",
-        destinationAirport: destinationAirport?.iata ?? "",
-        travelDate: selectedDate ?? "",
-      },
-    ],
+  const { data: awardTrips } = api.seatsAero.getTrips.useQuery(
+    {
+      originAirport: originAirport?.iata ?? "",
+      destinationAirport: destinationAirport?.iata ?? "",
+      travelDate: selectedDate ?? "",
+    },
     {
       enabled: Boolean(
         selectedDate && originAirport?.iata && destinationAirport?.iata,

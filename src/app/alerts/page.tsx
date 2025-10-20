@@ -83,7 +83,7 @@ function toAlertRow(alert: Alert): AlertTableRow | null {
 }
 
 export default function AlertsPage() {
-  const alertsQuery = api.useQuery(["alerts.list"], {
+  const alertsQuery = api.alerts.list.useQuery(undefined, {
     retry: (failureCount, error) => {
       // Don't retry on AbortError (user cancelled request)
       if (
@@ -108,16 +108,16 @@ export default function AlertsPage() {
     },
   });
 
-  const utils = api.useContext();
+  const utils = api.useUtils();
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const deleteMutation = api.useMutation(["alerts.delete"], {
+  const deleteMutation = api.alerts.delete.useMutation({
     onMutate: ({ id }) => {
       setPendingDeleteId(id);
     },
     onSuccess: () => {
       toast.success("Alert deleted");
-      void utils.invalidateQueries(["alerts.list"]);
+      void utils.alerts.list.invalidate();
     },
     onError: (error) => {
       // Silently handle AbortError - user cancelled request intentionally

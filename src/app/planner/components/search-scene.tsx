@@ -56,7 +56,7 @@ import {
   isFullDayTimeRange,
 } from "@/hooks/use-flight-explorer";
 import { MaxStops, SeatType, TripType } from "@/lib/fli/models";
-import { trpc } from "@/lib/trpc/react";
+import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type { AirportData } from "@/server/services/airports";
 import type { FlightOption } from "@/server/services/flights";
@@ -221,7 +221,7 @@ export function SearchScene({
   }, [initialFilters]);
 
   // tRPC mutations
-  const flightsDatesMutation = trpc.useMutation(["flights.dates"], {
+  const flightsDatesMutation = api.flights.dates.useMutation({
     onError: (error) => {
       if (
         error?.message?.includes("AbortError") ||
@@ -234,7 +234,7 @@ export function SearchScene({
     },
   });
 
-  const flightsSearchMutation = trpc.useMutation(["flights.search"], {
+  const flightsSearchMutation = api.flights.search.useMutation({
     onError: (error) => {
       if (
         error?.message?.includes("AbortError") ||

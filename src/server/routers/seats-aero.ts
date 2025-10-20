@@ -9,16 +9,16 @@ import {
   SeatsAeroSearchError,
   searchSeatsAero,
 } from "../services/seats-aero-search";
-import { createRouter } from "../trpc";
+import { publicProcedure, router } from "../trpc";
 
 /**
  * tRPC router for seats.aero flight searches
  * Provides cached award flight availability data
  */
-export const seatsAeroRouter = createRouter()
-  .query("search", {
-    input: SeatsAeroSearchInputSchema,
-    async resolve({ input }) {
+export const seatsAeroRouter = router({
+  search: publicProcedure
+    .input(SeatsAeroSearchInputSchema)
+    .query(async ({ input }) => {
       try {
         return await searchSeatsAero(input);
       } catch (error) {
@@ -36,22 +36,23 @@ export const seatsAeroRouter = createRouter()
           cause: error,
         });
       }
-    },
-  })
-  .query("getAvailabilityByDay", {
-    input: z.object({
-      originAirport: z.string().length(3),
-      destinationAirport: z.string().length(3),
-      searchStartDate: z.string(),
-      searchEndDate: z.string(),
-      cabinClass: z
-        .enum(["economy", "business", "first", "premium_economy"])
-        .optional(),
-      sources: z.array(z.string()).optional(),
-      maxStops: z.number().int().min(0).max(10).optional(),
-      directOnly: z.boolean().optional(),
     }),
-    async resolve({ input }) {
+  getAvailabilityByDay: publicProcedure
+    .input(
+      z.object({
+        originAirport: z.string().length(3),
+        destinationAirport: z.string().length(3),
+        searchStartDate: z.string(),
+        searchEndDate: z.string(),
+        cabinClass: z
+          .enum(["economy", "business", "first", "premium_economy"])
+          .optional(),
+        sources: z.array(z.string()).optional(),
+        maxStops: z.number().int().min(0).max(10).optional(),
+        directOnly: z.boolean().optional(),
+      }),
+    )
+    .query(async ({ input }) => {
       try {
         return await getAvailabilityByDay(input);
       } catch (error) {
@@ -61,22 +62,23 @@ export const seatsAeroRouter = createRouter()
           cause: error,
         });
       }
-    },
-  })
-  .query("getTrips", {
-    input: z.object({
-      originAirport: z.string().length(3),
-      destinationAirport: z.string().length(3),
-      travelDate: z.string(),
-      cabinClass: z
-        .enum(["economy", "business", "first", "premium_economy"])
-        .optional(),
-      source: z.string().optional(),
-      sources: z.array(z.string()).optional(),
-      maxStops: z.number().int().min(0).max(10).optional(),
-      directOnly: z.boolean().optional(),
     }),
-    async resolve({ input }) {
+  getTrips: publicProcedure
+    .input(
+      z.object({
+        originAirport: z.string().length(3),
+        destinationAirport: z.string().length(3),
+        travelDate: z.string(),
+        cabinClass: z
+          .enum(["economy", "business", "first", "premium_economy"])
+          .optional(),
+        source: z.string().optional(),
+        sources: z.array(z.string()).optional(),
+        maxStops: z.number().int().min(0).max(10).optional(),
+        directOnly: z.boolean().optional(),
+      }),
+    )
+    .query(async ({ input }) => {
       try {
         return await getAvailabilityTrips(input);
       } catch (error) {
@@ -86,5 +88,5 @@ export const seatsAeroRouter = createRouter()
           cause: error,
         });
       }
-    },
-  });
+    }),
+});

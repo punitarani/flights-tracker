@@ -10,7 +10,7 @@ import { AlertNotFoundError, AlertValidationError } from "@/core/errors";
 import { AlertFiltersSchema } from "@/core/filters";
 import { AlertTypeSchema } from "@/core/types";
 
-import { createRouter } from "../trpc";
+import { publicProcedure, router } from "../trpc";
 
 const CreateAlertInput = z.object({
   type: AlertTypeSchema,
@@ -18,54 +18,52 @@ const CreateAlertInput = z.object({
   alertEnd: z.string().optional(),
 });
 
-export const alertsRouter = createRouter()
-  .query("list", {
-    async resolve({ ctx }) {
-      const supabase = ctx.supabase;
+export const alertsRouter = router({
+  list: publicProcedure.query(async ({ ctx }) => {
+    const supabase = ctx.supabase;
 
-      if (!supabase) {
+    if (!supabase) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Authentication client not available",
+      });
+    }
+
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to retrieve session",
+      });
+    }
+
+    if (!user?.id) {
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+
+    try {
+      return await getUserAlerts(user.id, "active");
+    } catch (err) {
+      if (err instanceof AlertValidationError) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Authentication client not available",
+          code: "BAD_REQUEST",
+          message: err.message,
         });
       }
 
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
-
-      if (error) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to retrieve session",
-        });
-      }
-
-      if (!user?.id) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
-
-      try {
-        return await getUserAlerts(user.id, "active");
-      } catch (err) {
-        if (err instanceof AlertValidationError) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: err.message,
-          });
-        }
-
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to load alerts",
-        });
-      }
-    },
-  })
-  .mutation("delete", {
-    input: z.object({ id: z.string().min(1) }),
-    async resolve({ ctx, input }) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to load alerts",
+      });
+    }
+  }),
+  delete: publicProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
       const supabase = ctx.supabase;
 
       if (!supabase) {
@@ -125,11 +123,10 @@ export const alertsRouter = createRouter()
           message: "Failed to delete alert",
         });
       }
-    },
-  })
-  .mutation("create", {
-    input: CreateAlertInput,
-    async resolve({ ctx, input }) {
+    }),
+  create: publicProcedure
+    .input(CreateAlertInput)
+    .mutation(async ({ ctx, input }) => {
       const supabase = ctx.supabase;
 
       if (!supabase) {
@@ -175,5 +172,5 @@ export const alertsRouter = createRouter()
           message: "Failed to create alert",
         });
       }
-    },
-  });
+    }),
+});

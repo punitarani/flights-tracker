@@ -1,5 +1,5 @@
-import { createRouter } from "../trpc";
+import { publicProcedure, router } from "../trpc";
 
-export const healthRouter = createRouter().query("ping", {
-  resolve: () => ({ status: "ok" }),
+export const healthRouter = router({
+  ping: publicProcedure.query(() => ({ status: "ok" })),
 });

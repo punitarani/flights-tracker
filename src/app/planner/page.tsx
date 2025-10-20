@@ -46,8 +46,8 @@ export default function PlannerPage() {
   });
 
   // Load airports for search scene
-  const airportSearchQuery = api.useQuery(
-    ["airports.search", { limit: 10000 }],
+  const airportSearchQuery = api.airports.search.useQuery(
+    { limit: 10000 },
     {
       retry: (failureCount, error) => {
         if (

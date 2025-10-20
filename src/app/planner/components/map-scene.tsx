@@ -18,10 +18,8 @@ export function MapScene({ scene }: MapSceneProps) {
   const [selectedAirports, setSelectedAirports] = useState<AirportData[]>([]);
 
   // Fetch all airports for display
-  const { data: allAirportsData, isLoading: isLoadingAirports } = api.useQuery([
-    "airports.search",
-    { limit: 1000 },
-  ]);
+  const { data: allAirportsData, isLoading: isLoadingAirports } =
+    api.airports.search.useQuery({ limit: 1000 });
 
   const allAirports = allAirportsData?.airports ?? [];
 

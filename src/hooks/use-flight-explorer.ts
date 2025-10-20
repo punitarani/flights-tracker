@@ -28,7 +28,7 @@ import {
 import { MaxStops, SeatType, TripType } from "@/lib/fli/models";
 import { logger } from "@/lib/logger";
 import { type MapKitMap, mapKitLoader } from "@/lib/mapkit-service";
-import { trpc } from "@/lib/trpc/react";
+import { api } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
 import type { FlightOption } from "@/server/services/flights";
 
@@ -771,8 +771,8 @@ export function useFlightExplorer({
   const latestNearbyRequestRef = useRef(0);
   const latestSearchRequestRef = useRef(0);
   const latestFlightOptionsRequestRef = useRef(0);
-  const trpcContext = trpc.useContext();
-  const flightsDatesMutation = trpc.useMutation(["flights.dates"], {
+  const trpcContext = api.useUtils();
+  const flightsDatesMutation = api.flights.dates.useMutation({
     onError: (error) => {
       // Silently handle AbortError - user cancelled request intentionally
       if (
@@ -786,7 +786,7 @@ export function useFlightExplorer({
       setSearchError(error?.message ?? "Failed to search flight dates");
     },
   });
-  const flightsSearchMutation = trpc.useMutation(["flights.search"], {
+  const flightsSearchMutation = api.flights.search.useMutation({
     onError: (error) => {
       // Silently handle AbortError - user cancelled request intentionally
       if (
@@ -927,15 +927,12 @@ export function useFlightExplorer({
 
       try {
         setIsLoadingNearby(true);
-        const data = await trpcContext.fetchQuery([
-          "airports.search",
-          {
-            lat,
-            lon,
-            radius: 100,
-            limit: 1000,
-          },
-        ]);
+        const data = await trpcContext.airports.search.fetch({
+          lat,
+          lon,
+          radius: 100,
+          limit: 1000,
+        });
 
         if (latestNearbyRequestRef.current !== requestId) {
           return;

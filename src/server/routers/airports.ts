@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { searchAirports } from "../services/airports";
-import { createRouter } from "../trpc";
+import { publicProcedure, router } from "../trpc";
 
 const searchInputSchema = z
   .object({
@@ -25,9 +25,8 @@ const searchInputSchema = z
     },
   );
 
-export const airportsRouter = createRouter().query("search", {
-  input: searchInputSchema,
-  resolve({ input }) {
+export const airportsRouter = router({
+  search: publicProcedure.input(searchInputSchema).query(({ input }) => {
     return searchAirports({
       query: input?.q,
       lat: input?.lat,
@@ -35,5 +34,5 @@ export const airportsRouter = createRouter().query("search", {
       radius: input?.radius,
       limit: input?.limit,
     });
-  },
+  }),
 });

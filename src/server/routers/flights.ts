@@ -7,12 +7,12 @@ import {
   searchCalendarPrices,
   searchFlights,
 } from "../services/flights";
-import { createRouter } from "../trpc";
+import { publicProcedure, router } from "../trpc";
 
-export const flightsRouter = createRouter()
-  .mutation("dates", {
-    input: FlightFiltersInputSchema,
-    async resolve({ input }) {
+export const flightsRouter = router({
+  dates: publicProcedure
+    .input(FlightFiltersInputSchema)
+    .mutation(async ({ input }) => {
       try {
         return await searchCalendarPrices(input);
       } catch (error) {
@@ -36,11 +36,10 @@ export const flightsRouter = createRouter()
           message: "Failed to search calendar prices",
         });
       }
-    },
-  })
-  .mutation("search", {
-    input: FlightFiltersInputSchema,
-    async resolve({ input }) {
+    }),
+  search: publicProcedure
+    .input(FlightFiltersInputSchema)
+    .mutation(async ({ input }) => {
       try {
         return await searchFlights(input);
       } catch (error) {
@@ -64,5 +63,5 @@ export const flightsRouter = createRouter()
           message: "Failed to search flights",
         });
       }
-    },
-  });
+    }),
+});
