@@ -6,15 +6,26 @@ import { SearchScene } from "./search-scene";
 interface SceneViewProps {
   scene: PlannerScene;
   airports?: AirportData[];
+  isLoadingAirports?: boolean;
 }
 
-export function SceneView({ scene, airports = [] }: SceneViewProps) {
+export function SceneView({
+  scene,
+  airports = [],
+  isLoadingAirports = false,
+}: SceneViewProps) {
   if (scene.view === "map") {
     return <MapScene scene={scene} />;
   }
 
   if (scene.view === "search") {
-    return <SearchScene scene={scene} airports={airports} />;
+    return (
+      <SearchScene
+        scene={scene}
+        airports={airports}
+        isLoadingAirports={isLoadingAirports}
+      />
+    );
   }
 
   // Fallback
