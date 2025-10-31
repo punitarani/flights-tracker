@@ -15,6 +15,10 @@ export async function renderPriceDropEmailWithAI(payload: PriceDropAlertEmail) {
 
   try {
     const blueprint = await generatePriceDropBlueprint(context);
+    // If blueprint is null (AI generation failed/disabled), use fallback rendering
+    if (!blueprint) {
+      return renderPriceDropAlertEmail(payload);
+    }
     return renderPriceDropAlertEmail(payload, { blueprint });
   } catch (_error) {
     return renderPriceDropAlertEmail(payload);
@@ -28,6 +32,10 @@ export async function renderDailyDigestEmailWithAI(
 
   try {
     const blueprint = await generateDailyDigestBlueprint(context);
+    // If blueprint is null (AI generation failed/disabled), use fallback rendering
+    if (!blueprint) {
+      return renderDailyPriceUpdateEmail(payload);
+    }
     return renderDailyPriceUpdateEmail(payload, { blueprint });
   } catch (_error) {
     return renderDailyPriceUpdateEmail(payload);

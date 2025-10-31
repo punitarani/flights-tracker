@@ -24,6 +24,9 @@ export interface WorkerEnv {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
 
+  // AI Gateway (for email generation)
+  AI_GATEWAY_API_KEY: string;
+
   // Sentry (for error tracking)
   SENTRY_DSN: string;
   SENTRY_ENVIRONMENT: string;
