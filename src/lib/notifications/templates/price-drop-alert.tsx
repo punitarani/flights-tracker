@@ -172,12 +172,26 @@ function renderBlueprintEmail(
 
   const sections = renderSectionsFromBlueprint(blueprint.sections);
 
+  // Always render the actual flight data from the payload, even when using AI blueprint
+  const flightCards = payload.flights.length > 0 ? (
+    <EmailSection>
+      <FlightCardGrid
+        cards={payload.flights.map((flight, idx) => ({
+          title: `Option ${idx + 1}`,
+          description: `${payload.alert.origin} → ${payload.alert.destination}`,
+          highlights: buildFlightHighlights(flight),
+        }))}
+      />
+    </EmailSection>
+  ) : null;
+
   const html = wrapWithLayout(
     previewText,
     <>
       {renderHero(payload)}
       {intro}
       {sections}
+      {flightCards}
       {callToAction}
       {personalization}
     </>,

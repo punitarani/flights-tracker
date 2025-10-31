@@ -102,20 +102,24 @@ function renderFallbackSections(payload: DailyPriceUpdateEmail) {
             ].filter(Boolean) as Array<{ label: string }>
           }
         />
-        <FlightCardGrid
-          cards={summary.flights.map((flight, idx) => ({
-            title: `Option ${idx + 1}`,
-            description: `${summary.alert.origin} → ${summary.alert.destination}`,
-            highlights: buildFlightHighlights(flight),
-          }))}
-        />
+        {summary.flights.length > 0 ? (
+          <FlightCardGrid
+            cards={summary.flights.map((flight, idx) => ({
+              title: `Option ${idx + 1}`,
+              description: `${summary.alert.origin} → ${summary.alert.destination}`,
+              highlights: buildFlightHighlights(flight),
+            }))}
+          />
+        ) : (
+          <TextBlock body="No flights found matching your alert criteria." />
+        )}
       </EmailSection>
     );
   });
 }
 
 function renderBlueprintEmail(
-  _payload: DailyPriceUpdateEmail,
+  payload: DailyPriceUpdateEmail,
   blueprint: EmailBlueprint,
   fallbackSubject: string,
   fallbackPreview: string,
@@ -139,11 +143,20 @@ function renderBlueprintEmail(
     ? renderCallToActionBlock(blueprint.metadata.callToAction)
     : null;
 
+  // Always render the actual flight data from the payload, even when using AI blueprint
+  const flightSections = renderFallbackSections(payload);
+
   const html = wrapWithLayout(
     previewText,
     <>
+      <EmailSection title="Daily flight price update">
+        <TextBlock
+          body={`Summary for ${escapeHtml(formatDate(payload.summaryDate))}`}
+        />
+      </EmailSection>
       {intro}
       {renderSectionsFromBlueprint(blueprint.sections)}
+      {flightSections}
       {callToAction}
       {personalization}
     </>,
