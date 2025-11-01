@@ -3,7 +3,7 @@ import { generateObject } from "ai";
 
 import { type EmailBlueprint, EmailBlueprintSchema } from "./ai-email-schemas";
 
-const MODEL_ID = "anthropic/claude-3.5-sonnet";
+const MODEL_ID = "openai/gpt-4o-mini";
 
 const BASE_BLUEPRINT: EmailBlueprint = {
   metadata: {
