@@ -4,7 +4,7 @@ import { generateObject } from "ai";
 import { env } from "@/env";
 import { type EmailBlueprint, EmailBlueprintSchema } from "./ai-email-schemas";
 
-const MODEL_ID = "openai/gpt-4o-mini";
+const MODEL_ID = "openai/gpt-5-mini";
 
 const BASE_BLUEPRINT: EmailBlueprint = {
   metadata: {
