@@ -23,7 +23,7 @@
     "trigger:alerts": "bun scripts/trigger-alerts.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^1.0.5",
+    "@ai-sdk/openai": "^2.0.59",
     "@ai-sdk/react": "^2.0.76",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
