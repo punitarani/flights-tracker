@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 
+import { env } from "@/env";
 import { type EmailBlueprint, EmailBlueprintSchema } from "./ai-email-schemas";
 
 const MODEL_ID = "openai/gpt-4o-mini";
@@ -45,8 +46,7 @@ async function generateBlueprint(
   const baselineJson = JSON.stringify(fallback, null, 2);
 
   // Get API key from environment
-  const apiKey =
-    process.env.AI_GATEWAY_API_KEY ?? process.env.NEXT_PUBLIC_AI_GATEWAY_API_KEY;
+  const apiKey = env.AI_GATEWAY_API_KEY;
 
   if (!apiKey) {
     console.warn(
