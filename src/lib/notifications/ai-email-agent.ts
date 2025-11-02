@@ -80,7 +80,10 @@ async function generateBlueprint(
     }
   } catch (error) {
     // Log error and use fallback rendering with actual flight data
-    console.warn("AI email generation failed, using fallback email rendering:", error);
+    console.warn(
+      "AI email generation failed, using fallback email rendering:",
+      error,
+    );
   }
 
   return null; // Return null to trigger fallback rendering with actual flight data
