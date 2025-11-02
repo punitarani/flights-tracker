@@ -119,7 +119,7 @@ export type PassengerInfo = z.infer<typeof PassengerInfoSchema>;
  */
 export const PriceLimitSchema = z.object({
   maxPrice: z.number().positive(),
-  currency: z.enum(Currency).optional().default(Currency.USD),
+  currency: z.nativeEnum(Currency).optional().default(Currency.USD),
 });
 
 export type PriceLimit = z.infer<typeof PriceLimitSchema>;
@@ -128,7 +128,7 @@ export type PriceLimit = z.infer<typeof PriceLimitSchema>;
  * Constraints for layovers in multi-leg flights.
  */
 export const LayoverRestrictionsSchema = z.object({
-  airports: z.array(z.enum(Airport)).optional(),
+  airports: z.array(z.nativeEnum(Airport)).optional(),
   maxDuration: z.number().positive().optional(),
 });
 
@@ -138,10 +138,10 @@ export type LayoverRestrictions = z.infer<typeof LayoverRestrictionsSchema>;
  * A single flight leg (segment) with airline and timing details.
  */
 export const FlightLegSchema = z.object({
-  airline: z.enum(Airline),
+  airline: z.nativeEnum(Airline),
   flightNumber: z.string(),
-  departureAirport: z.enum(Airport),
-  arrivalAirport: z.enum(Airport),
+  departureAirport: z.nativeEnum(Airport),
+  arrivalAirport: z.nativeEnum(Airport),
   departureDateTime: z.date(),
   arrivalDateTime: z.date(),
   duration: z.number().positive(), // in minutes
@@ -170,8 +170,8 @@ export type FlightResult = z.infer<typeof FlightResultSchema>;
  */
 export const FlightSegmentSchema = z
   .object({
-    departureAirport: z.array(z.array(z.union([z.enum(Airport), z.number()]))),
-    arrivalAirport: z.array(z.array(z.union([z.enum(Airport), z.number()]))),
+    departureAirport: z.array(z.array(z.union([z.nativeEnum(Airport), z.number()]))),
+    arrivalAirport: z.array(z.array(z.union([z.nativeEnum(Airport), z.number()]))),
     travelDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     timeRestrictions: TimeRestrictionsSchema.optional(),
     selectedFlight: FlightResultSchema.optional(),

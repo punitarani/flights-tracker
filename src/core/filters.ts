@@ -20,12 +20,12 @@ export type AlertRoute = z.infer<typeof AlertRouteSchema>;
 const AlertTimeRangeSchema = z
   .object({
     from: z
-      .number({ error: "Time range 'from' must be a number" })
+      .number({ invalid_type_error: "Time range 'from' must be a number" })
       .min(0, "Time range start must be at least 0")
       .max(24, "Time range start cannot exceed 24")
       .optional(),
     to: z
-      .number({ error: "Time range 'to' must be a number" })
+      .number({ invalid_type_error: "Time range 'to' must be a number" })
       .min(0, "Time range end must be at least 0")
       .max(24, "Time range end cannot exceed 24")
       .optional(),

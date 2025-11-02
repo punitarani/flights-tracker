@@ -30,8 +30,8 @@ export const env = createEnv({
     // Proxy Configuration
     PROXY_ENABLED: z
       .enum(["true", "false"])
-      .transform((val) => val === "true")
-      .default(false),
+      .default("false")
+      .transform((val) => val === "true"),
     PROXY_HOST: z.string().min(1).optional(),
     PROXY_PORT: z.coerce.number().positive().optional(),
     PROXY_USERNAME: z.string().min(1).optional(),
@@ -41,7 +41,7 @@ export const env = createEnv({
 
   client: {
     // Supabase
-    NEXT_PUBLIC_SUPABASE_URL: z.url(),
+    NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
 
     // Maps

@@ -51,7 +51,7 @@ async function main() {
       flights: [],
     });
 
-    const email = renderPriceDropAlertEmail(payload, { blueprint });
+    const email = renderPriceDropAlertEmail(payload, blueprint ? { blueprint } : undefined);
 
     await sendNotificationEmail({
       recipient: { email: recipientEmail },
@@ -71,7 +71,7 @@ async function main() {
 
   const context = buildDailyDigestBlueprintContext(payload);
   const blueprint = await generateDailyDigestBlueprint(context);
-  const email = renderDailyPriceUpdateEmail(payload, { blueprint });
+  const email = renderDailyPriceUpdateEmail(payload, blueprint ? { blueprint } : undefined);
 
   await sendNotificationEmail({
     recipient: { email: recipientEmail },
