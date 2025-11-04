@@ -46,10 +46,7 @@ export const PlannerSearchSceneSchema = z.object({
 export type PlannerSearchScene = z.infer<typeof PlannerSearchSceneSchema>;
 
 export const PlannerContextSchema = z.object({
-  scene: z.union([
-    PlannerMapSceneSchema,
-    PlannerSearchSceneSchema,
-  ]),
+  scene: z.union([PlannerMapSceneSchema, PlannerSearchSceneSchema]),
   user: z.object({
     id: z.string(),
     name: z.string(),

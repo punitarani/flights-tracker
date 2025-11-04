@@ -170,8 +170,12 @@ export type FlightResult = z.infer<typeof FlightResultSchema>;
  */
 export const FlightSegmentSchema = z
   .object({
-    departureAirport: z.array(z.array(z.union([z.nativeEnum(Airport), z.number()]))),
-    arrivalAirport: z.array(z.array(z.union([z.nativeEnum(Airport), z.number()]))),
+    departureAirport: z.array(
+      z.array(z.union([z.nativeEnum(Airport), z.number()])),
+    ),
+    arrivalAirport: z.array(
+      z.array(z.union([z.nativeEnum(Airport), z.number()])),
+    ),
     travelDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     timeRestrictions: TimeRestrictionsSchema.optional(),
     selectedFlight: FlightResultSchema.optional(),
