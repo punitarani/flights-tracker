@@ -293,4 +293,80 @@ describe("SeatsAeroClient - search", () => {
     expect(firstAvailability?.AvailabilityTrips).toBeDefined();
     expect(Array.isArray(firstAvailability?.AvailabilityTrips)).toBe(true);
   });
+
+  it("should timeout and throw SeatsAeroAPIError when request exceeds 5 minutes", async () => {
+    // Mock fetch to simulate abort by checking signal
+    mockFetch.mockImplementation((url, options) => {
+      return new Promise((resolve, reject) => {
+        const signal = options?.signal as AbortSignal;
+        
+        // Listen for abort event
+        if (signal) {
+          signal.addEventListener("abort", () => {
+            const abortError = new Error("The operation was aborted");
+            abortError.name = "AbortError";
+            reject(abortError);
+          });
+        }
+        
+        // Simulate a long-running request (never resolves on its own)
+        // The abort signal will trigger the rejection
+      });
+    });
+
+    const client = new SeatsAeroClient({
+      apiKey: "test-api-key",
+      baseUrl: "https://api.seats.aero",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    const params: SearchRequestParams = {
+      origin_airport: "SFO",
+      destination_airport: "PHX",
+    };
+
+    // Should throw timeout error (408)
+    await expect(client.search(params)).rejects.toThrow(SeatsAeroAPIError);
+    await expect(client.search(params)).rejects.toThrow(/timeout/i);
+    
+    try {
+      await client.search(params);
+    } catch (error) {
+      if (error instanceof SeatsAeroAPIError) {
+        expect(error.status).toBe(408);
+      }
+    }
+  }, 6 * 60 * 1000); // Set test timeout to 6 minutes to allow for the 5-minute timeout
+
+  it("should pass AbortSignal to fetch", async () => {
+    // Mock fetch
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify(mockSearchResponse), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const client = new SeatsAeroClient({
+      apiKey: "test-api-key",
+      baseUrl: "https://api.seats.aero",
+      fetchImpl: mockFetch as typeof fetch,
+    });
+
+    const params: SearchRequestParams = {
+      origin_airport: "SFO",
+      destination_airport: "PHX",
+    };
+
+    await client.search(params);
+
+    // Verify fetch was called with a signal
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
 });

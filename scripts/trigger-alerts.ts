@@ -129,14 +129,23 @@ async function triggerWorkflow(workerUrl: string): Promise<void> {
       );
     }
 
-    const response = await fetch(`${workerUrl}/trigger/check-alerts`, {
-      method: "POST",
-      headers,
-    });
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`HTTP ${response.status}: ${error}`);
+    try {
+      const response = await fetch(`${workerUrl}/trigger/check-alerts`, {
+        method: "POST",
+        headers,
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`HTTP ${response.status}: ${error}`);
+      }
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     const result = (await response.json()) as {

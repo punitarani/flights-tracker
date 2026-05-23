@@ -108,20 +108,32 @@ export async function searchSeatsAero(
     const workerApiKey = env.WORKER_API_KEY;
 
     try {
-      const response = await fetch(`${workerUrl}/trigger/seats-aero-search`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${workerApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(searchParams),
-      });
+      // Add timeout to prevent hanging if worker is unresponsive
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `Worker request failed: ${response.status} ${errorText}`,
+      try {
+        const response = await fetch(
+          `${workerUrl}/trigger/seats-aero-search`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${workerApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(searchParams),
+            signal: controller.signal,
+          },
         );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `Worker request failed: ${response.status} ${errorText}`,
+          );
+        }
+      } finally {
+        clearTimeout(timeoutId);
       }
     } catch (error) {
       // Rollback: mark search as failed so it can be retried
