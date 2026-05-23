@@ -1,16 +1,11 @@
 "use client";
 
-import { httpBatchLink } from "@trpc/client/links/httpBatchLink";
-import { httpLink } from "@trpc/client/links/httpLink";
-import { loggerLink } from "@trpc/client/links/loggerLink";
-import { splitLink } from "@trpc/client/links/splitLink";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { httpBatchLink, loggerLink, splitLink } from "@trpc/client";
 import { useEffect, useState } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
-import { createWebStoragePersistor } from "react-query/createWebStoragePersistor-experimental";
-import { persistQueryClient } from "react-query/persistQueryClient-experimental";
 import superjson from "superjson";
 
-import { trpc } from "./react";
+import { api } from "./react";
 
 const getBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -23,15 +18,6 @@ const getBaseUrl = () => {
 
   return `http://localhost:${process.env.PORT ?? 3000}`;
 };
-
-const PERSISTENCE_KEY = "flights-tracker-trpc-cache";
-
-const PUBLIC_QUERY_KEYS = new Set([
-  "airports.search",
-  "seatsAero.getAvailabilityByDay",
-  "seatsAero.getTrips",
-  "seatsAero.search",
-]);
 
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -48,27 +34,32 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    queryClient.setQueryDefaults(["airports.search"], {
+    // Note: In v10, query keys are arrays like [["airports","search"],{input:...}]
+    // We need to use getQueryKey() for proper type safety
+    queryClient.setQueryDefaults(api.airports.search.getQueryKey(), {
       staleTime: 60 * 60 * 1000,
       cacheTime: 2 * 60 * 60 * 1000,
     });
 
-    queryClient.setQueryDefaults(["seatsAero.getAvailabilityByDay"], {
-      staleTime: 60 * 60 * 1000,
-      cacheTime: 2 * 60 * 60 * 1000,
-    });
+    queryClient.setQueryDefaults(
+      api.seatsAero.getAvailabilityByDay.getQueryKey(),
+      {
+        staleTime: 60 * 60 * 1000,
+        cacheTime: 2 * 60 * 60 * 1000,
+      },
+    );
 
-    queryClient.setQueryDefaults(["seatsAero.getTrips"], {
+    queryClient.setQueryDefaults(api.seatsAero.getTrips.getQueryKey(), {
       staleTime: 15 * 60 * 1000,
       cacheTime: 60 * 60 * 1000,
     });
 
-    queryClient.setQueryDefaults(["seatsAero.search"], {
+    queryClient.setQueryDefaults(api.seatsAero.search.getQueryKey(), {
       staleTime: 5 * 60 * 1000,
       cacheTime: 30 * 60 * 1000,
     });
 
-    queryClient.setQueryDefaults(["alerts.list"], {
+    queryClient.setQueryDefaults(api.alerts.list.getQueryKey(), {
       staleTime: 0,
       cacheTime: 0,
       refetchOnMount: true,
@@ -76,56 +67,8 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
     });
   }, [queryClient]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const persistor = createWebStoragePersistor({
-      storage: window.localStorage,
-      key: PERSISTENCE_KEY,
-      throttleTime: 1000,
-      serialize: (client) => JSON.stringify(client),
-      deserialize: (cached) => JSON.parse(cached),
-    });
-
-    persistQueryClient({
-      queryClient,
-      persistor,
-      maxAge: 60 * 60 * 1000,
-      buster: "v1",
-      dehydrateOptions: {
-        shouldDehydrateQuery: (query) => {
-          if (!query.state.dataUpdatedAt || query.state.status !== "success") {
-            return false;
-          }
-
-          const [procedure] = query.queryKey;
-          if (
-            typeof procedure !== "string" ||
-            !PUBLIC_QUERY_KEYS.has(procedure)
-          ) {
-            return false;
-          }
-
-          if (procedure === "seatsAero.search") {
-            const data = query.state.data as { status?: string } | undefined;
-            if (data?.status !== "completed") {
-              return false;
-            }
-          }
-
-          return true;
-        },
-      },
-      hydrateOptions: undefined,
-    }).catch(() => {
-      void persistor.removeClient();
-    });
-  }, [queryClient]);
-
   const [trpcClient] = useState(() =>
-    trpc.createClient({
+    api.createClient({
       transformer: superjson,
       links: [
         loggerLink({
@@ -147,8 +90,8 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+    <api.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </trpc.Provider>
+    </api.Provider>
   );
 }

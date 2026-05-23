@@ -10,8 +10,8 @@ import { api } from "@/lib/trpc/react";
  * Query params (origin, destination, dates, filters) are read via nuqs to hydrate state.
  */
 export default function SearchPage() {
-  const airportSearchQuery = api.useQuery(
-    ["airports.search", { limit: 10000 }],
+  const airportSearchQuery = api.airports.search.useQuery(
+    { limit: 10000 },
     {
       retry: (failureCount, error) => {
         // Don't retry on AbortError (user cancelled request)

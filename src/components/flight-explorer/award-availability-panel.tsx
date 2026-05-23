@@ -28,7 +28,7 @@ import {
   ChartLegendContent,
   ChartTooltip,
 } from "@/components/ui/chart";
-import { trpc } from "@/lib/trpc/react";
+import { api } from "@/lib/trpc/react";
 import type { AirportData } from "@/server/services/airports";
 import { AWARD_CHART_CONFIG, MILEAGE_FORMATTER } from "./constants";
 
@@ -146,9 +146,8 @@ export function AwardAvailabilityPanel({
     .toISOString()
     .split("T")[0];
 
-  const { data: searchResult, isLoading: isSearching } = trpc.useQuery(
-    [
-      "seatsAero.search",
+  const { data: searchResult, isLoading: isSearching } =
+    api.seatsAero.search.useQuery(
       {
         originAirport: originAirport.iata,
         destinationAirport: destinationAirport.iata,
@@ -156,15 +155,14 @@ export function AwardAvailabilityPanel({
         endDate: seatsAeroEndDate,
         useCache: true,
       },
-    ],
-    {
-      refetchInterval: (data) =>
-        data?.status === "completed" || data?.status === "failed"
-          ? false
-          : 5000,
-      refetchOnWindowFocus: false,
-    },
-  );
+      {
+        refetchInterval: (data) =>
+          data?.status === "completed" || data?.status === "failed"
+            ? false
+            : 5000,
+        refetchOnWindowFocus: false,
+      },
+    );
 
   const searchStatus = searchResult?.status;
   const isWorkflowActive =
@@ -192,19 +190,16 @@ export function AwardAvailabilityPanel({
     data: dailyAvailability,
     isLoading: isLoadingDaily,
     error: dailyError,
-  } = trpc.useQuery(
-    [
-      "seatsAero.getAvailabilityByDay",
-      {
-        originAirport: originAirport.iata,
-        destinationAirport: destinationAirport.iata,
-        searchStartDate: seatsAeroStartDate,
-        searchEndDate: seatsAeroEndDate,
-        directOnly,
-        maxStops,
-        sources,
-      },
-    ],
+  } = api.seatsAero.getAvailabilityByDay.useQuery(
+    {
+      originAirport: originAirport.iata,
+      destinationAirport: destinationAirport.iata,
+      searchStartDate: seatsAeroStartDate,
+      searchEndDate: seatsAeroEndDate,
+      directOnly,
+      maxStops,
+      sources,
+    },
     {
       refetchInterval: isWorkflowActive ? 5000 : false,
       refetchOnWindowFocus: false,

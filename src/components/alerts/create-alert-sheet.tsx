@@ -166,7 +166,7 @@ export function CreateAlertSheet({
     isOpen,
   ]);
 
-  const createAlertMutation = api.useMutation(["alerts.create"], {
+  const createAlertMutation = api.alerts.create.useMutation({
     onSuccess: () => {
       toast.custom(renderAlertCreatedToast, { duration: 6000 });
       onOpenChange(false);

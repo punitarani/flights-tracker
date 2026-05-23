@@ -2,7 +2,7 @@ import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { Footer } from "@/components/footer";
+import { ConditionalFooter } from "@/components/conditional-footer";
 import { GlobalErrorHandler } from "@/components/global-error-handler";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/ui/theme-provider";
@@ -103,7 +103,7 @@ export default function RootLayout({
               <GlobalErrorHandler />
               <div className="flex min-h-screen flex-col bg-background">
                 <main className="flex flex-1 flex-col min-h-0">{children}</main>
-                <Footer />
+                <ConditionalFooter />
               </div>
               <Analytics />
               <Toaster richColors closeButton />
